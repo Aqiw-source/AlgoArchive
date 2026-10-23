@@ -1,0 +1,11 @@
+Third-party notices
+
+CPython 3.13.9 Windows embeddable distribution (x86-64)
+Source: https://www.python.org/downloads/release/python-3139/
+Archive: https://www.python.org/ftp/python/3.13.9/python-3.13.9-embed-amd64.zip
+Original ZIP SHA-256: 91d828c2da3a029b41699e918674a0cb379c02cf20dab9c501306885f837402a
+Original ZIP MD5 (matched python.org release page): f41c7640d30159cbbc708d9386d01d94
+License: see runtime/LICENSE.txt (PSF License and bundled component notices).
+The distribution is bundled without binary modifications; python313._pth adds the parent application directory.
+
+No third-party frontend libraries, CDN assets, or fonts are required.
