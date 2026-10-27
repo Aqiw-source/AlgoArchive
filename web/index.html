@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="__CSRF_TOKEN__">
+<meta name="user-name" content="__USER_NAME__">
+<title>算法档案</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=acm-icpc-2">
+<link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png?v=acm-icpc-2">
+<link rel="shortcut icon" type="image/x-icon" href="/app-provided.ico?v=acm-icpc-2">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/codex-theme.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="workspace-sidebar">
+      <a href="#home" class="sidebar-identity" data-nav="home">
+        <span class="profile-avatar" id="profile-avatar" aria-hidden="true">A</span>
+        <span class="identity-copy"><strong id="profile-name">本地用户</strong><small>算法档案 · 本地工作空间</small></span>
+      </a>
+      <div class="nav-label">工作空间</div>
+      <nav class="workspace-nav" aria-label="主导航">
+        <a href="#home" data-nav="home"><span class="nav-icon">⌂</span>首页</a>
+        <a href="#platform/codeforces" data-nav="platform/codeforces"><span class="nav-icon platform-icon cf">CF</span>Codeforces</a>
+        <a href="#platform/atcoder" data-nav="platform/atcoder"><span class="nav-icon platform-icon ac">AC</span>AtCoder</a>
+        <a href="#algorithms" data-nav="algorithms"><span class="nav-icon">{ }</span>算法模板<span class="nav-count" id="nav-algorithms">0</span></a>
+        <div class="nav-divider"></div>
+        <a href="#contests" data-nav="contests"><span class="nav-icon">▦</span>完整比赛<span class="nav-count" id="nav-contests">0</span></a>
+        <a href="#problems" data-nav="problems"><span class="nav-icon">≡</span>全部题目<span class="nav-count" id="nav-problems">0</span></a>
+      </nav>
+      <button type="button" class="settings-button" id="open-profile-settings" data-open-profile-settings aria-label="设置头像和用户名">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+        <span>设置</span>
+      </button>
+    </div>
+  </aside>
+  <section class="workspace">
+    <header class="workspace-topbar">
+      <div class="workspace-tab"><span class="tab-mark"></span><span id="toolbar-title">算法档案</span></div>
+      <div class="topbar-status"><span class="online-dot"></span>本地</div>
+    </header>
+    <main id="main" tabindex="-1"><div class="loading">正在打开本地题库…</div></main>
+  </section>
+</div>
+<dialog id="modal" aria-labelledby="dialog-title"></dialog>
+<div id="toast-area" role="status" aria-live="polite"></div>
+</body>
+</html>
