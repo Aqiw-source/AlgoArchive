@@ -9,3 +9,11 @@ License: see runtime/LICENSE.txt (PSF License and bundled component notices).
 The distribution is bundled without binary modifications; python313._pth adds the parent application directory.
 
 No third-party frontend libraries, CDN assets, or fonts are required.
+
+Inno Setup Simplified Chinese translation
+File: installer/ChineseSimplified.isl
+Maintainer: Zhenghan Yang (Kira)
+Source: https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation
+Usage: Build-time installer language file only; it is not embedded as an
+application runtime dependency. The file identifies Inno Setup 6.5.0+ and
+retains its own header and attribution.

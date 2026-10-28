@@ -11,7 +11,7 @@
   const platformLabel = value => knownPlatform(value) ? platforms[value] : value || '';
   const languages = {cpp: 'C++', python: 'Python', java: 'Java', other: '其他'};
   const extensions = {cpp: '.cpp', python: '.py', java: '.java', other: '.txt'};
-  const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1};
+  const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, settings: null, backups: []};
   let navigating = false;
   let renderNumber = 0;
   let draggedAlgorithmProblemId = null;
@@ -501,14 +501,63 @@
       toast(error.message,true);
     }
   }
-  function openProfileSettings(){
+  const formatBytes = value => {
+    const bytes = Number(value) || 0;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GiB`;
+  };
+  function settingsTabButton(id,label){
+    return `<button type="button" class="settings-tab" data-settings-tab="${id}">${esc(label)}</button>`;
+  }
+  function settingsProfileHTML(){
     const currentAvatar = avatarSource(state.profile?.avatar);
-    let pendingAvatar = null;
-    let previewAvatar = currentAvatar;
     const initialName = String(state.profile?.name || userName || '本地用户').trim() || '本地用户';
-    modal.innerHTML=`<form id="profile-form" novalidate>${dialogHeader('个人资料')}<div class="modal-body"><p>头像图片保存在本机数据目录的 avatar 文件夹中。</p><div class="profile-editor"><span class="profile-avatar profile-preview" id="profile-preview" aria-hidden="true"></span><div class="profile-upload"><strong>头像</strong><small>支持 PNG、JPEG、WebP，原文件不超过 512 KiB。</small><div class="profile-upload-actions"><button type="button" class="btn small" data-choose-avatar>选择图片</button><button type="button" class="btn small ghost" data-reset-avatar>使用默认头像</button></div><input type="file" id="profile-avatar-file" accept="image/png,image/jpeg,image/webp" hidden></div></div><label class="field profile-name-field"><span>用户名</span><input id="profile-name-input" name="name" required maxlength="50" autocomplete="nickname" value="${esc(initialName)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">保存资料</button></div></form>`;
-    modal.showModal();
-    const preview=$('#profile-preview'), nameInput=$('#profile-name-input'), fileInput=$('#profile-avatar-file'), error=$('#dialog-error');
+    return `<form id="profile-form" novalidate><p>头像图片保存在本机数据目录的 avatar 文件夹中。</p><div class="profile-editor"><span class="profile-avatar profile-preview" id="profile-preview" data-current-avatar="${esc(currentAvatar)}" aria-hidden="true"></span><div class="profile-upload"><strong>头像</strong><small>支持 PNG、JPEG、WebP，原文件不超过 512 KiB。</small><div class="profile-upload-actions"><button type="button" class="btn small" data-choose-avatar>选择图片</button><button type="button" class="btn small ghost" data-reset-avatar>使用默认头像</button></div><input type="file" id="profile-avatar-file" accept="image/png,image/jpeg,image/webp" hidden></div></div><label class="field profile-name-field"><span>用户名</span><input id="profile-name-input" name="name" required maxlength="50" autocomplete="nickname" value="${esc(initialName)}"></label><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="submit" class="btn primary">保存资料</button></div></form>`;
+  }
+  function settingsBrowserHTML(){
+    const browser=state.settings?.browser||{};
+    const mode=browser.mode||'default', windowMode=browser.window_mode||'tab';
+    return `<form id="browser-settings-form" novalidate><div class="settings-section-head"><div><h3>启动浏览器</h3><p>首次使用系统默认浏览器；此设置不会修改 Windows 全局默认应用。</p></div></div><label class="field"><span>浏览器</span><select name="mode" id="browser-mode">${option('default','系统默认浏览器',mode)}${option('edge','Microsoft Edge',mode)}${option('chrome','Google Chrome',mode)}${option('firefox','Mozilla Firefox',mode)}${option('custom','自定义可执行文件',mode)}</select></label><label class="field" id="browser-custom-field"><span>自定义浏览器路径 <small>仅接受本机可执行文件</small></span><input name="custom_path" id="browser-custom-path" maxlength="2048" value="${esc(browser.custom_path||'')}" placeholder="C:\\Program Files\\Browser\\browser.exe"></label><label class="field"><span>窗口模式</span><select name="window_mode" id="browser-window-mode">${option('tab','普通标签页',windowMode)}${option('app','独立应用窗口（Chrome / Edge）',windowMode)}</select></label><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="button" class="btn" id="browser-test">测试打开</button><button type="submit" class="btn primary">保存浏览器设置</button></div></form>`;
+  }
+  function settingsDataHTML(){
+    const settings=state.settings||{};
+    const backups=state.backups||[];
+    return `<div class="settings-section"><div class="settings-section-head"><div><h3>数据位置</h3><p>程序目录与数据目录相互独立。迁移前会自动创建完整备份。</p></div></div><div class="settings-path"><code>${esc(settings.data_dir||'')}</code><div class="actions"><button type="button" class="btn small" data-copy-settings-path="data_dir">复制路径</button><button type="button" class="btn small" data-open-data-folder>打开文件夹</button></div></div><label class="field"><span>迁移到新的完整数据目录 <small>必须是绝对路径</small></span><input id="new-data-dir" maxlength="2048" value="${esc(settings.data_dir||'')}" placeholder="D:\\AlgoArchive\\data"></label><div class="settings-hint">迁移成功后程序会退出；重新打开后会使用新目录。已有有效数据的目标目录不会被覆盖。</div><div class="settings-actions"><button type="button" class="btn" id="change-data-dir">迁移数据目录</button></div></div><div class="settings-section"><div class="settings-section-head"><div><h3>完整备份与恢复</h3><p>备份包含 SQLite 数据库、全部题目和算法代码、头像及业务设置。</p></div><button type="button" class="btn primary" id="create-backup">创建完整备份</button></div><label class="field"><span>本机备份</span><select id="backup-select">${backups.length?backups.map(item=>option(item.name,`${item.name} · ${formatBytes(item.size)}`,'')).join(''):option('','暂无备份','')}</select></label><div class="settings-actions wrap"><button type="button" class="btn" id="restore-backup" ${backups.length?'':'disabled'}>恢复所选备份</button><button type="button" class="btn" id="import-backup">导入 ZIP 备份</button><input type="file" id="backup-file" accept=".zip,application/zip" hidden></div><div class="settings-note">恢复前会先备份当前数据；备份无效或恢复失败时不会保留半完成状态。</div></div><div class="settings-section"><div class="settings-section-head"><div><h3>备份位置</h3><p>最多保留最近 20 份应用内创建的备份。</p></div></div><div class="settings-path"><code>${esc(settings.backup_dir||'')}</code><button type="button" class="btn small" data-copy-settings-path="backup_dir">复制路径</button></div></div>`;
+  }
+  function settingsAboutHTML(){
+    const settings=state.settings||{};
+    return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
+  }
+  function showSettingsTab(tab='profile'){
+    const safeTab=['profile','browser','data','about'].includes(tab)?tab:'profile';
+    modal.querySelectorAll('[data-settings-tab]').forEach(button=>button.classList.toggle('active',button.dataset.settingsTab===safeTab));
+    const content=$('#settings-content');
+    content.innerHTML=safeTab==='profile'?settingsProfileHTML():safeTab==='browser'?settingsBrowserHTML():safeTab==='data'?settingsDataHTML():settingsAboutHTML();
+    if(safeTab==='profile')bindProfileSettings();
+    else if(safeTab==='browser')bindBrowserSettings();
+    else if(safeTab==='data')bindDataSettings();
+    else bindAboutSettings();
+  }
+  async function openSettings(tab='profile'){
+    if(state.busy)return;
+    try{
+      const [settingsResult,backupResult]=await Promise.all([api('/api/settings'),api('/api/backups')]);
+      state.settings=settingsResult.settings;state.backups=backupResult.backups||[];
+      modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
+      modal.showModal();
+      $('.settings-tabs',modal).addEventListener('click',event=>{
+        const button=event.target.closest('[data-settings-tab]');
+        if(button)showSettingsTab(button.dataset.settingsTab);
+      });
+      showSettingsTab(tab);
+    }catch(error){toast(error.message,true);}
+  }
+  function bindProfileSettings(){
+    const currentAvatar=avatarSource(state.profile?.avatar);
+    let pendingAvatar=null,previewAvatar=currentAvatar;
+    const preview=$('#profile-preview'), nameInput=$('#profile-name-input'), fileInput=$('#profile-avatar-file'), error=$('#settings-error');
     const syncPreview=()=>paintAvatar(preview,previewAvatar);
     const showError=message=>{error.textContent=message;};
     syncPreview();
@@ -540,6 +589,90 @@
     });
     nameInput.focus();
     nameInput.select();
+  }
+  function readBrowserSettingsForm(){
+    const form=$('#browser-settings-form');
+    if(!form)return null;
+    return {mode:form.elements.mode.value,window_mode:form.elements.window_mode.value,custom_path:form.elements.custom_path.value.trim()};
+  }
+  function syncBrowserCustomField(){
+    const mode=$('#browser-mode')?.value;
+    const field=$('#browser-custom-field');
+    if(field)field.hidden=mode!=='custom';
+  }
+  function bindBrowserSettings(){
+    syncBrowserCustomField();
+    $('#browser-mode').addEventListener('change',syncBrowserCustomField);
+    $('#browser-test').addEventListener('click',async()=>{
+      if(state.busy)return;
+      setModalBusy(true);
+      try{const result=await api('/api/settings/browser/test','POST',readBrowserSettingsForm());setModalBusy(false);toast(result.launch.message,!result.launch.ok);}
+      catch(error){setModalBusy(false);const target=$('#settings-error');if(target)target.textContent=error.message;}
+    });
+    $('#browser-settings-form').addEventListener('submit',async event=>{
+      event.preventDefault();if(state.busy)return;setModalBusy(true);
+      try{const result=await api('/api/settings/browser','PUT',readBrowserSettingsForm());state.settings.browser=result.browser;setModalBusy(false);toast('浏览器设置已保存。');}
+      catch(error){setModalBusy(false);const target=$('#settings-error');if(target)target.textContent=error.message;}
+    });
+  }
+  async function refreshBackups(){
+    const result=await api('/api/backups');state.backups=result.backups||[];
+    showSettingsTab('data');
+  }
+  async function uploadBackupFile(file){
+    if(!file)return;
+    if(!file.name.toLocaleLowerCase().endsWith('.zip'))throw new Error('请选择 ZIP 备份文件。');
+    if(file.size>512*1024*1024)throw new Error('备份文件不能超过 512 MiB。');
+    const response=await fetch('/api/backups/upload',{method:'POST',headers:{'X-CSRF-Token':csrf,'Content-Type':'application/zip','X-Backup-Filename':encodeURIComponent(file.name)},body:file});
+    let data;try{data=await response.json();}catch(_){throw new Error('备份上传返回了无效内容。');}
+    if(!response.ok)throw new Error(data.error||'备份导入失败。');
+    return data.backup;
+  }
+  function bindDataSettings(){
+    modal.querySelectorAll('[data-copy-settings-path]').forEach(button=>button.addEventListener('click',async()=>{
+      const value=state.settings?.[button.dataset.copySettingsPath]||'';
+      try{await navigator.clipboard.writeText(value);toast('路径已复制。');}catch(_){toast('无法写入剪贴板，请手动选择路径复制。',true);}
+    }));
+    $('[data-open-data-folder]')?.addEventListener('click',async()=>{try{await api('/api/open-data-folder','POST',{});}catch(error){toast(error.message,true);}});
+    $('#change-data-dir')?.addEventListener('click',async()=>{
+      const target=$('#new-data-dir').value.trim();
+      if(!target){toast('请填写新的数据目录。',true);return;}
+      if(!window.confirm('迁移成功后程序会退出，重新打开时使用新目录。确定继续吗？'))return;
+      setModalBusy(true);
+      try{const result=await api('/api/data-directory','POST',{data_dir:target});setModalBusy(false);$('#settings-content').innerHTML=`<div class="settings-complete"><h3>数据迁移完成</h3><p>${esc(result.message)}</p><code>${esc(result.new_data_dir)}</code></div>`;toast('数据已迁移，请重新打开程序。');}
+      catch(error){setModalBusy(false);toast(error.message,true);}
+    });
+    $('#create-backup')?.addEventListener('click',async()=>{
+      if(state.busy)return;setModalBusy(true);
+      try{const result=await api('/api/backups/create','POST',{});setModalBusy(false);toast(`备份已创建：${result.backup.name}`);await refreshBackups();}
+      catch(error){setModalBusy(false);toast(error.message,true);}
+    });
+    $('#restore-backup')?.addEventListener('click',async()=>{
+      const select=$('#backup-select');if(!select?.value)return;
+      if(!window.confirm('恢复备份会覆盖当前数据。程序会先备份当前数据，确定继续吗？'))return;
+      setModalBusy(true);
+      try{const result=await api('/api/backups/restore','POST',{name:select.value,confirmed:true});setModalBusy(false);closeModal();toast('备份已恢复。');await loadState();await renderRoute(state.route);}
+      catch(error){setModalBusy(false);toast(error.message,true);}
+    });
+    const fileInput=$('#backup-file');
+    $('#import-backup')?.addEventListener('click',()=>fileInput?.click());
+    fileInput?.addEventListener('change',async()=>{
+      const file=fileInput.files?.[0];fileInput.value='';if(!file)return;
+      setModalBusy(true);
+      try{const backup=await uploadBackupFile(file);setModalBusy(false);toast(`备份已导入：${backup.name}`);await refreshBackups();}
+      catch(error){setModalBusy(false);toast(error.message,true);}
+    });
+  }
+  function bindAboutSettings(){
+    modal.querySelectorAll('[data-copy-settings-path]').forEach(button=>button.addEventListener('click',async()=>{
+      try{await navigator.clipboard.writeText(state.settings?.[button.dataset.copySettingsPath]||'');toast('路径已复制。');}catch(_){toast('无法写入剪贴板。',true);}
+    }));
+    $('[data-open-log-folder]')?.addEventListener('click',async()=>{try{await api('/api/open-log-folder','POST',{});}catch(error){toast(error.message,true);}});
+    $('[data-shutdown-app]')?.addEventListener('click',async()=>{
+      if(!window.confirm('确定退出算法档案吗？'))return;
+      try{await api('/api/shutdown','POST',{});setModalBusy(false);$('#settings-content').innerHTML='<div class="settings-complete"><h3>程序已退出</h3><p>可以关闭这个页面，需要时重新打开算法档案。</p></div>';}
+      catch(error){toast(error.message,true);}
+    });
   }
   function openContestForm(id='', platform=''){
     const c=state.contests.find(c=>c.id===id)||{platform:platform||'codeforces',title:'',url:''};
@@ -614,6 +747,15 @@
     } else if(e.key==='Enter') {e.preventDefault();const start=a.selectionStart;const before=a.value.slice(0,start);const line=before.slice(before.lastIndexOf('\n')+1);let indent=(line.match(/^\s*/)||[''])[0];if(/[{:][ \t]*$/.test(line))indent+='    ';a.setRangeText('\n'+indent,a.selectionStart,a.selectionEnd,'end');a.dispatchEvent(new Event('input',{bubbles:true}));}
     requestAnimationFrame(updateCursor);
   }
+  const workspaceSidebar=$('.workspace-sidebar');
+  workspaceSidebar?.addEventListener('wheel',e=>{
+    if(window.matchMedia('(max-width: 720px)').matches||Math.abs(e.deltaY)<=Math.abs(e.deltaX))return;
+    const maxScroll=workspaceSidebar.scrollHeight-workspaceSidebar.clientHeight;
+    if(maxScroll<=1){e.preventDefault();return;}
+    const atTop=workspaceSidebar.scrollTop<=0;
+    const atBottom=Math.ceil(workspaceSidebar.scrollTop+workspaceSidebar.clientHeight)>=workspaceSidebar.scrollHeight;
+    if((e.deltaY<0&&atTop)||(e.deltaY>0&&atBottom))e.preventDefault();
+  },{passive:false});
   document.addEventListener('dragstart',e=>{
     const handle=e.target.closest?.('[data-drag-algorithm-problem]');
     if(!handle||state.busy){if(handle)e.preventDefault();return;}
@@ -680,7 +822,7 @@
     else if(t.hasAttribute('data-delete-snippet'))deleteSnippet();
     else if(t.hasAttribute('data-unlink-contest'))unlinkContest();
     else if(t.hasAttribute('data-unlink-algorithm'))unlinkAlgorithm();
-    else if(t.hasAttribute('data-open-profile-settings'))openProfileSettings();
+    else if(t.hasAttribute('data-open-profile-settings'))await openSettings('profile');
     else if(t.hasAttribute('data-close-modal'))closeModal();
     else if(t.hasAttribute('data-retry'))await renderRoute(state.route);
   });

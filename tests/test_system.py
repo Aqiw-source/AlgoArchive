@@ -28,6 +28,7 @@ class SystemTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix="algo-test-")
         self.addCleanup(self.tmp.cleanup)
         self.data = Path(self.tmp.name) / "中文目录 用户 数据"
+        self.config_path = Path(self.tmp.name) / "config" / "config.json"
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             self.port = sock.getsockname()[1]
@@ -41,6 +42,7 @@ class SystemTests(unittest.TestCase):
     def start_server(self):
         self.process = subprocess.Popen(
             [sys.executable, "-X", "utf8", str(PROJECT / "app.py"), "--data-dir", str(self.data),
+             "--config-path", str(self.config_path),
              "--port", str(self.port), "--no-browser"],
             cwd=str(PROJECT), stdout=self.log, stderr=subprocess.STDOUT,
         )
@@ -354,6 +356,14 @@ class SystemTests(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertNotEqual(match.group(1), "__USER_NAME__")
         self.assertTrue(match.group(1).strip())
+
+    def test_index_exposes_github_repository_and_author(self):
+        self.assertIn(
+            'href="https://github.com/Aqiw-source/AlgoArchive"',
+            self.index_html,
+        )
+        self.assertIn('rel="noopener noreferrer"', self.index_html)
+        self.assertIn("作者 Aqiw", self.index_html)
 
     def test_profile_name_and_avatar_persist_after_restart(self):
         avatar = (
@@ -819,6 +829,76 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(detail["snippets"]), 1)
         saved = self.request("GET", "/api/algorithm-snippets/" + snippet["id"])["snippet"]
         self.assertEqual(saved["code"], "// 中文持久化\nint bit[10];\n")
+
+    def test_browser_settings_persist_across_restart(self):
+        initial = self.request("GET", "/api/settings")["settings"]
+        self.assertEqual(initial["browser"]["mode"], "default")
+        updated = self.request("PUT", "/api/settings/browser", {
+            "mode": "edge",
+            "window_mode": "app",
+            "custom_path": "",
+        })["browser"]
+        self.assertEqual(updated["mode"], "edge")
+        self.assertEqual(updated["window_mode"], "app")
+
+        self.stop_server()
+        self.start_server()
+        saved = self.request("GET", "/api/settings")["settings"]
+        self.assertEqual(saved["browser"]["mode"], "edge")
+        self.assertEqual(saved["browser"]["window_mode"], "app")
+
+    def test_backup_and_restore_round_trip(self):
+        contest = self.contest()
+        problem = self.problem(contest_id=contest["id"])
+        source = (self.data / problem["code_path"]).read_text(encoding="utf-8")
+
+        backup = self.request(
+            "POST",
+            "/api/backups/create",
+            {},
+            expected=201,
+        )["backup"]
+        self.assertTrue(Path(backup["path"]).is_file())
+        self.request(
+            "DELETE",
+            "/api/problems/" + problem["id"],
+            {"version": problem["version"], "confirmed": True},
+        )
+        self.assertEqual(self.request("GET", "/api/state")["problems"], [])
+
+        restored = self.request("POST", "/api/backups/restore", {
+            "name": backup["name"],
+            "confirmed": True,
+        })
+        self.assertTrue(restored["ok"])
+        state = self.request("GET", "/api/state")
+        self.assertEqual(len(state["problems"]), 1)
+        self.assertEqual(state["problems"][0]["id"], problem["id"])
+        self.assertEqual(
+            (self.data / problem["code_path"]).read_text(encoding="utf-8"),
+            source,
+        )
+
+    def test_data_directory_change_migrates_and_updates_saved_config(self):
+        problem = self.problem()
+        target = Path(self.tmp.name) / "迁移后的数据"
+        result = self.request("POST", "/api/data-directory", {
+            "data_dir": str(target),
+        })
+        self.assertTrue(result["restart_required"])
+        self.assertEqual(result["new_data_dir"], str(target.resolve()))
+        self.process.wait(timeout=8)
+
+        self.assertTrue((target / "archive.sqlite3").is_file())
+        moved = sqlite3.connect(target / "archive.sqlite3")
+        try:
+            count = moved.execute("SELECT COUNT(*) FROM problems").fetchone()[0]
+        finally:
+            moved.close()
+        self.assertEqual(count, 1)
+        config = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual(config["data_dir"], str(target.resolve()))
+        self.assertTrue((target / problem["code_path"]).is_file())
 
 
 if __name__ == "__main__":

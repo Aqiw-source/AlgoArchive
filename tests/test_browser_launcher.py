@@ -1,4 +1,4 @@
-"""Tests for opening AlgoArchive in Google Chrome."""
+"""Tests for browser settings and external-process launching."""
 
 from pathlib import Path
 import unittest
@@ -8,6 +8,14 @@ import app
 
 
 class BrowserLauncherTests(unittest.TestCase):
+    def test_windows_launchers_use_saved_config_instead_of_forced_data_dir(self):
+        root = Path(__file__).resolve().parents[1]
+        for name in ("启动.bat", "start.bat"):
+            content = (root / name).read_text(encoding="utf-8")
+            normalized = content.casefold().replace("/", "\\")
+            self.assertNotIn("--data-dir", normalized)
+            self.assertNotIn("algoarchive_data", normalized)
+
     def test_chrome_candidates_include_standard_program_files_path(self):
         candidates = app.chrome_candidates()
         self.assertIn(
@@ -15,35 +23,62 @@ class BrowserLauncherTests(unittest.TestCase):
             candidates,
         )
 
-    def test_open_browser_prefers_installed_chrome(self):
-        chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-        with mock.patch("app.find_chrome_executable", return_value=chrome):
-            with mock.patch("app.subprocess.Popen") as popen:
-                with mock.patch("app.webbrowser.open") as fallback:
-                    self.assertTrue(app.open_browser("http://127.0.0.1:8765"))
+    def test_default_browser_mode_uses_system_default(self):
+        with mock.patch("app.webbrowser.open", return_value=True) as default:
+            result = app.launch_browser(
+                "http://127.0.0.1:8765",
+                {"mode": "default", "window_mode": "tab"},
+            )
 
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["browser"], "system")
+        default.assert_called_once_with("http://127.0.0.1:8765")
+
+    def test_explicit_chrome_mode_uses_parameter_array(self):
+        chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+        with mock.patch("app.find_browser_executable", return_value=chrome):
+            with mock.patch("app.subprocess.Popen") as popen:
+                result = app.launch_browser(
+                    "http://127.0.0.1:8765",
+                    {"mode": "chrome", "window_mode": "tab"},
+                )
+
+        self.assertTrue(result["ok"])
         popen.assert_called_once()
         self.assertEqual(
             popen.call_args.args[0],
             [str(chrome), "http://127.0.0.1:8765"],
         )
-        fallback.assert_not_called()
 
-    def test_open_browser_falls_back_when_chrome_is_missing(self):
-        with mock.patch("app.find_chrome_executable", return_value=None):
-            with mock.patch("app.webbrowser.open", return_value=False) as fallback:
-                self.assertFalse(app.open_browser("http://127.0.0.1:8765"))
-
-        fallback.assert_called_once_with("http://127.0.0.1:8765")
-
-    def test_open_browser_falls_back_when_chrome_cannot_start(self):
+    def test_chromium_app_window_mode_uses_app_argument(self):
         chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-        with mock.patch("app.find_chrome_executable", return_value=chrome):
+        with mock.patch("app.find_browser_executable", return_value=chrome):
+            with mock.patch("app.subprocess.Popen") as popen:
+                result = app.launch_browser(
+                    "http://127.0.0.1:8765",
+                    {"mode": "chrome", "window_mode": "app"},
+                )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            popen.call_args.args[0],
+            [str(chrome), "--app=http://127.0.0.1:8765"],
+        )
+
+    def test_failed_explicit_browser_falls_back_and_reports_reason(self):
+        chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+        with mock.patch("app.find_browser_executable", return_value=chrome):
             with mock.patch("app.subprocess.Popen", side_effect=OSError("blocked")):
-                with mock.patch("app.webbrowser.open", return_value=False) as fallback:
-                    self.assertFalse(app.open_browser("http://127.0.0.1:8765"))
+                with mock.patch("app.webbrowser.open", return_value=True) as fallback:
+                    result = app.launch_browser(
+                        "http://127.0.0.1:8765",
+                        {"mode": "chrome", "window_mode": "tab"},
+                    )
 
         fallback.assert_called_once_with("http://127.0.0.1:8765")
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["fallback"])
+        self.assertIn("系统默认浏览器", result["message"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,27 @@
+name: Windows verification
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Backend tests
+        run: python -X utf8 -m unittest discover -s tests -v
+      - name: Frontend syntax
+        run: node --check web/app.js
+      - name: Build portable package
+        shell: powershell
+        run: .\scripts\build-portable.ps1
+      - name: Verify release privacy and contents
+        shell: powershell
+        run: .\scripts\verify-release.ps1 -ArchivePath (Get-ChildItem .\dist\*.zip | Select-Object -First 1).FullName

@@ -7,7 +7,9 @@ import sqlite3
 import tempfile
 import unittest
 from unittest import mock
+import zipfile
 
+import app as app_module
 from app import Repository, default_data_dir, migrate_legacy_data
 
 
@@ -229,23 +231,140 @@ class StorageMigrationTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
 
-    def test_default_data_dir_uses_localappdata(self):
-        local = self.root / "Local"
-        with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(local)}):
-            self.assertEqual(
-                default_data_dir(),
-                local / "AlgoArchive" / "data",
-            )
-
-    def test_default_data_dir_ignores_codex_package_cache(self):
+    def test_default_data_dir_is_outside_localappdata(self):
         profile = self.root / "User"
-        packaged = profile / "AppData" / "Local" / "Packages" / "OpenAI.Codex" / "LocalCache" / "Local"
-        with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(packaged)}):
+        local = profile / "AppData" / "Local"
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(local)}):
             with mock.patch.object(Path, "home", return_value=profile):
                 self.assertEqual(
                     default_data_dir(),
-                    profile / "AppData" / "Local" / "AlgoArchive" / "data",
+                    profile / "AlgoArchive" / "data",
                 )
+
+    def test_saved_config_path_wins_over_default_but_not_explicit_cli(self):
+        config_path = self.root / "config" / "config.json"
+        configured = self.root / "custom" / "data"
+        explicit = self.root / "explicit" / "data"
+        app_module.save_user_config(
+            {"format": 1, "data_dir": str(configured)},
+            config_path,
+        )
+
+        self.assertEqual(
+            app_module.resolve_data_dir(None, config_path),
+            configured.resolve(),
+        )
+        self.assertEqual(
+            app_module.resolve_data_dir(str(explicit), config_path),
+            explicit.resolve(),
+        )
+
+    def test_residual_target_directory_is_safe_to_migrate(self):
+        legacy = make_v1_data(self.root / "legacy")
+        target = self.root / "target"
+        target.mkdir()
+        (target / "runtime.lock").write_text("stale", encoding="ascii")
+
+        app_module.prepare_user_data_dir(target, [legacy])
+
+        self.assertTrue((target / "archive.sqlite3").is_file())
+        self.assertFalse((target / "runtime.lock").exists())
+        self.assertFalse(legacy.exists())
+
+    def test_incomplete_target_is_not_overwritten(self):
+        legacy = make_v1_data(self.root / "legacy")
+        target = self.root / "target"
+        target.mkdir()
+        (target / "notes.txt").write_text("keep", encoding="utf-8")
+
+        with self.assertRaises(app_module.AppError) as error:
+            app_module.prepare_user_data_dir(target, [legacy])
+
+        self.assertEqual(error.exception.code, "data_incomplete")
+        self.assertTrue((target / "notes.txt").is_file())
+        self.assertTrue((legacy / "archive.sqlite3").is_file())
+
+    def test_two_valid_legacy_directories_require_explicit_choice(self):
+        first = make_v1_data(self.root / "first")
+        second = make_v1_data(self.root / "second")
+        target = self.root / "target"
+
+        with self.assertRaises(app_module.AppError) as error:
+            app_module.prepare_user_data_dir(target, [first, second])
+
+        self.assertEqual(error.exception.code, "data_conflict")
+        self.assertFalse(target.exists())
+
+    def test_incompatible_database_is_rejected_before_schema_writes(self):
+        data = self.root / "future-data"
+        data.mkdir()
+        with closing(sqlite3.connect(data / "archive.sqlite3")) as db:
+            db.executescript(
+                """
+                CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO settings VALUES ('schema_version', '99');
+                """
+            )
+            db.commit()
+
+        with self.assertRaises(app_module.AppError) as error:
+            Repository(data)
+
+        self.assertEqual(error.exception.code, "database_incompatible")
+        with closing(sqlite3.connect(data / "archive.sqlite3")) as db:
+            tables = {
+                row[0]
+                for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+        self.assertEqual(tables, {"settings"})
+
+    def test_repository_relocation_preserves_database_and_code(self):
+        source = self.root / "source-data"
+        target = self.root / "new-data"
+        repo = Repository(source)
+        try:
+            problem = repo.create_problem(
+                {
+                    "platform": "codeforces",
+                    "number": "A",
+                    "name": "迁移保留",
+                    "url": "https://codeforces.com/contest/1/problem/A",
+                    "language": "cpp",
+                    "code": "int main() { return 0; }\n",
+                    "contest_id": None,
+                }
+            )
+            result = repo.relocate_to(target)
+        finally:
+            repo.close()
+
+        self.assertEqual(result["new_data_dir"], str(target))
+        moved = Repository(target)
+        try:
+            state = moved.state()
+            self.assertEqual(len(state["problems"]), 1)
+            self.assertEqual(
+                moved.get_problem(problem["id"])["code"],
+                "int main() { return 0; }\n",
+            )
+        finally:
+            moved.close()
+
+    def test_backup_import_rejects_path_traversal(self):
+        repo = Repository(self.root / "data")
+        try:
+            archive = self.root / "malicious.zip"
+            with zipfile.ZipFile(archive, "w") as zipped:
+                zipped.writestr("../outside.txt", "unsafe")
+                zipped.writestr("manifest.json", '{"format":1}')
+            with self.assertRaises(app_module.AppError) as error:
+                repo.import_backup_file(archive, archive.name)
+            self.assertEqual(error.exception.code, "backup_invalid")
+            self.assertFalse((self.root / "outside.txt").exists())
+        finally:
+            repo.close()
 
     def test_successful_migration_copies_database_and_codes_then_moves_legacy(self):
         legacy = make_v1_data(self.root / "app" / "data")

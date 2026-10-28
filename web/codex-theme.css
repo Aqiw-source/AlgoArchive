@@ -84,6 +84,7 @@ textarea:focus-visible {
   background: var(--sidebar);
   height: 100vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .sidebar-identity {
@@ -411,6 +412,55 @@ textarea:focus-visible {
   flex: 0 0 auto;
   color: #92938e;
   font-size: 10.5px;
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.topbar-github {
+  height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #545550;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.topbar-github:hover {
+  color: #242520;
+  background: #f7f7f4;
+  border-color: #d5d5d0;
+  text-decoration: none;
+}
+
+.topbar-github svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.author-badge {
+  height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  color: #777872;
+  background: #f1f1ed;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 550;
+  white-space: nowrap;
 }
 
 main {
@@ -1659,6 +1709,8 @@ td {
 
   .workspace-sidebar {
     width: 100%;
+    height: auto;
+    overflow: visible;
     padding: 10px 10px 9px;
   }
 
@@ -1707,11 +1759,32 @@ td {
   .workspace-topbar {
     height: 48px;
     padding: 0 12px;
+    gap: 10px;
   }
 
   .workspace-tab {
     height: 31px;
-    max-width: 72vw;
+    max-width: none;
+    flex: 1;
+  }
+
+  .topbar-meta {
+    gap: 6px;
+  }
+
+  .topbar-status {
+    display: none;
+  }
+
+  .topbar-github {
+    height: 28px;
+    padding: 0 8px;
+  }
+
+  .author-badge {
+    height: 23px;
+    padding: 0 7px;
+    font-size: 10px;
   }
 
   main {

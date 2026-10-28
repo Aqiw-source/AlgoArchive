@@ -10,6 +10,8 @@ import getpass
 import hashlib
 import html
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import mimetypes
 import os
 from pathlib import Path
@@ -22,6 +24,7 @@ import sys
 import tempfile
 import threading
 import time
+import zipfile
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, urlunsplit, unquote
@@ -30,13 +33,16 @@ import uuid
 import webbrowser
 
 
-APP_VERSION = "1.5.1"
+APP_VERSION = "2.0.1"
 ROOT = Path(__file__).resolve().parent
+DATABASE_SCHEMA_VERSION = 7
+SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7}
 PROBLEM_PLATFORM_ALIASES = {"codeforces": "codeforces", "atcoder": "atcoder"}
 EXTENSIONS = {"cpp": ".cpp", "python": ".py", "java": ".java", "other": ".txt"}
 MAX_CODE_BYTES = 2 * 1024 * 1024
 MAX_AVATAR_BYTES = 512 * 1024
 MAX_BODY_BYTES = 4 * 1024 * 1024
+MAX_BACKUP_UPLOAD_BYTES = 512 * 1024 * 1024
 AVATAR_EXTENSIONS = {
     "png": (".png", "image/png"),
     "jpeg": (".jpg", "image/jpeg"),
@@ -80,17 +86,250 @@ def decode_avatar_data_url(value):
 
 def default_data_dir():
     """Return the per-user data directory used outside the program folder."""
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if os.name == "nt" and (
-        not local_app_data
-        or "\\packages\\" in local_app_data.casefold().replace("/", "\\")
-    ):
-        local_app_data = str(Path.home() / "AppData" / "Local")
-    if local_app_data:
-        return Path(local_app_data) / "AlgoArchive" / "data"
+    if os.name == "nt":
+        # Keep user data outside LocalAppData. Windows packaged applications can
+        # redirect that location to different package-local copies.
+        return Path.home() / "AlgoArchive" / "data"
     data_home = os.environ.get("XDG_DATA_HOME")
     base = Path(data_home) if data_home else Path.home() / ".local" / "share"
     return base / "algoarchive" / "data"
+
+
+def default_config_path():
+    """Return the per-user config path, independent from the selected data dir."""
+    return Path.home() / "AlgoArchive" / "config.json"
+
+
+def default_user_config():
+    return {
+        "format": 1,
+        "data_dir": "",
+        "browser": {
+            "mode": "default",
+            "custom_path": "",
+            "window_mode": "tab",
+        },
+    }
+
+
+def _normalized_user_config(value):
+    if not isinstance(value, dict):
+        raise AppError("用户配置文件必须是 JSON 对象", 500, "config_invalid")
+    config = default_user_config()
+    config.update(value)
+    browser = default_user_config()["browser"]
+    if isinstance(value.get("browser"), dict):
+        browser.update(value["browser"])
+    config["browser"] = browser
+    return config
+
+
+def load_user_config(path=None):
+    path = Path(path or default_config_path()).resolve()
+    if not path.exists():
+        return default_user_config()
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return _normalized_user_config(value)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise AppError(
+            f"用户配置文件无法读取或格式不正确：{path}",
+            500,
+            "config_invalid",
+            config_path=str(path),
+        ) from exc
+
+
+def save_user_config(config, path=None):
+    path = Path(path or default_config_path()).resolve()
+    config = _normalized_user_config(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(
+        prefix=".algoarchive-config-",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            json.dump(config, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+def resolve_data_dir(cli_data_dir=None, config_path=None):
+    if cli_data_dir:
+        return Path(cli_data_dir).expanduser().resolve()
+    config = load_user_config(config_path)
+    configured = str(config.get("data_dir") or "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+        if not path.is_absolute():
+            raise AppError(
+                "用户配置中的数据目录必须是绝对路径",
+                500,
+                "config_invalid",
+            )
+        return path.resolve()
+    return default_data_dir().resolve()
+
+
+def _sqlite_readonly_connection(database):
+    return sqlite3.connect(
+        f"{Path(database).resolve().as_uri()}?mode=ro",
+        uri=True,
+        timeout=5,
+    )
+
+
+def inspect_data_directory(path):
+    """Classify a data directory without writing to its database."""
+    path = Path(path).resolve()
+    if not path.exists():
+        return {"state": "empty", "path": str(path)}
+    if not path.is_dir():
+        return {"state": "incomplete", "path": str(path)}
+    entries = list(path.iterdir())
+    ignored_residuals = {"runtime.lock", "runtime.lock.pending"}
+    if not entries or all(entry.name in ignored_residuals for entry in entries):
+        return {"state": "residual", "path": str(path)}
+    database = path / "archive.sqlite3"
+    if not database.is_file() or database.stat().st_size == 0:
+        return {"state": "incomplete", "path": str(path)}
+    try:
+        with closing(_sqlite_readonly_connection(database)) as db:
+            integrity = db.execute("PRAGMA quick_check").fetchone()
+            if not integrity or integrity[0] != "ok":
+                return {"state": "corrupt", "path": str(path)}
+            settings_table = db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='settings'"
+            ).fetchone()
+            if not settings_table:
+                return {"state": "incomplete", "path": str(path)}
+            row = db.execute(
+                "SELECT value FROM settings WHERE key='schema_version'"
+            ).fetchone()
+            if not row:
+                return {"state": "incomplete", "path": str(path)}
+            try:
+                schema_version = int(row[0])
+            except (TypeError, ValueError):
+                return {"state": "incomplete", "path": str(path)}
+            if schema_version not in SUPPORTED_DATABASE_VERSIONS:
+                return {
+                    "state": "incompatible",
+                    "path": str(path),
+                    "schema_version": schema_version,
+                }
+            pending = set()
+            if db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='pending_files'"
+            ).fetchone():
+                pending = {
+                    item[0]
+                    for item in db.execute("SELECT path FROM pending_files")
+                }
+            code_paths = set()
+            if db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='problems'"
+            ).fetchone():
+                code_paths.update(
+                    item[0] for item in db.execute("SELECT code_path FROM problems")
+                )
+            if db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='algorithm_snippets'"
+            ).fetchone():
+                code_paths.update(
+                    item[0]
+                    for item in db.execute("SELECT code_path FROM algorithm_snippets")
+                )
+            for relative in code_paths:
+                if relative in pending:
+                    continue
+                if not re.fullmatch(
+                    r"codes/[a-f0-9]{32}\.(cpp|py|java|txt)",
+                    relative,
+                ) or not (path / relative).is_file():
+                    return {
+                        "state": "incomplete",
+                        "path": str(path),
+                        "missing_code": relative,
+                    }
+            counts = {}
+            for table in ("contests", "problems", "algorithms"):
+                if db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,),
+                ).fetchone():
+                    counts[table] = db.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    ).fetchone()[0]
+            return {
+                "state": "valid",
+                "path": str(path),
+                "schema_version": schema_version,
+                "counts": counts,
+            }
+    except (OSError, sqlite3.Error):
+        return {"state": "corrupt", "path": str(path)}
+
+
+def prepare_user_data_dir(target, legacy_candidates=()):
+    """Validate target or migrate exactly one valid legacy directory."""
+    target = Path(target).resolve()
+    target_state = inspect_data_directory(target)
+    if target_state["state"] == "valid":
+        return target_state
+    if target_state["state"] not in {"empty", "residual"}:
+        messages = {
+            "incomplete": "目标数据目录不完整，未写入或覆盖任何数据库。",
+            "corrupt": "目标数据库损坏，请先恢复备份。",
+            "incompatible": "目标数据库版本高于当前程序支持范围，未执行写入。",
+        }
+        raise AppError(
+            messages.get(target_state["state"], "目标数据目录不可用。"),
+            409,
+            f"data_{target_state['state']}",
+            path=str(target),
+        )
+    valid_legacy = []
+    seen = set()
+    for candidate in legacy_candidates:
+        candidate = Path(candidate).resolve()
+        if candidate == target or candidate in seen:
+            continue
+        seen.add(candidate)
+        state = inspect_data_directory(candidate)
+        if state["state"] == "valid":
+            valid_legacy.append(state)
+        elif state["state"] not in {"empty"}:
+            print(
+                f"忽略不可用于迁移的数据目录 {candidate}: {state['state']}",
+                file=sys.stderr,
+                flush=True,
+            )
+    if len(valid_legacy) > 1:
+        raise AppError(
+            "发现两份可用旧数据。请通过 --data-dir 明确选择要使用的数据目录。",
+            409,
+            "data_conflict",
+            candidates=[item["path"] for item in valid_legacy],
+        )
+    if valid_legacy:
+        migrate_legacy_data(valid_legacy[0]["path"], target)
+    return inspect_data_directory(target)
 
 
 def chrome_candidates():
@@ -110,69 +349,178 @@ def chrome_candidates():
     return list(dict.fromkeys(candidates))
 
 
-def find_chrome_executable():
-    for candidate in chrome_candidates():
+def browser_candidates():
+    program_files = Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
+    program_files_x86 = Path(
+        os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+    )
+    local_app_data = Path(
+        os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
+    )
+    return {
+        "chrome": chrome_candidates(),
+        "edge": list(
+            dict.fromkeys(
+                [
+                    program_files_x86
+                    / "Microsoft"
+                    / "Edge"
+                    / "Application"
+                    / "msedge.exe",
+                    program_files
+                    / "Microsoft"
+                    / "Edge"
+                    / "Application"
+                    / "msedge.exe",
+                ]
+            )
+        ),
+        "firefox": list(
+            dict.fromkeys(
+                [
+                    program_files
+                    / "Mozilla Firefox"
+                    / "firefox.exe",
+                    program_files_x86
+                    / "Mozilla Firefox"
+                    / "firefox.exe",
+                    local_app_data
+                    / "Mozilla Firefox"
+                    / "firefox.exe",
+                ]
+            )
+        ),
+    }
+
+
+def find_browser_executable(mode, custom_path=""):
+    if mode == "custom":
+        value = str(custom_path or "").strip()
+        if not value:
+            return None
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute() or not candidate.is_file():
+            return None
+        if os.name == "nt" and candidate.suffix.casefold() not in {".exe", ".com"}:
+            return None
+        return candidate.resolve()
+    for candidate in browser_candidates().get(mode, []):
         if candidate.is_file():
-            return candidate
+            return candidate.resolve()
     return None
 
 
-def open_browser(url):
-    """Open AlgoArchive in Chrome, falling back to the system default."""
-    chrome = find_chrome_executable()
-    if chrome is not None:
+def find_chrome_executable():
+    return find_browser_executable("chrome")
+
+
+def _system_browser_fallback(url, reason=""):
+    try:
+        ok = bool(webbrowser.open(url))
+    except Exception:
+        ok = False
+    message = (
+        "已使用系统默认浏览器打开。"
+        if ok
+        else "无法启动浏览器，请复制本地地址后手动打开。"
+    )
+    if reason:
+        message = f"{reason} {message}"
+    return {
+        "ok": ok,
+        "browser": "system",
+        "window_mode": "tab",
+        "fallback": True,
+        "message": message,
+    }
+
+
+def launch_browser(url, settings=None):
+    """Launch a validated HTTP URL with an explicit argument array."""
+    parsed = urlsplit(str(url))
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise AppError("只能打开 http 或 https 地址", 400, "invalid_url")
+    settings = dict(settings or {})
+    mode = str(settings.get("mode") or "default").casefold()
+    window_mode = str(settings.get("window_mode") or "tab").casefold()
+    if mode not in {"default", "edge", "chrome", "firefox", "custom"}:
+        mode = "default"
+    if window_mode not in {"tab", "app"}:
+        window_mode = "tab"
+    if mode == "default":
         try:
-            subprocess.Popen([str(chrome), url], close_fds=True)
-            return True
-        except OSError:
-            pass
-    return webbrowser.open(url)
+            ok = bool(webbrowser.open(url))
+        except Exception:
+            ok = False
+        return {
+            "ok": ok,
+            "browser": "system",
+            "window_mode": "tab",
+            "fallback": False,
+            "message": "已请求系统默认浏览器打开。" if ok else "系统默认浏览器启动失败。",
+        }
+    executable = find_browser_executable(
+        mode,
+        settings.get("custom_path", ""),
+    )
+    if executable is None:
+        return _system_browser_fallback(url, "所选浏览器不可用。")
+    effective_window_mode = window_mode
+    note = ""
+    if window_mode == "app" and mode in {"chrome", "edge"}:
+        command = [str(executable), f"--app={url}"]
+    else:
+        command = [str(executable), url]
+        if window_mode == "app":
+            effective_window_mode = "tab"
+            note = "所选浏览器不支持应用窗口模式，已回退为普通标签页。"
+    try:
+        subprocess.Popen(command, close_fds=True)
+    except OSError:
+        return _system_browser_fallback(url, f"{note}所选浏览器启动失败。".strip())
+    return {
+        "ok": True,
+        "browser": mode,
+        "window_mode": effective_window_mode,
+        "fallback": False,
+        "message": note or "浏览器已打开。",
+    }
+
+
+def open_browser(url, settings=None):
+    """Backward-compatible boolean wrapper around launch_browser."""
+    return launch_browser(url, settings)["ok"]
 
 
 def _verify_migrated_data(path):
-    database = path / "archive.sqlite3"
-    with closing(sqlite3.connect(str(database))) as db:
-        if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-            raise AppError("旧数据库完整性检查失败，未执行迁移", 500, "migration_failed")
-        pending = set()
-        if db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pending_files'"
-        ).fetchone():
-            pending = {row[0] for row in db.execute("SELECT path FROM pending_files")}
-        code_paths = set()
-        if db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='problems'"
-        ).fetchone():
-            code_paths.update(
-                row[0] for row in db.execute("SELECT code_path FROM problems")
-            )
-        if db.execute(
-            "SELECT 1 FROM sqlite_master "
-            "WHERE type='table' AND name='algorithm_snippets'"
-        ).fetchone():
-            code_paths.update(
-                row[0] for row in db.execute("SELECT code_path FROM algorithm_snippets")
-            )
-    for relative in code_paths:
-        if relative in pending:
-            continue
-        if not re.fullmatch(
-            r"codes/[a-f0-9]{32}\.(cpp|py|java|txt)", relative
-        ):
-            raise AppError("旧数据包含非法代码路径，未执行迁移", 500, "migration_failed")
-        target = path / relative
-        if not target.is_file():
-            raise AppError("旧数据缺少源代码文件，未执行迁移", 500, "migration_failed")
+    state = inspect_data_directory(path)
+    if state["state"] != "valid":
+        raise AppError(
+            "旧数据校验失败，未执行迁移。",
+            500,
+            "migration_failed",
+            reason=state["state"],
+        )
+    return state
 
 
 def migrate_legacy_data(legacy, target):
     """Copy legacy in-program data to the user directory, then archive it."""
     legacy = Path(legacy).resolve()
     target = Path(target).resolve()
-    if not (legacy / "archive.sqlite3").is_file():
+    legacy_state = inspect_data_directory(legacy)
+    target_state = inspect_data_directory(target)
+    if legacy_state["state"] != "valid":
         return None
-    if target.exists() and any(target.iterdir()):
+    if target_state["state"] == "valid":
         return None
+    if target_state["state"] not in {"empty", "residual"}:
+        raise AppError(
+            "目标数据目录不完整，未执行迁移。",
+            409,
+            "data_incomplete",
+            path=str(target),
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_root = Path(
@@ -195,6 +543,11 @@ def migrate_legacy_data(legacy, target):
         _verify_migrated_data(copied)
         legacy_lock.close()
         if target.exists():
+            for residual in ("runtime.lock", "runtime.lock.pending"):
+                try:
+                    (target / residual).unlink()
+                except FileNotFoundError:
+                    pass
             target.rmdir()
         os.replace(copied, target)
     except Exception:
@@ -345,6 +698,37 @@ class DataDirectoryLock:
             self.stream.close()
 
 
+def database_needs_upgrade(database):
+    database = Path(database)
+    if not database.is_file():
+        return False
+    try:
+        with closing(_sqlite_readonly_connection(database)) as db:
+            row = db.execute(
+                "SELECT value FROM settings WHERE key='schema_version'"
+            ).fetchone()
+            if not row or int(row[0]) < DATABASE_SCHEMA_VERSION:
+                return True
+            problem = db.execute(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='table' AND name='problems'"
+            ).fetchone()
+            contest = db.execute(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='table' AND name='contests'"
+            ).fetchone()
+            if problem and "CHECK(platform IN" in (problem[0] or ""):
+                return True
+            if contest and "CHECK(platform IN" in (contest[0] or ""):
+                return True
+            columns = {
+                item[1] for item in db.execute("PRAGMA table_info(problems)")
+            }
+            return "algorithm_order" not in columns or "global_order" not in columns
+    except (sqlite3.Error, TypeError, ValueError):
+        return False
+
+
 class Repository:
     """SQLite is the single metadata source. Actual code lives in codes/.
 
@@ -360,6 +744,29 @@ class Repository:
         self.process_lock = DataDirectoryLock(self.data_dir) if acquire_lock else None
         if self.process_lock is not None and not self.process_lock.acquired:
             raise AppError("此数据目录已被另一个运行中的程序使用", 409, "already_running")
+        state = inspect_data_directory(self.data_dir)
+        if state["state"] not in {"empty", "residual", "valid"}:
+            if self.process_lock:
+                self.process_lock.close()
+            messages = {
+                "incomplete": "数据目录不完整，已拒绝启动以避免覆盖现有文件。",
+                "corrupt": "数据库完整性检查失败，已拒绝写入。请恢复备份。",
+                "incompatible": "数据库版本高于当前程序支持范围，已拒绝写入。",
+            }
+            raise AppError(
+                messages.get(state["state"], "数据目录不可用。"),
+                500,
+                (
+                    "database_incompatible"
+                    if state["state"] == "incompatible"
+                    else f"data_{state['state']}"
+                ),
+                path=str(self.data_dir),
+            )
+        if state["state"] == "valid" and database_needs_upgrade(
+            self.data_dir / "archive.sqlite3"
+        ):
+            self._backup_before_schema_upgrade()
         (self.data_dir / "codes").mkdir(exist_ok=True)
         self.avatar_dir = self.data_dir / "avatar"
         self.avatar_dir.mkdir(exist_ok=True)
@@ -496,11 +903,352 @@ class Repository:
         self._flush_pending()
         self._migrate_profile_avatar()
 
+    def _backup_before_schema_upgrade(self):
+        backup_root = self.data_dir.parent / "backups"
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        target = backup_root / f"before-schema-upgrade-{stamp}"
+        target.mkdir(parents=True, exist_ok=False)
+        for name in ("archive.sqlite3", "codes", "avatar"):
+            source = self.data_dir / name
+            if not source.exists():
+                continue
+            destination = target / name
+            if source.is_dir():
+                shutil.copytree(source, destination)
+            else:
+                shutil.copy2(source, destination)
+        (target / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "format": 1,
+                    "reason": "schema-upgrade",
+                    "app_version": APP_VERSION,
+                    "created_at": now(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return target
+
     def close(self):
         with self.lock:
             self.db.close()
             if self.process_lock:
                 self.process_lock.close()
+
+    def backup_directory(self):
+        return self.data_dir.parent / "backups"
+
+    def _prune_backups(self, keep=20):
+        backups = sorted(
+            self.backup_directory().glob("AlgoArchive-backup-*.zip"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for old in backups[keep:]:
+            old.unlink(missing_ok=True)
+
+    def create_backup(self):
+        with self.lock:
+            self._ready()
+            backup_dir = self.backup_directory()
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            name = f"AlgoArchive-backup-{stamp}.zip"
+            destination = backup_dir / name
+            staging = Path(
+                tempfile.mkdtemp(prefix=".algoarchive-backup-", dir=str(self.data_dir.parent))
+            )
+            try:
+                staged_database = staging / "archive.sqlite3"
+                with closing(sqlite3.connect(str(staged_database))) as target:
+                    self.db.backup(target)
+                    target.commit()
+                for directory in ("codes", "avatar"):
+                    source = self.data_dir / directory
+                    if source.is_dir():
+                        shutil.copytree(source, staging / directory)
+                    else:
+                        (staging / directory).mkdir()
+                manifest = {
+                    "format": 1,
+                    "app_version": APP_VERSION,
+                    "database_schema": DATABASE_SCHEMA_VERSION,
+                    "created_at": now(),
+                    "counts": {
+                        table: self.db.execute(
+                            f"SELECT COUNT(*) FROM {table}"
+                        ).fetchone()[0]
+                        for table in ("contests", "problems", "algorithms")
+                    },
+                }
+                (staging / "manifest.json").write_text(
+                    json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                with zipfile.ZipFile(
+                    destination,
+                    "w",
+                    compression=zipfile.ZIP_DEFLATED,
+                    compresslevel=6,
+                ) as archive:
+                    for path in sorted(staging.rglob("*")):
+                        if path.is_file():
+                            archive.write(path, path.relative_to(staging).as_posix())
+            except Exception:
+                destination.unlink(missing_ok=True)
+                raise
+            finally:
+                shutil.rmtree(staging, ignore_errors=True)
+            self._prune_backups()
+            return {
+                "name": name,
+                "path": str(destination),
+                "size": destination.stat().st_size,
+                "created_at": datetime.fromtimestamp(
+                    destination.stat().st_mtime,
+                    tz=timezone.utc,
+                ).isoformat().replace("+00:00", "Z"),
+            }
+
+    def list_backups(self):
+        backup_dir = self.backup_directory()
+        if not backup_dir.exists():
+            return []
+        items = []
+        for path in sorted(
+            backup_dir.glob("AlgoArchive-backup-*.zip"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        ):
+            items.append(
+                {
+                    "name": path.name,
+                    "path": str(path),
+                    "size": path.stat().st_size,
+                    "created_at": datetime.fromtimestamp(
+                        path.stat().st_mtime,
+                        tz=timezone.utc,
+                    ).isoformat().replace("+00:00", "Z"),
+                }
+            )
+        return items
+
+    def import_backup_file(self, source_path, original_name=""):
+        source_path = Path(source_path)
+        staging = Path(
+            tempfile.mkdtemp(
+                prefix=".algoarchive-import-backup-",
+                dir=str(self.data_dir.parent),
+            )
+        )
+        try:
+            with zipfile.ZipFile(source_path) as archive:
+                self._safe_extract_backup(archive, staging)
+            (staging / "codes").mkdir(exist_ok=True)
+            (staging / "avatar").mkdir(exist_ok=True)
+            manifest = staging / "manifest.json"
+            if not manifest.is_file():
+                raise AppError("备份缺少 manifest.json", 400, "backup_invalid")
+            try:
+                manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise AppError("备份清单格式不正确", 400, "backup_invalid") from exc
+            if manifest_data.get("format") != 1:
+                raise AppError("备份格式不受支持", 400, "backup_incompatible")
+            if inspect_data_directory(staging)["state"] != "valid":
+                raise AppError("备份中的数据库或代码文件不完整", 400, "backup_invalid")
+        except (zipfile.BadZipFile, OSError) as exc:
+            raise AppError("备份文件不是有效的 ZIP", 400, "backup_invalid") from exc
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+        backup_dir = self.backup_directory()
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        safe_stem = re.sub(
+            r"[^A-Za-z0-9._-]+",
+            "-",
+            Path(original_name or "imported").stem,
+        ).strip(".-")[:60]
+        destination = backup_dir / (
+            f"AlgoArchive-backup-{stamp}-{safe_stem or 'imported'}.zip"
+        )
+        shutil.copy2(source_path, destination)
+        self._prune_backups()
+        return {
+            "name": destination.name,
+            "path": str(destination),
+            "size": destination.stat().st_size,
+            "created_at": datetime.fromtimestamp(
+                destination.stat().st_mtime,
+                tz=timezone.utc,
+            ).isoformat().replace("+00:00", "Z"),
+        }
+
+    def _safe_extract_backup(self, archive, destination):
+        members = archive.infolist()
+        if len(members) > 10000:
+            raise AppError("备份文件包含过多文件", 400, "backup_invalid")
+        total_size = 0
+        allowed = re.compile(
+            r"^(?:manifest\.json|archive\.sqlite3|"
+            r"codes/[a-f0-9]{32}\.(?:cpp|py|java|txt)|"
+            r"avatar/avatar\.(?:png|jpg|webp))$"
+        )
+        for member in members:
+            name = member.filename.replace("\\", "/")
+            if (
+                name.startswith("/")
+                or ".." in Path(name).parts
+                or member.is_dir()
+                or not allowed.fullmatch(name)
+            ):
+                raise AppError("备份文件包含不安全的路径", 400, "backup_invalid")
+            total_size += member.file_size
+            if total_size > 2 * 1024 * 1024 * 1024:
+                raise AppError("备份解压后超过 2 GiB", 413, "backup_too_large")
+            target = destination / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+
+    def restore_backup(self, name, confirmed=False):
+        with self.lock:
+            return self._restore_backup_locked(name, confirmed)
+
+    def _restore_backup_locked(self, name, confirmed=False):
+        if confirmed is not True:
+            raise AppError("恢复备份会覆盖当前数据，请再次确认", 400, "confirmation_required")
+        if not isinstance(name, str) or Path(name).name != name:
+            raise AppError("备份名称无效", 400, "backup_invalid")
+        archive_path = self.backup_directory() / name
+        if not archive_path.is_file() or archive_path.suffix.casefold() != ".zip":
+            raise AppError("备份文件不存在", 404, "backup_not_found")
+        staging = Path(
+            tempfile.mkdtemp(prefix=".algoarchive-restore-", dir=str(self.data_dir.parent))
+        )
+        rollback_database = staging / "rollback.sqlite3"
+        old_codes = self.data_dir / ".codes-before-restore"
+        old_avatar = self.data_dir / ".avatar-before-restore"
+        try:
+            with zipfile.ZipFile(archive_path) as archive:
+                self._safe_extract_backup(archive, staging)
+            (staging / "codes").mkdir(exist_ok=True)
+            (staging / "avatar").mkdir(exist_ok=True)
+            manifest_path = staging / "manifest.json"
+            if not manifest_path.is_file():
+                raise AppError("备份缺少 manifest.json", 400, "backup_invalid")
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise AppError("备份清单格式不正确", 400, "backup_invalid") from exc
+            if manifest.get("format") != 1:
+                raise AppError("备份格式不受支持", 400, "backup_incompatible")
+            state = inspect_data_directory(staging)
+            if state["state"] != "valid":
+                raise AppError(
+                    "备份中的数据库或代码文件不完整",
+                    400,
+                    "backup_invalid",
+                )
+            current_backup = self.create_backup()
+            with self.lock:
+                with closing(sqlite3.connect(str(rollback_database))) as rollback:
+                    self.db.backup(rollback)
+                    rollback.commit()
+                self.db.commit()
+                for old in (old_codes, old_avatar):
+                    if old.exists():
+                        shutil.rmtree(old)
+                try:
+                    os.replace(self.data_dir / "codes", old_codes)
+                    os.replace(self.data_dir / "avatar", old_avatar)
+                    os.replace(staging / "codes", self.data_dir / "codes")
+                    os.replace(staging / "avatar", self.data_dir / "avatar")
+                    with closing(
+                        sqlite3.connect(str(staging / "archive.sqlite3"))
+                    ) as source:
+                        source.backup(self.db)
+                    self.db.commit()
+                    self._flush_pending()
+                except Exception:
+                    with closing(sqlite3.connect(str(rollback_database))) as rollback:
+                        rollback.backup(self.db)
+                    self.db.commit()
+                    for current, old in (
+                        (self.data_dir / "codes", old_codes),
+                        (self.data_dir / "avatar", old_avatar),
+                    ):
+                        if old.exists():
+                            shutil.rmtree(current, ignore_errors=True)
+                            os.replace(old, current)
+                    raise
+                shutil.rmtree(old_codes, ignore_errors=True)
+                shutil.rmtree(old_avatar, ignore_errors=True)
+            return {
+                "ok": True,
+                "current_backup": current_backup,
+                "restored_from": name,
+                "counts": state.get("counts", {}),
+            }
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def relocate_to(self, target):
+        target = Path(target).expanduser().resolve()
+        source = self.data_dir.resolve()
+        if target == source:
+            raise AppError("新数据目录与当前目录相同")
+        if target.is_relative_to(source) or source.is_relative_to(target):
+            raise AppError("新旧数据目录不能互相包含")
+        state = inspect_data_directory(target)
+        if state["state"] == "valid":
+            raise AppError(
+                "新数据目录已有有效数据，不能覆盖或合并",
+                409,
+                "data_conflict",
+                path=str(target),
+            )
+        if state["state"] not in {"empty", "residual"}:
+            raise AppError(
+                "新数据目录不完整或不可用，请先检查",
+                409,
+                "data_incomplete",
+                path=str(target),
+            )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(
+            tempfile.mkdtemp(
+                prefix=".algoarchive-relocating-",
+                dir=str(target.parent),
+            )
+        )
+        backup = None
+        try:
+            backup = self.create_backup()
+            with zipfile.ZipFile(backup["path"]) as archive:
+                self._safe_extract_backup(archive, staging)
+            (staging / "codes").mkdir(exist_ok=True)
+            (staging / "avatar").mkdir(exist_ok=True)
+            (staging / "manifest.json").unlink(missing_ok=True)
+            if inspect_data_directory(staging)["state"] != "valid":
+                raise AppError("迁移副本校验失败，原数据未改变", 500, "migration_failed")
+            if target.exists():
+                for residual in ("runtime.lock", "runtime.lock.pending"):
+                    (target / residual).unlink(missing_ok=True)
+                target.rmdir()
+            os.replace(staging, target)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+        return {
+            "ok": True,
+            "old_data_dir": str(source),
+            "new_data_dir": str(target),
+            "backup": backup,
+        }
 
     def _rebuild_problems_for_custom_platforms(self):
         """Remove the legacy fixed platform CHECK without losing problem rows."""
@@ -1602,17 +2350,108 @@ class LocalServer(ThreadingHTTPServer):
     # Wait for an in-flight atomic save before closing the SQLite connection.
     daemon_threads = False
 
-    def __init__(self, address, repo, web_dir=ROOT / "web"):
+    def __init__(
+        self,
+        address,
+        repo,
+        web_dir=ROOT / "web",
+        config_path=None,
+        config=None,
+    ):
         self.repo = repo
         self.web_dir = Path(web_dir).resolve()
+        self.config_path = Path(config_path or default_config_path()).resolve()
+        self.config = _normalized_user_config(
+            config if config is not None else load_user_config(self.config_path)
+        )
         self.csrf_token = secrets.token_urlsafe(32)
         self.user_name = getpass.getuser()
         self.project_id = hashlib.sha256(str(repo.data_dir).encode("utf-8")).hexdigest()
+        self.started_at = time.time()
+        self.log_path = self.config_path.parent / "logs" / "algoarchive.log"
+        self.maintenance = False
         super().__init__(address, RequestHandler)
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.logger = logging.getLogger(
+            f"algoarchive.{os.getpid()}.{self.server_address[1]}"
+        )
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        file_handler = RotatingFileHandler(
+            self.log_path,
+            maxBytes=1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(stream_handler)
+        self.logger.addHandler(file_handler)
+
+    def server_close(self):
+        logger = getattr(self, "logger", None)
+        if logger is not None:
+            for handler in list(logger.handlers):
+                handler.flush()
+                handler.close()
+                logger.removeHandler(handler)
+        super().server_close()
+
+    @property
+    def local_address(self):
+        return f"http://127.0.0.1:{self.server_address[1]}"
+
+    def settings_payload(self):
+        return {
+            "version": APP_VERSION,
+            "address": self.local_address,
+            "data_dir": str(self.repo.data_dir),
+            "default_data_dir": str(default_data_dir().resolve()),
+            "config_path": str(self.config_path),
+            "log_path": str(self.log_path),
+            "backup_dir": str(self.repo.backup_directory()),
+            "browser": dict(self.config.get("browser") or {}),
+            "started_at": datetime.fromtimestamp(
+                self.started_at,
+                tz=timezone.utc,
+            ).isoformat().replace("+00:00", "Z"),
+            "database_schema": DATABASE_SCHEMA_VERSION,
+        }
+
+    def update_browser_settings(self, payload):
+        mode = str(payload.get("mode") or "default").casefold()
+        window_mode = str(payload.get("window_mode") or "tab").casefold()
+        custom_path = str(payload.get("custom_path") or "").strip()
+        if mode not in {"default", "edge", "chrome", "firefox", "custom"}:
+            raise AppError("浏览器类型无效")
+        if window_mode not in {"tab", "app"}:
+            raise AppError("窗口模式无效")
+        if len(custom_path) > 2048:
+            raise AppError("浏览器路径过长")
+        if mode == "custom":
+            if not custom_path:
+                raise AppError("请填写自定义浏览器可执行文件路径")
+            if find_browser_executable("custom", custom_path) is None:
+                raise AppError("自定义浏览器路径不存在或不是可执行文件")
+            custom_path = str(Path(custom_path).expanduser().resolve())
+        else:
+            custom_path = ""
+        self.config["browser"] = {
+            "mode": mode,
+            "window_mode": window_mode,
+            "custom_path": custom_path,
+        }
+        save_user_config(self.config, self.config_path)
+        return dict(self.config["browser"])
 
 
 class RequestHandler(BaseHTTPRequestHandler):
-    server_version = "AlgoArchive/1.5"
+    server_version = f"AlgoArchive/{APP_VERSION}"
     sys_version = ""
 
     def _headers(self, status, content_type, length):
@@ -1665,6 +2504,42 @@ class RequestHandler(BaseHTTPRequestHandler):
             raise AppError("请求内容必须是对象")
         return data
 
+    def _receive_backup_upload(self):
+        content_type = self.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        if content_type not in {"application/zip", "application/octet-stream"}:
+            raise AppError("备份上传必须使用 ZIP 文件", 415, "invalid_content_type")
+        if self.headers.get("Transfer-Encoding"):
+            raise AppError("不支持此请求编码", 400, "invalid_request")
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            raise AppError("请求长度无效") from None
+        if length <= 0 or length > MAX_BACKUP_UPLOAD_BYTES:
+            raise AppError("备份文件为空或超过 512 MiB", 413, "too_large")
+        fd, name = tempfile.mkstemp(
+            prefix=".algoarchive-upload-",
+            suffix=".zip",
+            dir=str(self.server.repo.data_dir.parent),
+        )
+        try:
+            remaining = length
+            with os.fdopen(fd, "wb") as stream:
+                while remaining:
+                    chunk = self.rfile.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise AppError("备份上传未完成", 400, "upload_incomplete")
+                    stream.write(chunk)
+                    remaining -= len(chunk)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except Exception:
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
+            raise
+        return Path(name)
+
     def _dispatch(self):
         mutation = self.command in {"POST", "PUT", "DELETE"}
         self._guard(mutation)
@@ -1672,9 +2547,35 @@ class RequestHandler(BaseHTTPRequestHandler):
         repo = self.server.repo
         if self.command in {"GET", "HEAD"}:
             if path == "/api/health":
-                return self._json({"app": "AlgoArchive", "version": APP_VERSION, "project_id": self.server.project_id})
+                with repo.lock:
+                    database = repo.db.execute("PRAGMA database_list").fetchone()
+                    database_counts = {
+                        table: repo.db.execute(
+                            f"SELECT COUNT(*) FROM {table}"
+                        ).fetchone()[0]
+                        for table in ("contests", "problems", "algorithms")
+                    }
+                    page_count = repo.db.execute("PRAGMA page_count").fetchone()[0]
+                return self._json({
+                    "app": "AlgoArchive",
+                    "version": APP_VERSION,
+                    "project_id": self.server.project_id,
+                    "data_dir": str(self.server.repo.data_dir),
+                    "database_file": database["file"],
+                    "database_counts": database_counts,
+                    "database_page_count": page_count,
+                })
             if path == "/api/state":
                 return self._json(repo.state())
+            if path == "/api/settings":
+                return self._json({"settings": self.server.settings_payload()})
+            if path == "/api/backups":
+                return self._json(
+                    {
+                        "backup_dir": str(repo.backup_directory()),
+                        "backups": repo.list_backups(),
+                    }
+                )
             if path == "/api/profile/avatar":
                 data, content_type = repo.read_avatar()
                 self._headers(200, content_type, len(data))
@@ -1715,7 +2616,95 @@ class RequestHandler(BaseHTTPRequestHandler):
             if self.command != "HEAD":
                 self.wfile.write(data)
             return
+        if self.command == "POST" and path == "/api/backups/upload":
+            upload = self._receive_backup_upload()
+            try:
+                backup = repo.import_backup_file(
+                    upload,
+                    unquote(self.headers.get("X-Backup-Filename", "")),
+                )
+            finally:
+                upload.unlink(missing_ok=True)
+            return self._json({"backup": backup}, 201)
         body = self._body()
+        if self.command == "PUT" and path == "/api/settings/browser":
+            return self._json(
+                {"browser": self.server.update_browser_settings(body)}
+            )
+        if self.command == "POST" and path == "/api/settings/browser/test":
+            settings = {
+                key: body.get(key, "")
+                for key in ("mode", "window_mode", "custom_path")
+            }
+            return self._json(
+                {"launch": launch_browser(self.server.local_address, settings)}
+            )
+        if self.command == "POST" and path == "/api/backups/create":
+            return self._json({"backup": repo.create_backup()}, 201)
+        if self.command == "POST" and path == "/api/backups/restore":
+            return self._json(
+                repo.restore_backup(
+                    body.get("name"),
+                    confirmed=body.get("confirmed") is True,
+                )
+            )
+        if self.command == "POST" and path == "/api/data-directory":
+            value = body.get("data_dir")
+            if not isinstance(value, str) or not value.strip():
+                raise AppError("请填写新的数据目录")
+            target = Path(value).expanduser()
+            if not target.is_absolute():
+                raise AppError("数据目录必须是绝对路径")
+            migrated = repo.relocate_to(target)
+            self.server.config["data_dir"] = migrated["new_data_dir"]
+            save_user_config(self.server.config, self.server.config_path)
+            self._json(
+                {
+                    **migrated,
+                    "restart_required": True,
+                    "message": "数据已迁移，程序即将退出。请重新打开算法档案。",
+                }
+            )
+            threading.Timer(0.5, self.server.shutdown).start()
+            return
+        if self.command == "POST" and path == "/api/open-data-folder":
+            try:
+                if os.name == "nt":
+                    os.startfile(str(repo.data_dir))
+                else:
+                    subprocess.Popen(
+                        ["xdg-open", str(repo.data_dir)],
+                        close_fds=True,
+                    )
+            except OSError as exc:
+                raise AppError(
+                    "无法打开数据文件夹，请根据设置页显示的路径手动打开。",
+                    503,
+                    "open_folder_failed",
+                ) from exc
+            return self._json({"ok": True, "path": str(repo.data_dir)})
+        if self.command == "POST" and path == "/api/open-log-folder":
+            log_dir = self.server.log_path.parent
+            log_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                if os.name == "nt":
+                    os.startfile(str(log_dir))
+                else:
+                    subprocess.Popen(
+                        ["xdg-open", str(log_dir)],
+                        close_fds=True,
+                    )
+            except OSError as exc:
+                raise AppError(
+                    "无法打开日志文件夹，请根据诊断页显示的路径手动打开。",
+                    503,
+                    "open_folder_failed",
+                ) from exc
+            return self._json({"ok": True, "path": str(log_dir)})
+        if self.command == "POST" and path == "/api/shutdown":
+            self._json({"ok": True})
+            threading.Timer(0.3, self.server.shutdown).start()
+            return
         if self.command == "PUT" and path == "/api/profile":
             return self._json({"profile": repo.update_profile(body)})
         if self.command == "POST" and path == "/api/contests":
@@ -1782,7 +2771,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         except Exception as exc:
             # Error details stay in the local terminal, never expose paths in HTTP.
-            print(f"[{now()}] {type(exc).__name__}: {exc}", file=sys.stderr)
+            self.server.logger.exception("Unhandled request error: %s", exc)
             self._json({"error": "本地服务发生错误，请查看启动窗口。数据目录请保留。", "code": "internal_error"}, 500)
 
     do_GET = do_HEAD = do_POST = do_PUT = do_DELETE = _handle
@@ -1792,7 +2781,11 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         # Standard console logging contains request routes, never request bodies.
-        super().log_message(fmt, *args)
+        self.server.logger.info(
+            "%s %s",
+            self.client_address[0],
+            fmt % args,
+        )
 
 
 def create_app(data_dir=None, port=0, web_dir=None):
@@ -1808,22 +2801,43 @@ def create_app(data_dir=None, port=0, web_dir=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="AlgoArchive 本地算法档案管理")
     parser.add_argument("--data-dir")
+    parser.add_argument("--config-path")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error("--port 必须介于 0 和 65535")
     explicit_data_dir = args.data_dir is not None
-    data_dir = (
-        Path(args.data_dir).resolve()
-        if explicit_data_dir
-        else default_data_dir().resolve()
-    )
+    config_path = Path(args.config_path or default_config_path()).resolve()
+    config = load_user_config(config_path)
+    args.config_path = str(config_path)
+    args.config = config
+    data_dir = resolve_data_dir(args.data_dir, config_path)
     args.data_dir = str(data_dir)
     if not explicit_data_dir:
-        migrated = migrate_legacy_data(ROOT / "data", data_dir)
-        if migrated is not None:
-            print(f"旧数据已迁移并归档到: {migrated}", flush=True)
+        legacy_candidates = [ROOT / "data"]
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            legacy_candidates.append(Path(local_app_data) / "AlgoArchive" / "data")
+        legacy_candidates.append(
+            Path.home() / "AppData" / "Local" / "AlgoArchive" / "data"
+        )
+        before = inspect_data_directory(data_dir)
+        prepare_user_data_dir(data_dir, legacy_candidates)
+        after = inspect_data_directory(data_dir)
+        if before["state"] != after["state"] and after["state"] == "valid":
+            print(f"旧数据已迁移到: {data_dir}", flush=True)
+        config["data_dir"] = str(data_dir)
+        save_user_config(config, config_path)
+    else:
+        state = inspect_data_directory(data_dir)
+        if state["state"] not in {"empty", "residual", "valid"}:
+            raise AppError(
+                "指定的数据目录不可用，未执行任何写入。",
+                500,
+                f"data_{state['state']}",
+                path=str(data_dir),
+            )
     directory_lock = DataDirectoryLock(data_dir)
     if not directory_lock.acquired:
         # The first launch may still be starting. Only trust a matching health
@@ -1839,7 +2853,7 @@ def main(argv=None):
                         address = f"http://127.0.0.1:{port}"
                         print(f"程序已在运行: {address}", flush=True)
                         if not args.no_browser:
-                            open_browser(address)
+                            open_browser(address, config.get("browser"))
                         return 0
                 except Exception:
                     pass
@@ -1857,7 +2871,12 @@ def _run_server(args, directory_lock):
     candidates = [0] if args.port == 0 else list(range(args.port, min(args.port + 20, 65536))) + [0]
     for port in candidates:
         try:
-            server = LocalServer(("127.0.0.1", port), repo)
+            server = LocalServer(
+                ("127.0.0.1", port),
+                repo,
+                config_path=args.config_path,
+                config=args.config,
+            )
             break
         except OSError:
             continue
@@ -1868,7 +2887,10 @@ def _run_server(args, directory_lock):
     directory_lock.set_port(server.server_address[1])
     print(f"AlgoArchive {APP_VERSION}\n本地地址: {address}\n数据目录: {repo.data_dir}\n关闭此窗口或按 Ctrl+C 停止服务。", flush=True)
     if not args.no_browser:
-        threading.Timer(0.5, lambda: open_browser(address)).start()
+        threading.Timer(
+            0.5,
+            lambda: open_browser(address, args.config.get("browser")),
+        ).start()
     try:
         server.serve_forever(poll_interval=0.3)
     except KeyboardInterrupt:

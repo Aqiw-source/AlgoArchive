@@ -9,10 +9,12 @@ __pycache__/
 *.py[cod]
 .qa-data/
 .test-tmp/
-/.release/
+qa-data/
+dist/
 *.zip
 *.rar
+.release/
 /AlgoArchive-Windows-x64/
-/AlgoArchive-Windows-x64.rar
 /dashboard.png
 /editor.png
+/docs/superpowers/
