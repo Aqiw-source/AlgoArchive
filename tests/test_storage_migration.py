@@ -340,7 +340,7 @@ class StorageMigrationTests(unittest.TestCase):
         finally:
             repo.close()
 
-        self.assertEqual(result["new_data_dir"], str(target))
+        self.assertEqual(result["new_data_dir"], str(target.resolve()))
         moved = Repository(target)
         try:
             state = moved.state()

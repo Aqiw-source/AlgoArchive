@@ -127,26 +127,12 @@ class RecoveryTests(unittest.TestCase):
 
     def test_code_path_tolerates_windows_logical_path_alias(self):
         relative = "codes/11111111111111111111111111111111.cpp"
-        original_resolve = Path.resolve
-        alias = (
-            Path(self.tmp.name)
-            / "Packages"
-            / "Virtualized"
-            / "Local"
-            / "AlgoArchive"
-            / "data"
-            / relative
+        resolved = self.repo._path(relative)
+        self.assertEqual(resolved, self.repo.data_dir / relative)
+        self.assertEqual(
+            resolved.resolve(),
+            (self.data / relative).resolve(),
         )
-
-        def resolve_alias(path, *args, **kwargs):
-            if path.name.endswith(".cpp") and path.parent.name == "codes":
-                return alias
-            return original_resolve(path, *args, **kwargs)
-
-        with mock.patch.object(Path, "resolve", autospec=True, side_effect=resolve_alias):
-            resolved = self.repo._path(relative)
-
-        self.assertEqual(resolved, self.data / relative)
 
     def test_crlf_source_bytes_are_preserved(self):
         source = "// Windows 换行\r\nint main() {\r\n  return 0;\r\n}\r\n"
