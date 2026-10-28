@@ -22,8 +22,8 @@ jobs:
       - name: Frontend syntax
         run: node --check web/app.js
       - name: Build portable package
-        shell: powershell
+        shell: pwsh
         run: .\scripts\build-portable.ps1
       - name: Verify release privacy and contents
-        shell: powershell
+        shell: pwsh
         run: .\scripts\verify-release.ps1 -ArchivePath (Get-ChildItem .\dist\*.zip | Select-Object -First 1).FullName
