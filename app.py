@@ -5,11 +5,13 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import codecs
 from contextlib import closing
 import getpass
 import hashlib
 import html
 import json
+import locale
 import logging
 from logging.handlers import RotatingFileHandler
 import mimetypes
@@ -33,7 +35,7 @@ import uuid
 import webbrowser
 
 
-APP_VERSION = "2.0.2"
+APP_VERSION = "2.0.3"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 7
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7}
@@ -112,6 +114,54 @@ def default_user_config():
     }
 
 
+def _config_candidate_score(value):
+    if not isinstance(value, dict):
+        return 0
+    configured = str(value.get("data_dir") or "").strip()
+    if not configured:
+        return 1
+    try:
+        path = Path(configured).expanduser()
+        if not path.is_absolute():
+            return 0
+        return 4 if path.exists() else 2
+    except (OSError, ValueError):
+        return 0
+
+
+def _decode_user_config(raw):
+    if raw.startswith(codecs.BOM_UTF8):
+        encodings = ["utf-8-sig"]
+    elif raw.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        encodings = ["utf-16"]
+    else:
+        encodings = ["utf-8"]
+        preferred = locale.getpreferredencoding(False)
+        if preferred:
+            encodings.append(preferred)
+        if os.name == "nt":
+            encodings.extend(["mbcs", "gb18030"])
+
+    parsed = []
+    failures = []
+    seen = set()
+    for index, encoding in enumerate(encodings):
+        normalized = encoding.casefold()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        try:
+            value = json.loads(raw.decode(encoding))
+        except (LookupError, UnicodeError, ValueError) as exc:
+            failures.append(f"{encoding}: {exc}")
+            continue
+        parsed.append((_config_candidate_score(value), -index, value))
+    if not parsed:
+        raise ValueError("; ".join(failures) or "无法确定配置文件编码")
+    parsed.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return parsed[0][2]
+
+
 def _normalized_user_config(value):
     if not isinstance(value, dict):
         raise AppError("用户配置文件必须是 JSON 对象", 500, "config_invalid")
@@ -129,7 +179,7 @@ def load_user_config(path=None):
     if not path.exists():
         return default_user_config()
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = _decode_user_config(path.read_bytes())
         return _normalized_user_config(value)
     except (OSError, UnicodeError, ValueError) as exc:
         raise AppError(

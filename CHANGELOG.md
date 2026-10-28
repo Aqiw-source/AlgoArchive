@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.3 - 2026-10-28
+
+- Fixed startup failure when the installer wrote `config.json` using the
+  Windows ANSI code page and the user profile contained non-ASCII characters.
+- Read legacy UTF-8 BOM, UTF-16 BOM, Windows ANSI, and GB18030 configuration
+  files while preferring a parsed `data_dir` that exists on disk.
+- New installer configuration files are written as UTF-8 without a BOM.
+
 ## 2.0.2 - 2026-10-28
 
 - Only show the installer data-directory page for a fresh current-user install,

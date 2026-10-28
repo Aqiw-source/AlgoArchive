@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.0.2
+版本：2.0.3
 
 验证日期：2026-10-28
 
@@ -21,7 +21,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：74 项通过。
+结果：76 项通过。
 
 覆盖范围包括：
 
@@ -32,6 +32,7 @@ python -X utf8 -m unittest discover -s tests -v
 - 数据库 schema 1/3/4/5/6 到 7 的升级及升级前备份。
 - 不兼容数据库在写入前拒绝，且不创建业务表。
 - 默认数据目录、用户配置优先级和 `--data-dir` 主动覆盖。
+- UTF-8 BOM、旧版 Windows ANSI/GB18030 配置读取和非 ASCII 用户路径。
 - 空目录、残留锁目录、不完整目标、损坏目标和两份有效旧数据冲突。
 - 数据目录迁移后数据库和代码保持完整。
 - 浏览器设置重启持久化、系统默认/显式/应用窗口和失败回退。
@@ -69,7 +70,7 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.0.2
+.\scripts\build-release.ps1 -Version 2.0.3
 ```
 
 结果：

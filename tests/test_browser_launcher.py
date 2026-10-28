@@ -31,6 +31,7 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("IsAdminInstallMode or FileExists(UserConfigPath())", installer)
         self.assertIn("if IsAdminInstallMode or (DataDirPage = nil)", installer)
         self.assertIn('Name: "{autodesktop}\\{#MyAppName}"', installer)
+        self.assertIn("SaveStringsToUTF8FileWithoutBOM(ConfigPath", installer)
         self.assertNotIn("desktopicon", installer)
 
     def test_readme_warns_against_source_code_archive(self):

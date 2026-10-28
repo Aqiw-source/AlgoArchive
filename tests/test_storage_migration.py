@@ -1,6 +1,7 @@
 """Data-directory migration and schema upgrade tests."""
 
 from contextlib import closing
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -258,6 +259,37 @@ class StorageMigrationTests(unittest.TestCase):
             app_module.resolve_data_dir(str(explicit), config_path),
             explicit.resolve(),
         )
+
+    def test_user_config_accepts_utf8_bom(self):
+        config_path = self.root / "config" / "config.json"
+        data_dir = self.root / "中文数据"
+        data_dir.mkdir()
+        config_path.parent.mkdir()
+        config_path.write_bytes(
+            json.dumps(
+                {"format": 1, "data_dir": str(data_dir)},
+                ensure_ascii=False,
+            ).encode("utf-8-sig")
+        )
+
+        loaded = app_module.load_user_config(config_path)
+        self.assertEqual(loaded["data_dir"], str(data_dir))
+
+    @unittest.skipUnless(os.name == "nt", "Windows code-page compatibility")
+    def test_user_config_accepts_legacy_windows_ansi(self):
+        config_path = self.root / "config" / "config.json"
+        data_dir = self.root / "中文数据"
+        data_dir.mkdir()
+        config_path.parent.mkdir()
+        config_path.write_bytes(
+            json.dumps(
+                {"format": 1, "data_dir": str(data_dir)},
+                ensure_ascii=False,
+            ).encode("gb18030")
+        )
+
+        loaded = app_module.load_user_config(config_path)
+        self.assertEqual(loaded["data_dir"], str(data_dir))
 
     def test_residual_target_directory_is_safe_to_migrate(self):
         legacy = make_v1_data(self.root / "legacy")

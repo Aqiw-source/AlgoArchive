@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.0.2"
+#define MyAppVersion "2.0.3"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "启动.bat"
 
@@ -154,7 +154,8 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  ConfigDir, ConfigPath, ConfigJson: String;
+  ConfigDir, ConfigPath: String;
+  ConfigLines: TArrayOfString;
 begin
   if CurStep <> ssPostInstall then
     Exit;
@@ -166,15 +167,15 @@ begin
   ConfigDir := ExtractFileDir(ConfigPath);
   if not ForceDirectories(ConfigDir) then
     Exit;
-  ConfigJson :=
-    '{' + #13#10 +
-    '  "format": 1,' + #13#10 +
-    '  "data_dir": "' + JsonEscape(DataDirPage.Values[0]) + '",' + #13#10 +
-    '  "browser": {' + #13#10 +
-    '    "mode": "default",' + #13#10 +
-    '    "custom_path": "",' + #13#10 +
-    '    "window_mode": "tab"' + #13#10 +
-    '  }' + #13#10 +
-    '}' + #13#10;
-  SaveStringToFile(ConfigPath, ConfigJson, False);
+  SetArrayLength(ConfigLines, 9);
+  ConfigLines[0] := '{';
+  ConfigLines[1] := '  "format": 1,';
+  ConfigLines[2] := '  "data_dir": "' + JsonEscape(DataDirPage.Values[0]) + '",';
+  ConfigLines[3] := '  "browser": {';
+  ConfigLines[4] := '    "mode": "default",';
+  ConfigLines[5] := '    "custom_path": "",';
+  ConfigLines[6] := '    "window_mode": "tab"';
+  ConfigLines[7] := '  }';
+  ConfigLines[8] := '}';
+  SaveStringsToUTF8FileWithoutBOM(ConfigPath, ConfigLines, False);
 end;

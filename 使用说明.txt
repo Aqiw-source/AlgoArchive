@@ -1,10 +1,10 @@
-算法档案 · AlgoArchive 2.0.2
+算法档案 · AlgoArchive 2.0.3
 作者：Aqiw
 GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.0.2-Windows-x64-Setup.exe。安装完成后会自动创建
+安装版：运行 AlgoArchive-2.0.3-Windows-x64-Setup.exe。安装完成后会自动创建
 桌面快捷方式。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -12,7 +12,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.0.2-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.0.3-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 启动.bat。首次启动会自动创建桌面快捷方式；
@@ -34,6 +34,9 @@ Source code (zip)。源码包不含 Python 运行环境，不能直接双击启�
 
 用户配置默认位于：
 %USERPROFILE%\AlgoArchive\config.json
+
+2.0.3 起兼容旧安装器写出的 Windows ANSI/GB18030 配置；新安装器使用 UTF-8
+无 BOM。中文用户名路径不会再导致配置解析失败。
 
 程序目录与数据目录相互独立。默认数据目录包含：
 - archive.sqlite3：比赛、题目、算法、个人资料和业务设置。
@@ -112,7 +115,7 @@ python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.0.2
+.\scripts\build-release.ps1 -Version 2.0.3
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。
