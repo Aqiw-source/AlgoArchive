@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.0.1"
+#define MyAppVersion "2.0.2"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "启动.bat"
 
@@ -36,9 +36,6 @@ AllowNoIcons=yes
 [Languages]
 Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式："; Flags: checkedonce
-
 [Files]
 Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\启动.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -58,7 +55,7 @@ Source: "..\docs\screenshots\*"; DestDir: "{app}\docs\screenshots"; Flags: ignor
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ACM-ICPC-Windows.ico"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ACM-ICPC-Windows.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ACM-ICPC-Windows.ico"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "启动 {#MyAppName}"; Flags: postinstall nowait skipifsilent
@@ -88,13 +85,18 @@ begin
   StringChangeEx(Result, '"', '\"', True);
 end;
 
+function UserConfigPath(): String;
+begin
+  Result := GetEnv('USERPROFILE') + '\AlgoArchive\config.json';
+end;
+
 procedure InitializeWizard;
 begin
   DataDirPage := CreateInputDirPage(
     wpSelectDir,
     '数据目录',
     '选择题库与源码的完整数据目录',
-    '程序目录和数据目录相互独立。数据目录将保存数据库、题目代码、算法代码、头像和业务设置。',
+    '仅在“仅为我安装”且当前账户尚无用户配置时显示。这里选择的目录会写入当前账户配置，用于保存数据库、代码、头像和业务设置。',
     False,
     ''
   );
@@ -102,11 +104,21 @@ begin
   DataDirPage.Values[0] := GetEnv('USERPROFILE') + '\AlgoArchive\data';
 end;
 
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result :=
+    (DataDirPage <> nil) and
+    (PageID = DataDirPage.ID) and
+    (IsAdminInstallMode or FileExists(UserConfigPath()));
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   AppDir, DataDir, ProbeFile: String;
 begin
   Result := True;
+  if DataDirPage = nil then
+    Exit;
   if CurPageID <> DataDirPage.ID then
     Exit;
 
@@ -144,13 +156,15 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ConfigDir, ConfigPath, ConfigJson: String;
 begin
-  if (CurStep <> ssPostInstall) or IsAdminInstallMode then
+  if CurStep <> ssPostInstall then
     Exit;
-  ConfigDir := GetEnv('USERPROFILE') + '\AlgoArchive';
-  if not ForceDirectories(ConfigDir) then
+  if IsAdminInstallMode or (DataDirPage = nil) then
     Exit;
-  ConfigPath := AddBackslash(ConfigDir) + 'config.json';
+  ConfigPath := UserConfigPath();
   if FileExists(ConfigPath) then
+    Exit;
+  ConfigDir := ExtractFileDir(ConfigPath);
+  if not ForceDirectories(ConfigDir) then
     Exit;
   ConfigJson :=
     '{' + #13#10 +

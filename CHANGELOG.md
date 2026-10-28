@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.2 - 2026-10-28
+
+- Only show the installer data-directory page for a fresh current-user install,
+  so the selected directory is never ignored by all-users or existing-config
+  installations.
+- Create the desktop shortcut automatically for installed and portable
+  distributions.
+- Clarify that users must download the Setup executable or Windows x64 ZIP,
+  not GitHub's automatically generated source archive.
+
 ## 2.0.1 - 2026-10-28
 
 - Added the project GitHub repository and author Aqiw labels to the top bar and

@@ -16,6 +16,31 @@ class BrowserLauncherTests(unittest.TestCase):
             self.assertNotIn("--data-dir", normalized)
             self.assertNotIn("algoarchive_data", normalized)
 
+    def test_windows_launchers_refresh_desktop_shortcut(self):
+        root = Path(__file__).resolve().parents[1]
+        for name in ("启动.bat", "start.bat"):
+            content = (root / name).read_text(encoding="utf-8")
+            self.assertIn("create-desktop-shortcut.ps1", content)
+            self.assertIn("-ShortcutName", content)
+
+    def test_installer_skips_data_page_when_selection_cannot_apply(self):
+        installer = (
+            Path(__file__).resolve().parents[1] / "installer" / "AlgoArchive.iss"
+        ).read_text(encoding="utf-8")
+        self.assertIn("function ShouldSkipPage", installer)
+        self.assertIn("IsAdminInstallMode or FileExists(UserConfigPath())", installer)
+        self.assertIn("if IsAdminInstallMode or (DataDirPage = nil)", installer)
+        self.assertIn('Name: "{autodesktop}\\{#MyAppName}"', installer)
+        self.assertNotIn("desktopicon", installer)
+
+    def test_readme_warns_against_source_code_archive(self):
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Source code (zip)", readme)
+        self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64-Setup.exe", readme)
+        self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64.zip", readme)
+
     def test_chrome_candidates_include_standard_program_files_path(self):
         candidates = app.chrome_candidates()
         self.assertIn(

@@ -1,30 +1,34 @@
-﻿param(
-    [string]$ShortcutPath
+param(
+    [string]$ShortcutPath,
+    [string]$ShortcutName = 'AlgoArchive.lnk'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$targetPath = Join-Path $projectRoot '启动.bat'
+$targetPath = Join-Path $projectRoot 'start.bat'
 $iconPath = Join-Path $projectRoot 'ACM-ICPC-Windows.ico'
 
 foreach ($requiredPath in @($targetPath, $iconPath, (Join-Path $projectRoot 'runtime\python.exe'))) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "缺少必要文件: $requiredPath"
+        throw "Required file is missing: $requiredPath"
     }
 }
 
 if ([string]::IsNullOrWhiteSpace($ShortcutPath)) {
     $desktopPath = [Environment]::GetFolderPath('Desktop')
     if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-        throw '无法定位当前用户的桌面目录'
+        throw 'Unable to locate the current user desktop folder.'
     }
-    $ShortcutPath = Join-Path $desktopPath '算法档案.lnk'
+    if ([string]::IsNullOrWhiteSpace($ShortcutName)) {
+        throw 'Shortcut name cannot be empty.'
+    }
+    $ShortcutPath = Join-Path $desktopPath $ShortcutName
 }
 
 $shortcutDirectory = Split-Path -Parent $ShortcutPath
 if (-not [string]::IsNullOrWhiteSpace($shortcutDirectory) -and -not (Test-Path -LiteralPath $shortcutDirectory)) {
-    throw "快捷方式目录不存在: $shortcutDirectory"
+    throw "Shortcut directory does not exist: $shortcutDirectory"
 }
 
 $shell = New-Object -ComObject WScript.Shell
@@ -32,12 +36,12 @@ $shortcut = $shell.CreateShortcut($ShortcutPath)
 $shortcut.TargetPath = $targetPath
 $shortcut.WorkingDirectory = $projectRoot
 $shortcut.IconLocation = "$iconPath,0"
-$shortcut.Description = 'AlgoArchive 算法档案管理工具'
+$shortcut.Description = 'AlgoArchive local contest archive'
 $shortcut.WindowStyle = 1
 $shortcut.Save()
 
 if (-not (Test-Path -LiteralPath $ShortcutPath)) {
-    throw '快捷方式写入后未找到目标文件'
+    throw 'Shortcut file was not created.'
 }
 
-Write-Host "快捷方式已创建: $ShortcutPath"
+Write-Output "Shortcut created: $ShortcutPath"

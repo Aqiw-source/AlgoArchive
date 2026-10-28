@@ -9,6 +9,12 @@ AlgoArchive 使用本地 Python 标准库服务和原生 HTML/CSS/JavaScript 界
 比赛、题目、算法模板、多份代码、参考链接、头像和设置均保存在当前
 Windows 用户的数据目录中，不上传、不自动提交，也不执行代码。
 
+> [!IMPORTANT]
+> 请下载 Release 中的 `AlgoArchive-2.0.2-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.0.2-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
+> 运行环境，普通用户解压后无法直接启动。
+
 [界面预览](#界面预览) · [功能](#功能) · [安装](#安装) · [数据](#数据与配置) · [备份](#备份与恢复) ·
 [浏览器](#浏览器与窗口模式) · [开发](#开发与发布)
 
@@ -58,14 +64,16 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.0.1-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.0.2-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
-4. 在数据目录页选择当前账户的完整数据目录。
-5. 选择是否创建桌面快捷方式，然后完成安装。
+4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
+5. 完成安装，桌面快捷方式会自动创建。
 
-安装范围不会强制程序目录或数据目录。所有用户安装不会把安装者的个人数据
-绑定给其他账户；各账户首次正常启动时使用自己的用户目录和设置。
+“所有用户安装”不会显示数据目录页，也不会把安装者的个人数据绑定给其他
+账户；各账户首次正常启动时使用自己的默认目录。检测到已有
+`%USERPROFILE%\AlgoArchive\config.json` 时也会跳过该页，安装器不会覆盖
+现有配置。需要更换数据位置时，请启动程序并使用“设置 → 数据管理”迁移。
 
 安装升级会复用既有程序目录并保留用户数据。卸载默认不删除题库、头像、
 备份或配置文件。
@@ -74,7 +82,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 1. 完整解压 ZIP，不要在压缩包内直接运行。
 2. 双击 `启动.bat`。
-3. 需要桌面入口时运行 `创建桌面快捷方式.bat`。
+3. 首次启动会自动创建桌面快捷方式；也可以运行 `创建桌面快捷方式.bat` 手动刷新。
 
 便携包包含 Windows x64 Python 运行环境，不需要安装 Python、Node、
 执行 `pip` 或下载前端依赖。
@@ -259,24 +267,25 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.0.1
+.\scripts\build-portable.ps1 -Version 2.0.2
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.0.1
+.\scripts\build-release.ps1 -Version 2.0.2
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
 用户代码、头像、`runtime.lock`、旧 `.lnk`、备份、缓存和测试目录。
 
-Windows CI 会执行后端测试、前端语法检查、便携包构建和发布包隐私检查。
+Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Python 运行时，
+然后构建便携包并检查发布包隐私。
 版本号、安装器元数据和 Release 标签应在发布时保持一致。
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.0.1 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.0.2 已验证：
 
 - 隔离后端测试全部通过。
 - `node --check web/app.js` 通过。

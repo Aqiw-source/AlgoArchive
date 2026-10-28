@@ -33,7 +33,7 @@ import uuid
 import webbrowser
 
 
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.0.2"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 7
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7}

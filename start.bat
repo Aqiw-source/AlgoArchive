@@ -8,6 +8,9 @@ if not exist "runtime\python.exe" (
     pause
     exit /b 1
 )
+if exist "scripts\create-desktop-shortcut.ps1" (
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\create-desktop-shortcut.ps1" -ShortcutName "算法档案.lnk" >nul 2>&1
+)
 "runtime\python.exe" -X utf8 "app.py"
 if errorlevel 1 (
     echo.
