@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.0.3
+版本：2.0.4
 
 验证日期：2026-10-28
 
@@ -21,7 +21,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：76 项通过。
+结果：77 项通过。
 
 覆盖范围包括：
 
@@ -50,11 +50,12 @@ node --check web/app.js
 
 使用本机 Chrome 对隔离实例执行：
 
-- 打开设置。
-- 检查“个人资料”“启动与浏览器”“数据管理”“关于与诊断”四个标签。
-- 检查浏览器表单、实际数据路径和诊断字段。
-- 检查顶部 GitHub 链接、“作者 Aqiw”标签和关于页仓库入口。
-- 验证鼠标位于侧栏时滚轮不会带动右侧页面，移动端页面保持正常滚动。
+- 检查侧栏 Codeforces、AtCoder、洛谷入口和首页六个统计项。
+- 从“新建比赛”弹窗选择洛谷快捷项并创建 QA 比赛。
+- 验证新比赛出现在洛谷工作空间的比赛卡片中。
+- 验证新弹窗不再使用会遮挡底部按钮的原生平台下拉浮层。
+- 检查平台输入框仍可接受任意文本，链接字段不进行平台网址白名单判断。
+- 检查弹窗快捷项、字段、底部操作区和移动端单列布局。
 - 桌面视口 1440×1000。
 - 移动视口 390×844。
 - 页面控制台错误：0。
@@ -62,15 +63,15 @@ node --check web/app.js
 
 截图：
 
-- `.qa-data/settings-desktop.png`
-- `.qa-data/settings-mobile.png`
-- `.qa-data/home-desktop.png`
-- `.qa-data/home-mobile.png`
+- `algoarchive-home-2.0.4.png`
+- `algoarchive-modal-2.0.4.png`
+- `algoarchive-luogu-workspace-2.0.4.png`
+- `algoarchive-modal-mobile-2.0.4.png`
 
 ### 发行构建
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.0.3
+.\scripts\build-release.ps1 -Version 2.0.4
 ```
 
 结果：

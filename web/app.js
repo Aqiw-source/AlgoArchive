@@ -5,10 +5,16 @@
   const modal = $('#modal');
   const csrf = $('meta[name="csrf-token"]').content;
   const userName = ($('meta[name="user-name"]')?.content || '本地用户').trim();
-  const platforms = {codeforces: 'Codeforces', atcoder: 'AtCoder'};
+  const platforms = {codeforces: 'Codeforces', atcoder: 'AtCoder', luogu: '洛谷'};
   const knownPlatform = value => Object.prototype.hasOwnProperty.call(platforms, value);
-  const platformKey = value => String(value || '').trim().toLocaleLowerCase();
-  const platformLabel = value => knownPlatform(value) ? platforms[value] : value || '';
+  const platformKey = value => {
+    const key=String(value || '').trim().toLocaleLowerCase();
+    return key==='洛谷'?'luogu':key;
+  };
+  const platformLabel = value => {
+    const key=platformKey(value);
+    return knownPlatform(key) ? platforms[key] : value || '';
+  };
   const languages = {cpp: 'C++', python: 'Python', java: 'Java', other: '其他'};
   const extensions = {cpp: '.cpp', python: '.py', java: '.java', other: '.txt'};
   const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, settings: null, backups: []};
@@ -33,8 +39,8 @@
   const time = v => { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.valueOf()) ? '—' : new Intl.DateTimeFormat('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d); };
   const safeURL = v => { try { const u = new URL(v); return ['https:','http:'].includes(u.protocol) ? esc(u.href) : '#'; } catch (_) { return '#'; } };
   const badge = p => {
-    const value = String(p || '');
-    return `<span class="platform-badge ${knownPlatform(value) ? esc(value) : 'custom'}">${esc(platformLabel(value))}</span>`;
+    const key=platformKey(p);
+    return `<span class="platform-badge ${knownPlatform(key) ? esc(key) : 'custom'}">${esc(platformLabel(p))}</span>`;
   };
   const external = (url, label = '原题 ↗') => `<a href="${safeURL(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
   const option = (value,label,selected) => `<option value="${esc(value)}"${String(value)===String(selected)?' selected':''}>${esc(label)}</option>`;
@@ -55,7 +61,8 @@
     const entries = Object.entries(platforms), seen = new Set(Object.keys(platforms));
     state.problems.forEach(problem => {
       const value = String(problem.platform || '').trim();
-      if (value && !seen.has(value)) { seen.add(value); entries.push([value, value]); }
+      const key = platformKey(value);
+      if (value && !seen.has(key)) { seen.add(key); entries.push([key, value]); }
     });
     return entries;
   }
@@ -63,7 +70,8 @@
     const entries = Object.entries(platforms), seen = new Set(Object.keys(platforms));
     state.contests.forEach(contest => {
       const value = String(contest.platform || '').trim();
-      if (value && !seen.has(value)) { seen.add(value); entries.push([value, value]); }
+      const key = platformKey(value);
+      if (value && !seen.has(key)) { seen.add(key); entries.push([key, value]); }
     });
     return entries;
   }
@@ -121,10 +129,13 @@
     return `<div class="algorithm-grid">${items.map(a => `<article class="algorithm-card" data-open-algorithm="${esc(a.id)}" role="link" tabindex="0" aria-label="打开算法：${esc(a.name)}"><div class="algorithm-card-top"><span class="algorithm-category">${esc(a.category || '未分类')}</span><span class="muted" aria-hidden="true">{ }</span></div><h3>${algorithmButton(a)}</h3><p class="algorithm-description">${esc(a.description || '暂无说明')}</p><div class="algorithm-card-bottom"><span>${a.problem_count || 0} 道题目 · ${a.snippets.length} 份代码 · ${a.links.length} 个链接</span><button class="card-open" data-open-algorithm="${esc(a.id)}">查看算法 <span aria-hidden="true">→</span></button></div></article>`).join('')}</div>`;
   }
   function home() {
-    const cf = state.problems.filter(p=>p.platform==='codeforces').length;
-    const ac = state.problems.filter(p=>p.platform==='atcoder').length;
+    const platformProblemCount=key=>state.problems.filter(p=>platformKey(p.platform)===key).length;
+    const platformContestCount=key=>state.contests.filter(c=>platformKey(c.platform)===key).length;
+    const cf = platformProblemCount('codeforces');
+    const ac = platformProblemCount('atcoder');
+    const lg = platformProblemCount('luogu');
     main.innerHTML = pageHeader('算法档案','在本地整理比赛、题目与算法模板，让积累清晰可见。',addContestButton()+addProblemButton()+addAlgorithmButton(),'WORKSPACE / 本地工作空间') +
-      `<section class="stats-grid" aria-label="题库统计"><article class="stat-card"><div class="stat-label">完整比赛</div><span class="stat-mark">▦</span><div class="stat-value">${state.contests.length}</div><div class="stat-note">已保存的完整比赛</div></article><article class="stat-card"><div class="stat-label">全部题目</div><span class="stat-mark blue">≡</span><div class="stat-value">${state.problems.length}</div><div class="stat-note">统一题库，实时同步</div></article><article class="stat-card"><div class="stat-label">算法模板</div><span class="stat-mark purple">{ }</span><div class="stat-value">${state.algorithms.length}</div><div class="stat-note">${state.algorithms.reduce((n,a)=>n+a.snippets.length,0)} 份代码</div></article><article class="stat-card"><div class="stat-label">Codeforces</div><span class="stat-mark gold">CF</span><div class="stat-value">${cf}</div><div class="stat-note">${state.contests.filter(c=>c.platform==='codeforces').length} 场比赛 · ${cf} 道题目</div></article><article class="stat-card"><div class="stat-label">AtCoder</div><span class="stat-mark purple">AC</span><div class="stat-value">${ac}</div><div class="stat-note">${state.contests.filter(c=>c.platform==='atcoder').length} 场比赛 · ${ac} 道题目</div></article></section>` +
+      `<section class="stats-grid" aria-label="题库统计"><article class="stat-card"><div class="stat-label">完整比赛</div><span class="stat-mark">▦</span><div class="stat-value">${state.contests.length}</div><div class="stat-note">已保存的完整比赛</div></article><article class="stat-card"><div class="stat-label">全部题目</div><span class="stat-mark blue">≡</span><div class="stat-value">${state.problems.length}</div><div class="stat-note">统一题库，实时同步</div></article><article class="stat-card"><div class="stat-label">算法模板</div><span class="stat-mark purple">{ }</span><div class="stat-value">${state.algorithms.length}</div><div class="stat-note">${state.algorithms.reduce((n,a)=>n+a.snippets.length,0)} 份代码</div></article><article class="stat-card"><div class="stat-label">Codeforces</div><span class="stat-mark gold">CF</span><div class="stat-value">${cf}</div><div class="stat-note">${platformContestCount('codeforces')} 场比赛 · ${cf} 道题目</div></article><article class="stat-card"><div class="stat-label">AtCoder</div><span class="stat-mark purple">AC</span><div class="stat-value">${ac}</div><div class="stat-note">${platformContestCount('atcoder')} 场比赛 · ${ac} 道题目</div></article><article class="stat-card"><div class="stat-label">洛谷</div><span class="stat-mark amber">洛</span><div class="stat-value">${lg}</div><div class="stat-note">${platformContestCount('luogu')} 场比赛 · ${lg} 道题目</div></article></section>` +
       `<section class="home-intro"><span class="home-intro-icon" aria-hidden="true">{ }</span><div class="intro-copy"><h2>一份代码，多种整理方式。</h2><p>比赛中的题目会自动收录到全部题目；从任意入口修改，始终保存同一份解答。</p></div><button class="btn" data-nav="problems">打开全部题目 <span aria-hidden="true">→</span></button></section>` +
       `<section><div class="section-head"><h2>最近编辑</h2><a href="#problems" data-nav="problems">查看全部 →</a></div><div class="panel">${problemTable(sortedProblems(state.problems).slice(0,6))}</div></section>`+
       `<section><div class="section-head"><h2>最近的算法模板</h2><a href="#algorithms" data-nav="algorithms">管理算法 →</a></div>${algorithmCards(sortedAlgorithms(state.algorithms).slice(0,3))}</section>`+
@@ -136,7 +147,7 @@
   }
   function filteredProblems() {
     const f=state.filter, ctx=state.context, q=f.q.trim().toLocaleLowerCase();
-    const items=state.problems.filter(p=>(!ctx.platform||p.platform===ctx.platform)&&(!ctx.contest||p.contest_id===ctx.contest)&&(!ctx.algorithm||p.algorithm_id===ctx.algorithm)&&(!f.platform||p.platform===f.platform)&&(!f.language||p.language===f.language)&&(!f.contest||(f.contest==='none'?!p.contest_id:p.contest_id===f.contest))&&(!q||[p.number,p.name,p.url,p.contest_title,p.algorithm_name,platformLabel(p.platform)].join(' ').toLocaleLowerCase().includes(q)));
+    const items=state.problems.filter(p=>(!ctx.platform||platformKey(p.platform)===ctx.platform)&&(!ctx.contest||p.contest_id===ctx.contest)&&(!ctx.algorithm||p.algorithm_id===ctx.algorithm)&&(!f.platform||platformKey(p.platform)===platformKey(f.platform))&&(!f.language||p.language===f.language)&&(!f.contest||(f.contest==='none'?!p.contest_id:p.contest_id===f.contest))&&(!q||[p.number,p.name,p.url,p.contest_title,p.algorithm_name,platformLabel(p.platform)].join(' ').toLocaleLowerCase().includes(q)));
     if(ctx.algorithm)return sortedAlgorithmProblems(items);
     if(state.route==='problems'&&!ctx.platform)return sortedGlobalProblems(items);
     return sortedProblems(items);
@@ -234,7 +245,7 @@
       ? addContestButton(platform)+addProblemButton('',platform)
       : '<button class="btn" data-import-problems>导入</button><button class="btn" data-reverse-problems>逆序排列</button>'+addProblemButton('',platform);
     main.innerHTML=pageHeader(platform?platforms[platform]:'全部题目',platform?'整理这个平台的比赛与题目，沉淀每一份解答。':'比赛题目与单独添加的题目，统一搜索、查看和编辑。',headerActions,platform?'PLATFORM / 平台题库':'PROBLEMS / 统一题库')+
-      (platform?`<section><div class="section-head"><h2>平台比赛</h2><span class="count-label">${state.contests.filter(c=>c.platform===platform).length} 场比赛</span></div>${contestCards(sortedContests(state.contests.filter(c=>c.platform===platform)))}</section><div class="section-head"><h2>平台题目</h2></div>`:'')+tableArea();
+      (platform?`<section><div class="section-head"><h2>平台比赛</h2><span class="count-label">${state.contests.filter(c=>platformKey(c.platform)===platform).length} 场比赛</span></div>${contestCards(sortedContests(state.contests.filter(c=>platformKey(c.platform)===platform)))}</section><div class="section-head"><h2>平台题目</h2></div>`:'')+tableArea();
     updateTable();
   }
   function allContests() {
@@ -245,7 +256,7 @@
   }
   function updateContests() {
     const q=$('#contest-search').value.toLowerCase().trim(), platform=$('#contest-platform').value;
-    const items=sortedContests(state.contests.filter(c=>(!q||c.title.toLowerCase().includes(q))&&(!platform||c.platform===platform)));
+    const items=sortedContests(state.contests.filter(c=>(!q||c.title.toLowerCase().includes(q))&&(!platform||platformKey(c.platform)===platformKey(platform))));
     $('#contest-list').innerHTML=items.length?contestCards(items):(q||platform?empty('没有找到匹配的比赛','试着调整关键词或平台筛选。'):contestCards([])); $('#contest-count').textContent=`${items.length} 场比赛`;
   }
   function allAlgorithms() {
@@ -321,7 +332,7 @@
     const back=p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems';
     const backLabel=p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
     main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
-      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、洛谷" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options"><option value="Codeforces"></option><option value="AtCoder"></option></datalist></label><label class="field"><span>题目编号 <small>编号与名称至少填写一项</small></span><input name="number" maxlength="50" placeholder="例如 A、B、abc350_a" value="${esc(p.number)}"></label><label class="field"><span>题目名称 <small>可选</small></span><input name="name" maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field wide"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码将作为真实源文件保存在项目的 data/codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`;
+      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、洛谷" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options">${problemPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field"><span>题目编号 <small>编号与名称至少填写一项</small></span><input name="number" maxlength="50" placeholder="例如 A、B、abc350_a" value="${esc(p.number)}"></label><label class="field"><span>题目名称 <small>可选</small></span><input name="name" maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field wide"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码将作为真实源文件保存在项目的 data/codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`;
     $('#code-input').value=p.code||'';
     state.editor={kind:'problem',entity:{...p},initial:''}; state.editor.initial=JSON.stringify(readProblemForm());
     highlightCode(); updateCursor();
@@ -676,8 +687,12 @@
   }
   function openContestForm(id='', platform=''){
     const c=state.contests.find(c=>c.id===id)||{platform:platform||'codeforces',title:'',url:''};
-    modal.innerHTML=`<form id="contest-form" novalidate>${dialogHeader(id?'编辑比赛':'新建一场比赛')}<div class="modal-body"><p>保存比赛信息，之后就可以逐题添加代码。</p><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="contest-form-platform" list="contest-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、洛谷、牛客" value="${esc(platformLabel(c.platform))}"><datalist id="contest-platform-options">${contestPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field"><span>比赛标题</span><input name="title" required maxlength="300" placeholder="例如 Codeforces Round 1000" value="${esc(c.title)}"></label><label class="field"><span>比赛链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意比赛页面链接，或先填写备注" value="${esc(c.url)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建比赛'}</button></div></form>`;
+    modal.innerHTML=`<form id="contest-form" class="contest-form" novalidate>${dialogHeader(id?'编辑比赛':'新建比赛')}<div class="modal-body contest-form-body"><p class="form-intro">保存比赛信息，之后可以逐题加入代码。</p><div class="contest-form-grid"><label class="field"><span>所属平台 <small>自由输入</small></span><input name="platform" id="contest-form-platform" required maxlength="100" autocomplete="off" placeholder="Codeforces、AtCoder、洛谷、牛客…" value="${esc(platformLabel(c.platform))}"></label><label class="field"><span>比赛标题</span><input name="title" required maxlength="300" placeholder="例如 Codeforces Round 1000" value="${esc(c.title)}"></label><div class="platform-presets" aria-label="常用平台"><span>常用</span><button type="button" data-platform-preset="Codeforces"><b class="preset-icon cf">CF</b>Codeforces</button><button type="button" data-platform-preset="AtCoder"><b class="preset-icon ac">AC</b>AtCoder</button><button type="button" data-platform-preset="洛谷"><b class="preset-icon lg">洛</b>洛谷</button></div><label class="field full"><span>比赛链接 <small>也可以先填写备注</small></span><input name="url" type="text" required maxlength="2048" placeholder="粘贴比赛页面链接，或填写“链接稍后补充”" value="${esc(c.url)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建比赛'}</button></div></form>`;
     modal.showModal();$('#contest-form').addEventListener('submit',async event=>{event.preventDefault();if(state.busy)return;if(!validateRequiredFields(event.target))return;const f=new FormData(event.target);setModalBusy(true);try{const result=await api(id?`/api/contests/${encodeURIComponent(id)}`:'/api/contests',id?'PUT':'POST',{platform:f.get('platform'),title:f.get('title'),url:f.get('url'),...(id?{version:c.version}:{})});setModalBusy(false);closeModal();toast(id?'比赛信息已更新。':'比赛已创建，可以开始添加题目。');await go(`contest/${result.contest.id}`,{force:true});}catch(e){setModalBusy(false);const err=$('#dialog-error');if(err)err.textContent=e.message;else toast(e.message,true);}});
+    modal.querySelectorAll('[data-platform-preset]').forEach(button=>button.addEventListener('click',()=>{
+      const input=$('#contest-form-platform');if(!input)return;
+      input.value=button.dataset.platformPreset||'';clearFieldError(input);input.focus();
+    }));
   }
   function algorithmLinkRow(link={}){
     return `<div class="link-row"><input data-link-title maxlength="300" placeholder="链接名称（可选）" value="${esc(link.title||'')}"><input data-link-url type="url" maxlength="2048" placeholder="https://…" value="${esc(link.url||'')}"><button type="button" class="icon-text danger-text" data-remove-algorithm-link aria-label="移除这条链接">移除</button></div>`;

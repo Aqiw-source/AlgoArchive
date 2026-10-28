@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.4 - 2026-10-28
+
+- Added a built-in Luogu workspace and Luogu summary on the home page while
+  keeping arbitrary platform input and unrestricted competition links.
+- Reworked the contest dialog into a compact two-column form with explicit
+  Codeforces, AtCoder, and Luogu quick selections.
+- Removed the browser-native platform suggestion overlay from the contest
+  dialog so it no longer covers the footer actions.
+
 ## 2.0.3 - 2026-10-28
 
 - Fixed startup failure when the installer wrote `config.json` using the

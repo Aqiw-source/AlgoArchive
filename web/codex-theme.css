@@ -184,6 +184,11 @@ textarea:focus-visible {
   background: #e8edf2;
 }
 
+.lg {
+  color: #4f735f;
+  background: #e8f0e9;
+}
+
 .nav-divider {
   border-top: 1px solid var(--line);
   margin: 14px 9px;
@@ -718,6 +723,11 @@ tbody tr:hover {
 .platform-badge.atcoder {
   color: #63788f;
   background: #edf1f5;
+}
+
+.platform-badge.luogu {
+  color: #50735f;
+  background: #eaf1eb;
 }
 
 .platform-badge.custom {
@@ -1266,6 +1276,87 @@ dialog:has(#algorithm-form) {
   width: min(720px, calc(100vw - 28px));
 }
 
+dialog:has(#contest-form) {
+  width: min(640px, calc(100vw - 28px));
+}
+
+.contest-form .modal-header {
+  padding-bottom: 8px;
+}
+
+.contest-form-body {
+  padding-top: 0;
+}
+
+.contest-form-body .form-intro {
+  margin: 0 0 16px;
+  color: #858782;
+  font-size: 11px;
+}
+
+.contest-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.contest-form-grid .field {
+  margin-top: 0;
+}
+
+.contest-form-grid .field.full {
+  grid-column: 1 / -1;
+}
+
+.platform-presets {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin-top: -3px;
+}
+
+.platform-presets > span {
+  margin-right: 2px;
+  color: #a0a19c;
+  font-size: 9.5px;
+}
+
+.platform-presets button {
+  min-height: 29px;
+  padding: 4px 9px 4px 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #646660;
+  background: #fafaf8;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.platform-presets button:hover {
+  color: #2e302d;
+  background: #f2f3f0;
+  border-color: #d6d7d2;
+}
+
+.preset-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.contest-form .error-text {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+
 .modal-header {
   padding: 19px 21px 12px;
 }
@@ -1811,6 +1902,32 @@ td {
   .stat-card {
     min-height: 98px;
     padding: 15px;
+  }
+
+  dialog:has(#contest-form) {
+    width: calc(100vw - 24px);
+  }
+
+  .contest-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contest-form-grid .field.full {
+    grid-column: auto;
+  }
+
+  .platform-presets {
+    grid-column: auto;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .platform-presets button {
+    flex: 0 0 auto;
+  }
+
+  .contest-form .modal-actions .btn {
+    flex: 1;
   }
 
   .home-intro {

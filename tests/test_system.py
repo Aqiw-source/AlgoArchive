@@ -365,6 +365,10 @@ class SystemTests(unittest.TestCase):
         self.assertIn('rel="noopener noreferrer"', self.index_html)
         self.assertIn("作者 Aqiw", self.index_html)
 
+    def test_index_exposes_luogu_workspace(self):
+        self.assertIn('href="#platform/luogu"', self.index_html)
+        self.assertIn(">洛谷</a>", self.index_html)
+
     def test_profile_name_and_avatar_persist_after_restart(self):
         avatar = (
             "data:image/png;base64,"
