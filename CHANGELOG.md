@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.5 - 2026-10-28
+
+- Added a built-in NowCoder workspace and NowCoder summary on the home page
+  while preserving arbitrary platform input and unrestricted links.
+- Added a NowCoder quick selection to the contest dialog.
+- Recognized Luogu, NowCoder, and common NowCoder aliases across workspace
+  filtering and counting.
+
 ## 2.0.4 - 2026-10-28
 
 - Added a built-in Luogu workspace and Luogu summary on the home page while

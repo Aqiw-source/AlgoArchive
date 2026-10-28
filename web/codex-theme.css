@@ -189,6 +189,11 @@ textarea:focus-visible {
   background: #e8f0e9;
 }
 
+.ng {
+  color: #45686b;
+  background: #e7eff0;
+}
+
 .nav-divider {
   border-top: 1px solid var(--line);
   margin: 14px 9px;
@@ -559,7 +564,7 @@ main > * {
 }
 
 .stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 1px;
   overflow: hidden;
   margin-bottom: 18px;
@@ -728,6 +733,11 @@ tbody tr:hover {
 .platform-badge.luogu {
   color: #50735f;
   background: #eaf1eb;
+}
+
+.platform-badge.niuke {
+  color: #4c6d70;
+  background: #e9f0f1;
 }
 
 .platform-badge.custom {
@@ -1918,12 +1928,19 @@ td {
 
   .platform-presets {
     grid-column: auto;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .platform-presets > span {
+    grid-column: 1 / -1;
   }
 
   .platform-presets button {
-    flex: 0 0 auto;
+    width: 100%;
+    justify-content: center;
   }
 
   .contest-form .modal-actions .btn {

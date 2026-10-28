@@ -369,6 +369,10 @@ class SystemTests(unittest.TestCase):
         self.assertIn('href="#platform/luogu"', self.index_html)
         self.assertIn(">洛谷</a>", self.index_html)
 
+    def test_index_exposes_niuke_workspace(self):
+        self.assertIn('href="#platform/niuke"', self.index_html)
+        self.assertIn(">牛客</a>", self.index_html)
+
     def test_profile_name_and_avatar_persist_after_restart(self):
         avatar = (
             "data:image/png;base64,"

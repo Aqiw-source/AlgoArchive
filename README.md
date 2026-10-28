@@ -10,8 +10,8 @@ AlgoArchive 使用本地 Python 标准库服务和原生 HTML/CSS/JavaScript 界
 Windows 用户的数据目录中，不上传、不自动提交，也不执行代码。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.0.4-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.0.4-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.0.5-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.0.5-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -26,7 +26,7 @@ Windows 用户的数据目录中，不上传、不自动提交，也不执行代
 
 ### 比赛归档
 
-Codeforces、AtCoder 和洛谷提供固定工作空间；平台仍可自由输入，比赛链接也不受限制。
+Codeforces、AtCoder、洛谷和牛客提供固定工作空间；平台仍可自由输入，比赛链接也不受限制。
 
 ![新建比赛](docs/screenshots/contest-dialog.png)
 
@@ -52,7 +52,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 | 能力 | 说明 |
 | --- | --- |
-| 平台工作空间 | 侧栏内建 Codeforces、AtCoder 和洛谷入口，统一查看平台比赛与题目 |
+| 平台工作空间 | 侧栏内建 Codeforces、AtCoder、洛谷和牛客入口，统一查看平台比赛与题目 |
 | 比赛归档 | 平台可自由输入，支持 Codeforces、AtCoder、洛谷、牛客和其他完整比赛 |
 | 统一题库 | 比赛题目与独立题目共享同一记录和同一份源代码 |
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
@@ -71,7 +71,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.0.4-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.0.5-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -277,13 +277,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.0.4
+.\scripts\build-portable.ps1 -Version 2.0.5
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.0.4
+.\scripts\build-release.ps1 -Version 2.0.5
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -295,11 +295,11 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.0.4 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.0.5 已验证：
 
 - 隔离后端测试全部通过。
 - `node --check web/app.js` 通过。
-- 洛谷工作空间、新比赛弹窗和平台快捷项在桌面及 390px 移动视口正常，
+- 洛谷与牛客工作空间、新比赛弹窗和平台快捷项在桌面及 390px 移动视口正常，
   无控制台错误和横向溢出。
 - Inno Setup 6.7.3 成功编译 Windows x64 安装程序。
 - 便携 ZIP 成功生成并通过发布内容与隐私检查。
