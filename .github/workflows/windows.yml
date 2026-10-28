@@ -21,6 +21,18 @@ jobs:
         run: python -X utf8 -m unittest discover -s tests -v
       - name: Frontend syntax
         run: node --check web/app.js
+      - name: Prepare bundled Python runtime
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "python-3.13.9-embed-amd64.zip"
+          $expected = "91d828c2da3a029b41699e918674a0cb379c02cf20dab9c501306885f837402a"
+          Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.13.9/python-3.13.9-embed-amd64.zip" -OutFile $archive
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+              throw "Python runtime SHA-256 mismatch: $actual"
+          }
+          New-Item -ItemType Directory -Path ".\runtime" -Force | Out-Null
+          Expand-Archive -LiteralPath $archive -DestinationPath ".\runtime" -Force
       - name: Build portable package
         shell: pwsh
         run: .\scripts\build-portable.ps1
