@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.6 - 2026-10-29
+
+- Accept scheme-less domain links such as `example.com/problem/1` and
+  `atcoder.jp` for problems, contests, and algorithm references, storing them
+  with an HTTPS scheme while leaving notes and file names unchanged.
+- Hide secondary problem-table columns at small widths so long Chinese titles
+  wrap by word instead of one character per line.
+- Match the VS Code light editor more closely with full-row blue selections
+  and compact scrollbars without native arrow buttons.
+
 ## 2.1.5 - 2026-10-29
 
 - Accept scheme-less links beginning with `www.` for algorithm references,

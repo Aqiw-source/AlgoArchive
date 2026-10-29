@@ -11,8 +11,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.1.5-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.1.5-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.1.6-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.1.6-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -99,7 +99,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.1.5-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.1.6-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -239,7 +239,8 @@ data/
 时，会回退到系统默认浏览器，并在服务仍运行时保留本地地址。
 
 题目原题和算法参考链接继续在外部浏览器的新标签页打开，接受 `http` /
-`https` 地址；以 `www.` 开头的地址会自动补全为 HTTPS。
+`https` 地址。`example.com/problem/1`、`atcoder.jp` 这类无协议域名会自动
+补全为 HTTPS；含空格的备注和 `main.cpp`、`README.md` 等文件名保持不变。
 
 ## 代码编辑器
 
@@ -247,6 +248,7 @@ data/
 - 回车按当前行自动延续缩进。
 - `Ctrl+S` 保存，macOS 风格浏览器使用 `Cmd+S`。
 - 支持 C++、Python、Java 和其他文本文件。
+- 多行选择采用 VS Code 风格的整行蓝色选区，滚动条使用紧凑灰色样式。
 - 单份代码上限为 2 MiB。
 
 编辑器只管理代码，不编译、运行或判题。
@@ -309,13 +311,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.5
+.\scripts\build-portable.ps1 -Version 2.1.6
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.1.5
+.\scripts\build-release.ps1 -Version 2.1.6
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -327,10 +329,13 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.1.5 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.1.6 已验证：
 
 - 隔离后端测试全部通过。
 - `node --check web/app.js` 通过。
+- 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。
+- 小屏题库隐藏次要列，长题名正常换行且无横向溢出。
+- 编辑器多行选区按 VS Code 风格覆盖整行，滚动条使用细灰样式。
 - CPH 面板、多用例、`.prob` 导入导出、本地运行和编译器诊断在桌面及
   390px 移动视口正常，无控制台错误和横向溢出。
 - 便携 ZIP 成功生成并通过发布内容与隐私检查。

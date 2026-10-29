@@ -1,10 +1,10 @@
-算法档案 · AlgoArchive 2.1.5
+算法档案 · AlgoArchive 2.1.6
 作者：Aqiw
 GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.1.5-Windows-x64-Setup.exe。安装完成后会自动创建
+安装版：运行 AlgoArchive-2.1.6-Windows-x64-Setup.exe。安装完成后会自动创建
 桌面快捷方式。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -12,7 +12,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.1.5-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.1.6-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 启动.bat。首次启动会自动创建桌面快捷方式；
@@ -151,7 +151,7 @@ python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.1.5
+.\scripts\build-release.ps1 -Version 2.1.6
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。

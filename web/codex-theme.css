@@ -1165,22 +1165,71 @@ body.problem-dragging * {
 
 .code-stage pre {
   color: #1f1f1f;
-  z-index: 1;
+  z-index: 2;
 }
 
 .code-stage textarea {
   caret-color: #000;
-  z-index: 2;
+  z-index: 3;
+  scrollbar-color: #c1c1c1 #f3f3f3;
+  scrollbar-width: thin;
 }
 
-.code-stage textarea::selection {
+.code-stage.has-selection-overlay textarea::selection {
   color: transparent;
-  background: rgba(0, 120, 215, .30);
+  background: transparent;
   -webkit-text-fill-color: transparent;
 }
 
+.code-stage textarea::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.code-stage textarea::-webkit-scrollbar-track,
+.code-stage textarea::-webkit-scrollbar-corner {
+  background: #f3f3f3;
+}
+
+.code-stage textarea::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  background: #c1c1c1;
+  border: 3px solid #f3f3f3;
+  border-radius: 8px;
+}
+
+.code-stage textarea::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.code-stage textarea::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .code-selection-band {
-  display: none !important;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.code-selection-block {
+  position: absolute;
+  background: rgba(0, 120, 215, .24);
+  border-radius: 1px;
+}
+
+.code-selection-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
 }
 
 .tok-comment {

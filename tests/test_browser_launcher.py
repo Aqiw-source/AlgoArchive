@@ -62,6 +62,34 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("copyProblemLink", app_js)
         self.assertIn("navigator.clipboard.writeText", app_js)
 
+    def test_problem_table_has_mobile_column_markers(self):
+        root = Path(__file__).resolve().parents[1]
+        app_js = (root / "web" / "app.js").read_text(encoding="utf-8")
+        style = (root / "web" / "mobile.css").read_text(encoding="utf-8")
+
+        self.assertIn("problem-table", app_js)
+        self.assertIn("problem-col-secondary", app_js)
+        self.assertIn("problem-col-platform", app_js)
+        self.assertIn(
+            ".problem-table .problem-col-secondary {\n    display: none;",
+            style,
+        )
+        self.assertIn(
+            ".problem-table .problem-col-platform {\n    display: none;",
+            style,
+        )
+
+    def test_code_editor_uses_vscode_selection_and_scrollbars(self):
+        root = Path(__file__).resolve().parents[1]
+        app_js = (root / "web" / "app.js").read_text(encoding="utf-8")
+        style = (root / "web" / "codex-theme.css").read_text(encoding="utf-8")
+
+        self.assertIn("updateSelectionBands", app_js)
+        self.assertIn("code-selection-block", app_js)
+        self.assertIn(".code-selection-block", style)
+        self.assertIn("background: rgba(0, 120, 215, .24)", style)
+        self.assertIn("::-webkit-scrollbar-button", style)
+
     def test_release_manifests_include_self_check(self):
         root = Path(__file__).resolve().parents[1]
         portable = (root / "scripts" / "build-portable.ps1").read_text(

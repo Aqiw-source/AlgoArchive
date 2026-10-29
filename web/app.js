@@ -19,6 +19,17 @@
   };
   const languages = {cpp: 'C++', python: 'Python', java: 'Java', other: '其他'};
   const extensions = {cpp: '.cpp', python: '.py', java: '.java', other: '.txt'};
+  const fileLikeDomainSuffixes = new Set(['c','cc','cfg','cpp','css','csv','dll','exe','h','hpp','htm','html','ico','ini','java','jpeg','jpg','js','json','jsx','log','md','pdf','png','py','rar','svg','toml','ts','tsx','txt','webp','yaml','yml','zip','7z']);
+  const schemelessDomainPattern = /^(?=.{4,2048}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]+)(?::[0-9]{1,5})?(?:[/?#][^\s]*)?$/;
+  const normalizeURLInput = value => {
+    let candidate=String(value??'').trim();
+    if(schemelessDomainPattern.test(candidate)){
+      const hostname=candidate.split(/[/?#]/,1)[0].split(':')[0];
+      const suffix=hostname.split('.').pop().toLocaleLowerCase();
+      if(!fileLikeDomainSuffixes.has(suffix))candidate=`https://${candidate}`;
+    }
+    return candidate;
+  };
   const PLAYGROUND_DRAFT_KEY = 'algoarchive.compiler-playground.v1';
   const PLAYGROUND_DEFAULT_CODE = '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n';
   const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, running: false, runId: ''}};
@@ -41,7 +52,7 @@
   }
   renderProfile({name:userName,avatar:''});
   const time = v => { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.valueOf()) ? '—' : new Intl.DateTimeFormat('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d); };
-  const copyableURL = v => { let candidate=String(v??'').trim(); if(/^www\.\S+$/i.test(candidate))candidate=`https://${candidate}`; try { const u = new URL(candidate); return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
+  const copyableURL = v => { const candidate=normalizeURLInput(v); try { const u = new URL(candidate); return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
   const safeURL = v => { const href=copyableURL(v); return href ? esc(href) : '#'; };
   const badge = p => {
     const key=platformKey(p);
@@ -136,7 +147,7 @@
   }
   function problemTable(items, filtered=false) {
     if (!items.length) return empty(filtered?'没有找到匹配的题目':'还没有题目',filtered?'试着调整关键词或筛选条件。':'保存第一份解答，从这里开始积累。',filtered?'':addProblemButton(state.context.contest || '',state.context.platform || '',state.context.algorithm || ''));
-    return `<div class="table-wrap"><table><thead><tr><th>题目名称与编号</th><th>平台</th><th>所属比赛</th><th>所属算法</th><th>语言</th><th>最近修改</th><th>操作</th></tr></thead><tbody>${items.map(p => `<tr class="problem-row-preview" data-problem-preview="${esc(p.id)}" tabindex="0" title="点击空白处查看代码" aria-label="查看「${esc(problemName(p))}」的代码"><td><div class="problem-title"><span class="number-box">${esc(p.number || '·')}</span>${problemTitleLink(p)}</div></td><td>${badge(p.platform)}</td><td class="contest-cell">${p.contest_id?`<button class="text-link" data-open-contest="${esc(p.contest_id)}">${esc(p.contest_title || '查看比赛')}</button>`:'未关联比赛'}</td><td class="contest-cell">${p.algorithm_id?`<button class="text-link" data-open-algorithm="${esc(p.algorithm_id)}">${esc(p.algorithm_name || '查看算法')}</button>`:'未关联算法'}</td><td><span class="lang-badge">${esc(languages[p.language] || p.language)}</span></td><td class="date-cell">${time(p.updated_at)}</td><td><div class="table-actions">${problemTableActions(p)}</div></td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-wrap"><table class="problem-table"><thead><tr><th>题目名称与编号</th><th class="problem-col-platform">平台</th><th class="problem-col-secondary">所属比赛</th><th class="problem-col-secondary">所属算法</th><th class="problem-col-secondary">语言</th><th class="problem-col-secondary">最近修改</th><th>操作</th></tr></thead><tbody>${items.map(p => `<tr class="problem-row-preview" data-problem-preview="${esc(p.id)}" tabindex="0" title="点击空白处查看代码" aria-label="查看「${esc(problemName(p))}」的代码"><td><div class="problem-title"><span class="number-box">${esc(p.number || '·')}</span>${problemTitleLink(p)}</div></td><td class="problem-col-platform">${badge(p.platform)}</td><td class="contest-cell problem-col-secondary">${p.contest_id?`<button class="text-link" data-open-contest="${esc(p.contest_id)}">${esc(p.contest_title || '查看比赛')}</button>`:'未关联比赛'}</td><td class="contest-cell problem-col-secondary">${p.algorithm_id?`<button class="text-link" data-open-algorithm="${esc(p.algorithm_id)}">${esc(p.algorithm_name || '查看算法')}</button>`:'未关联算法'}</td><td class="problem-col-secondary"><span class="lang-badge">${esc(languages[p.language] || p.language)}</span></td><td class="date-cell problem-col-secondary">${time(p.updated_at)}</td><td><div class="table-actions">${problemTableActions(p)}</div></td></tr>`).join('')}</tbody></table></div>`;
   }
   function contestCards(items) {
     if (!items.length) return empty('还没有比赛','新建一场比赛，把每一道题目的思路都收好。',addContestButton(state.context.platform || ''));
@@ -709,9 +720,57 @@
   function highlightCode() {
     const area=$('#code-input');if(!area)return;const code=area.value,lang=$('#editor-language')?.value||state.editor?.entity?.language||'cpp';
     $('#highlight-code').innerHTML=highlightSource(code,lang);
-    $('#line-numbers').textContent=Array.from({length:code.split('\n').length},(_,i)=>i+1).join('\n'); syncScroll(); updateSaveState();
+    $('#line-numbers').textContent=Array.from({length:code.split('\n').length},(_,i)=>i+1).join('\n'); syncScroll(); updateSaveState(); requestAnimationFrame(updateSelectionBands);
   }
-  function syncScroll(){const area=$('#code-input');if(!area)return;$('#highlight-pre').scrollTop=area.scrollTop;$('#highlight-pre').scrollLeft=area.scrollLeft;$('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;}
+  function selectionRect(measure,node,start,end){
+    if(!node||start>=end)return null;
+    const range=document.createRange();range.setStart(node,start);range.setEnd(node,end);
+    const rect=Array.from(range.getClientRects()).find(item=>item.width>0||item.height>0);
+    return rect||null;
+  }
+  function updateSelectionBands(){
+    const area=$('#code-input'),stage=area?.closest('.code-stage'),band=$('#code-selection-band');
+    if(!area||!stage||!band)return;
+    band.querySelectorAll('.code-selection-block').forEach(block=>block.remove());
+    stage.classList.add('has-selection-overlay');
+    const start=area.selectionStart,end=area.selectionEnd;
+    if(start===null||end===null||start===end)return;
+    const code=area.value,style=getComputedStyle(area),paddingTop=parseFloat(style.paddingTop)||0,paddingLeft=parseFloat(style.paddingLeft)||0,lineHeight=parseFloat(style.lineHeight)||20;
+    const startLine=code.slice(0,start).split('\n').length-1;
+    let endLine=code.slice(0,end).split('\n').length-1;
+    if(end>start&&code[end-1]==='\n')endLine=Math.max(startLine,endLine-1);
+    let measure=band.querySelector('.code-selection-measure');
+    if(!measure){
+      measure=document.createElement('pre');measure.className='code-selection-measure';
+      const text=document.createElement('span');measure.appendChild(text);band.appendChild(measure);
+    }
+    const text=measure.firstChild;
+    if(text.textContent!==code)text.textContent=code;
+    const textNode=text.firstChild;
+    Object.assign(measure.style,{font:style.font,fontFamily:style.fontFamily,fontSize:style.fontSize,fontWeight:style.fontWeight,fontStyle:style.fontStyle,lineHeight:style.lineHeight,letterSpacing:style.letterSpacing,tabSize:style.tabSize,padding:style.padding,whiteSpace:'pre'});
+    const stageRect=stage.getBoundingClientRect(),contentLeft=area.offsetLeft+paddingLeft,contentRight=area.offsetLeft+area.clientWidth;
+    const lineTop=index=>area.offsetTop+paddingTop+index*lineHeight-area.scrollTop;
+    const endpointX=offset=>{
+      const probe=Math.min(code.length,Math.max(0,offset));
+      const rect=selectionRect(measure,textNode,probe,Math.min(code.length,probe+1))||selectionRect(measure,textNode,Math.max(0,probe-1),probe);
+      return rect?rect.left-stageRect.left-area.scrollLeft:contentLeft;
+    };
+    const addBand=(top,left,right,height=lineHeight)=>{
+      const block=document.createElement('div');block.className='code-selection-block';
+      const safeLeft=Math.max(contentLeft,Math.min(contentRight,left)),safeRight=Math.max(safeLeft,Math.min(contentRight,right));
+      block.style.top=`${top}px`;block.style.left=`${safeLeft}px`;block.style.width=`${Math.max(2,safeRight-safeLeft)}px`;block.style.height=`${height}px`;
+      band.appendChild(block);return block;
+    };
+    if(startLine===endLine){
+      const left=Math.min(contentRight,endpointX(start)),right=Math.max(left,Math.min(contentRight,endpointX(end)));
+      addBand(lineTop(startLine),left,right);
+      return;
+    }
+    addBand(lineTop(startLine),endpointX(start),contentRight);
+    if(endLine>startLine+1)addBand(lineTop(startLine+1),contentLeft,contentRight,(endLine-startLine-1)*lineHeight);
+    addBand(lineTop(endLine),contentLeft,endpointX(end));
+  }
+  function syncScroll(){const area=$('#code-input');if(!area)return;$('#highlight-pre').scrollTop=area.scrollTop;$('#highlight-pre').scrollLeft=area.scrollLeft;$('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;updateSelectionBands();}
   function updateCursor(){const a=$('#code-input');if(!a)return;const before=a.value.slice(0,a.selectionStart).split('\n');$('#cursor-status').textContent=`第 ${before.length} 行，第 ${before[before.length-1].length+1} 列 · ${a.value.length.toLocaleString()} 字符`;}
   function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();const standalone=state.editor.entity?.standalone;status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(standalone?'✓ 草稿已保存':(state.editor.entity.id?'✓ 已保存到本地':'尚未保存'));}
   function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
@@ -1236,7 +1295,7 @@
     else if(e.target.id==='contest-search')updateContests();
     else if(e.target.id==='algorithm-search')updateAlgorithms();
     else if(e.target.id==='cph-input'||e.target.id==='cph-expected-output'){commitCphFields();updateCphTestsState();updateSaveState();}
-    else if(e.target.id==='code-input'){highlightCode();updateCursor();}
+    else if(e.target.id==='code-input'){highlightCode();updateCursor();updateSelectionBands();}
     else if(e.target.id==='editor-platform'){$('#editor-contest').innerHTML=contestSelect(e.target.value,'');updateSaveState();}
     else if(e.target.id==='cph-time-limit'){state.cph.timeLimit=Math.max(50,Math.min(30000,Number(e.target.value)||3000));updateSaveState();}
     else if(e.target.closest('#problem-form'))updateSaveState();
@@ -1275,8 +1334,9 @@
     if((e.key==='Enter'||e.key===' ')&&e.target.matches('.contest-card[data-open-contest],.algorithm-card[data-open-algorithm]')){e.preventDefault();if(!state.busy)go(e.target.hasAttribute('data-open-contest')?`contest/${e.target.dataset.openContest}`:`algorithm/${e.target.dataset.openAlgorithm}`);return;}
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&state.editor){e.preventDefault();if(!modal.open)saveCurrentEditor();}else codeKeydown(e);
   });
-  document.addEventListener('keyup',e=>{if(e.target.id==='code-input')updateCursor();});
-  document.addEventListener('click',e=>{if(e.target.id==='code-input')updateCursor();});
+  document.addEventListener('selectionchange',()=>{if(document.activeElement?.id==='code-input')requestAnimationFrame(updateSelectionBands);});
+  document.addEventListener('keyup',e=>{if(e.target.id==='code-input'){updateCursor();updateSelectionBands();}});
+  document.addEventListener('click',e=>{if(e.target.id==='code-input'){updateCursor();updateSelectionBands();}});
   document.addEventListener('scroll',e=>{if(e.target.id==='code-input')syncScroll();},true);
   window.addEventListener('beforeunload',e=>{if(state.busy||isDirty()){e.preventDefault();e.returnValue='';}});
   window.addEventListener('hashchange',()=>{const route=location.hash.slice(1)||'home';if(navigating||route===state.route)return;if(state.busy||!allowLeave()){navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);return;}state.editor=null;state.route=route;renderRoute(route);});

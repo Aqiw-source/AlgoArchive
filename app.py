@@ -44,12 +44,58 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.1.5"
+APP_VERSION = "2.1.6"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 8
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
 PROBLEM_PLATFORM_ALIASES = {"codeforces": "codeforces", "atcoder": "atcoder"}
 EXTENSIONS = {"cpp": ".cpp", "python": ".py", "java": ".java", "other": ".txt"}
+SCHEMELESS_URL_PATTERN = re.compile(
+    r"^(?=.{4,2048}$)"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]+)"
+    r"(?::[0-9]{1,5})?(?:[/?#][^\s]*)?$"
+)
+FILE_LIKE_DOMAIN_SUFFIXES = frozenset(
+    {
+        "c",
+        "cc",
+        "cfg",
+        "cpp",
+        "css",
+        "csv",
+        "dll",
+        "exe",
+        "h",
+        "hpp",
+        "htm",
+        "html",
+        "ico",
+        "ini",
+        "java",
+        "jpeg",
+        "jpg",
+        "js",
+        "json",
+        "jsx",
+        "log",
+        "md",
+        "pdf",
+        "png",
+        "py",
+        "rar",
+        "svg",
+        "toml",
+        "ts",
+        "tsx",
+        "txt",
+        "webp",
+        "yaml",
+        "yml",
+        "zip",
+        "7z",
+    }
+)
 MAX_CODE_BYTES = 2 * 1024 * 1024
 MAX_AVATAR_BYTES = 512 * 1024
 MAX_BODY_BYTES = 4 * 1024 * 1024
@@ -692,13 +738,9 @@ def editable_platform_value(value):
     return PROBLEM_PLATFORM_ALIASES.get(platform.casefold(), platform)
 
 
-def expand_www_url(value):
-    """Add HTTPS to a scheme-less www link without changing free-form notes."""
-    if (
-        len(value) <= 4
-        or not value.casefold().startswith("www.")
-        or any(char.isspace() for char in value)
-    ):
+def expand_schemeless_url(value):
+    """Add HTTPS to a domain-only link without changing notes or file names."""
+    if not SCHEMELESS_URL_PATTERN.fullmatch(value):
         return value
     candidate = f"https://{value}"
     try:
@@ -708,13 +750,16 @@ def expand_www_url(value):
         parsed.port
     except ValueError:
         return value
+    suffix = parsed.hostname.rsplit(".", 1)[-1].casefold()
+    if suffix in FILE_LIKE_DOMAIN_SUFFIXES:
+        return value
     return candidate
 
 
 def normalize_external_url(value):
     """Validate a general reference URL and return a stable identity."""
     value = text_value(value, "链接", 2048, True)
-    value = expand_www_url(value)
+    value = expand_schemeless_url(value)
     try:
         parsed = urlsplit(value)
         scheme = parsed.scheme.lower()
@@ -1784,7 +1829,7 @@ class Repository:
         name = text_value(payload.get("name", ""), "题目名称", 300)
         if not number and not name:
             raise AppError("请至少填写题目编号或名称")
-        url = expand_www_url(
+        url = expand_schemeless_url(
             text_value(payload.get("url"), "题目链接", 2048, True)
         )
         language = payload.get("language")
@@ -1953,7 +1998,7 @@ class Repository:
             self._ready()
             platform = editable_platform_value(payload.get("platform"))
             title = text_value(payload.get("title"), "比赛标题", 300, True)
-            url = expand_www_url(
+            url = expand_schemeless_url(
                 text_value(payload.get("url"), "比赛链接", 2048, True)
             )
             identifier, timestamp = uuid.uuid4().hex, now()
@@ -1970,7 +2015,7 @@ class Repository:
             values = {**old, **payload}
             platform = editable_platform_value(values.get("platform"))
             title = text_value(values.get("title"), "比赛标题", 300, True)
-            url = expand_www_url(
+            url = expand_schemeless_url(
                 text_value(values.get("url"), "比赛链接", 2048, True)
             )
             if platform != old["platform"] and self.db.execute("SELECT 1 FROM problems WHERE contest_id=? LIMIT 1", (identifier,)).fetchone():

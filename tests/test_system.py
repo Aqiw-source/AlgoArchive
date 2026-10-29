@@ -416,6 +416,44 @@ class SystemTests(unittest.TestCase):
             "https://WWW.luogu.com.cn/problem/P1001",
         )
 
+    def test_bare_domain_links_are_expanded_without_converting_notes_or_files(self):
+        contest = self.contest(
+            platform="AtCoder",
+            title="裸域名比赛",
+            url="atcoder.jp/contests/abc100",
+        )
+        self.assertEqual(
+            contest["url"],
+            "https://atcoder.jp/contests/abc100",
+        )
+
+        problem = self.problem(
+            platform="example",
+            number="C",
+            name="裸域名题目",
+            url="example.com/problem/C",
+        )
+        self.assertEqual(
+            problem["url"],
+            "https://example.com/problem/C",
+        )
+
+        note = self.problem(
+            platform="example",
+            number="D",
+            name="文件名备注",
+            url="main.cpp",
+        )
+        self.assertEqual(note["url"], "main.cpp")
+
+        spaced_note = self.problem(
+            platform="example",
+            number="E",
+            name="空格备注",
+            url="example.com 稍后补充",
+        )
+        self.assertEqual(spaced_note["url"], "example.com 稍后补充")
+
     def test_contest_platform_must_match_problem(self):
         contest = self.contest(platform="atcoder")
         valid = {"platform": "codeforces", "number": "A", "name": "", "url": "https://codeforces.com/contest/2000/problem/A",
@@ -736,6 +774,19 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(
             detail["links"][0]["url"],
             "https://www.example.com/algorithm",
+        )
+
+    def test_bare_domain_algorithm_links_are_expanded_to_https(self):
+        algorithm = self.algorithm(
+            links=[
+                {"title": "裸域名文档", "url": "example.com/algorithm"},
+            ]
+        )
+        detail = self.request("GET", "/api/algorithms/" + algorithm["id"])["algorithm"]
+
+        self.assertEqual(
+            detail["links"][0]["url"],
+            "https://example.com/algorithm",
         )
 
     def test_algorithm_can_contain_problems_without_duplicating_code(self):

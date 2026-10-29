@@ -1,0 +1,66 @@
+@media (max-width: 640px) {
+  .problem-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .problem-table .problem-col-secondary {
+    display: none;
+  }
+
+  .problem-table th,
+  .problem-table td {
+    padding: 13px 9px;
+  }
+
+  .problem-table th:first-child,
+  .problem-table td:first-child {
+    width: auto;
+    padding-left: 12px;
+  }
+
+  .problem-table th:last-child,
+  .problem-table td:last-child {
+    width: 116px;
+    padding-right: 10px;
+  }
+
+  .problem-table .problem-title {
+    min-width: 0;
+    gap: 7px;
+    align-items: flex-start;
+  }
+
+  .problem-table .title-link {
+    min-width: 0;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .problem-table .number-box {
+    min-width: 28px;
+    height: 28px;
+  }
+
+  .problem-table .table-actions {
+    gap: 7px;
+    flex-wrap: wrap;
+    row-gap: 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .problem-table .problem-col-platform {
+    display: none;
+  }
+
+  .problem-table th:last-child,
+  .problem-table td:last-child {
+    width: 108px;
+  }
+
+  .problem-table .drag-handle {
+    margin-right: -2px;
+  }
+}
