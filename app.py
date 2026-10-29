@@ -34,11 +34,20 @@ from urllib.request import urlopen
 import uuid
 import webbrowser
 
+from cph_runner import (
+    CPP_STANDARDS,
+    CppTestRunner,
+    DEFAULT_CPP_STANDARD,
+    compiler_version,
+    resolve_cpp_compiler,
+    validate_test_cases,
+)
 
-APP_VERSION = "2.0.5"
+
+APP_VERSION = "2.1.2"
 ROOT = Path(__file__).resolve().parent
-DATABASE_SCHEMA_VERSION = 7
-SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7}
+DATABASE_SCHEMA_VERSION = 8
+SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
 PROBLEM_PLATFORM_ALIASES = {"codeforces": "codeforces", "atcoder": "atcoder"}
 EXTENSIONS = {"cpp": ".cpp", "python": ".py", "java": ".java", "other": ".txt"}
 MAX_CODE_BYTES = 2 * 1024 * 1024
@@ -51,6 +60,10 @@ AVATAR_EXTENSIONS = {
     "webp": (".webp", "image/webp"),
 }
 AVATAR_PATH_PATTERN = r"avatar/avatar\.(png|jpg|webp)"
+CPH_AUTHOR = "Divyanshu Agrawal"
+CPH_REPOSITORY = "https://github.com/agrawal-d/cph"
+CPH_LICENSE = "GPL-3.0-or-later"
+CPH_REFERENCE_COMMIT = "ef8c7a70a7beff150bf5ed5e5ad8c631539a3fd6"
 
 
 def decode_avatar_data_url(value):
@@ -110,6 +123,10 @@ def default_user_config():
             "mode": "default",
             "custom_path": "",
             "window_mode": "tab",
+        },
+        "compiler": {
+            "cpp_path": "",
+            "cpp_standard": DEFAULT_CPP_STANDARD,
         },
     }
 
@@ -171,6 +188,10 @@ def _normalized_user_config(value):
     if isinstance(value.get("browser"), dict):
         browser.update(value["browser"])
     config["browser"] = browser
+    compiler = default_user_config()["compiler"]
+    if isinstance(value.get("compiler"), dict):
+        compiler.update(value["compiler"])
+    config["compiler"] = compiler
     return config
 
 
@@ -829,7 +850,7 @@ class Repository:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            INSERT OR IGNORE INTO settings VALUES ('schema_version', '7');
+            INSERT OR IGNORE INTO settings VALUES ('schema_version', '8');
             INSERT OR IGNORE INTO settings VALUES ('problem_order_version', '1');
             CREATE TABLE IF NOT EXISTS contests (
                 id TEXT PRIMARY KEY,
@@ -886,6 +907,14 @@ class Repository:
                 normalized_url TEXT NOT NULL,
                 UNIQUE(algorithm_id, normalized_url)
             );
+            CREATE TABLE IF NOT EXISTS problem_tests (
+                problem_id TEXT NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+                ordinal INTEGER NOT NULL,
+                input TEXT NOT NULL DEFAULT '',
+                output TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(problem_id, ordinal)
+            );
             CREATE INDEX IF NOT EXISTS algorithms_updated ON algorithms(updated_at DESC);
             CREATE INDEX IF NOT EXISTS algorithm_snippets_algorithm
                 ON algorithm_snippets(algorithm_id);
@@ -893,6 +922,8 @@ class Repository:
                 ON algorithm_snippets(updated_at DESC);
             CREATE INDEX IF NOT EXISTS algorithm_links_algorithm
                 ON algorithm_links(algorithm_id);
+            CREATE INDEX IF NOT EXISTS problem_tests_problem
+                ON problem_tests(problem_id, ordinal);
         """)
         problem_columns = {
             row["name"] for row in self.db.execute("PRAGMA table_info(problems)")
@@ -920,7 +951,7 @@ class Repository:
         schema_version = self.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        if schema_version not in {"1", "2", "3", "4", "5", "6", "7"}:
+        if schema_version not in {"1", "2", "3", "4", "5", "6", "7", "8"}:
             raise AppError("数据库版本不兼容，请使用较新版本程序", 500, "schema_version")
         problem_sql = self.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='problems'"
@@ -932,14 +963,14 @@ class Repository:
         ).fetchone()[0]
         if "CHECK(platform IN ('codeforces','atcoder'))" in contest_sql:
             self._rebuild_contests_for_custom_platforms()
-        if schema_version != "7" or order_added:
+        if int(schema_version) < 7 or order_added:
             self._initialize_algorithm_problem_orders()
-        if schema_version != "7" or global_order_added:
+        if int(schema_version) < 7 or global_order_added:
             self._initialize_problem_global_orders()
-        if schema_version != "7":
+        if schema_version != "8":
             with self.db:
                 self.db.execute(
-                    "UPDATE settings SET value='7' WHERE key='schema_version'"
+                    "UPDATE settings SET value='8' WHERE key='schema_version'"
                 )
         self.db.executescript("""
             CREATE INDEX IF NOT EXISTS problems_contest ON problems(contest_id);
@@ -1197,6 +1228,10 @@ class Repository:
                 raise AppError("备份清单格式不正确", 400, "backup_invalid") from exc
             if manifest.get("format") != 1:
                 raise AppError("备份格式不受支持", 400, "backup_incompatible")
+            # Migrate the restored staging copy before swapping it into the live
+            # connection, so old backups become usable without a restart.
+            upgrader = Repository(staging, acquire_lock=False)
+            upgrader.close()
             state = inspect_data_directory(staging)
             if state["state"] != "valid":
                 raise AppError(
@@ -1601,7 +1636,55 @@ class Repository:
                 row["code"] = self._path(row["code_path"]).read_bytes().decode("utf-8")
             except (OSError, UnicodeError) as exc:
                 raise AppError("代码文件缺失或无法读取，请检查 data/codes 或恢复备份。原记录已保留。", 500, "code_unavailable") from exc
+        row["tests"] = self._problem_tests(identifier)
         return row
+
+    def _problem_tests(self, identifier):
+        return [
+            {
+                "ordinal": row["ordinal"],
+                "input": row["input"],
+                "output": row["output"],
+            }
+            for row in self.db.execute(
+                "SELECT ordinal,input,output FROM problem_tests "
+                "WHERE problem_id=? ORDER BY ordinal",
+                (identifier,),
+            )
+        ]
+
+    def replace_problem_tests(self, identifier, payload):
+        if not isinstance(payload, dict):
+            raise AppError("测试用例请求格式不正确")
+        try:
+            tests = validate_test_cases(payload.get("tests"))
+        except ValueError as exc:
+            raise AppError(str(exc)) from None
+        with self.lock:
+            self._ready()
+            self._row("problems", identifier)
+            timestamp = now()
+            with self.db:
+                self.db.execute(
+                    "DELETE FROM problem_tests WHERE problem_id=?",
+                    (identifier,),
+                )
+                self.db.executemany(
+                    "INSERT INTO problem_tests "
+                    "(problem_id,ordinal,input,output,updated_at) "
+                    "VALUES (?,?,?,?,?)",
+                    [
+                        (
+                            identifier,
+                            ordinal,
+                            item["input"],
+                            item["output"],
+                            timestamp,
+                        )
+                        for ordinal, item in enumerate(tests)
+                    ],
+                )
+            return self._problem_tests(identifier)
 
     def _algorithm_links(self, identifier):
         return [
@@ -2420,6 +2503,9 @@ class LocalServer(ThreadingHTTPServer):
         self.started_at = time.time()
         self.log_path = self.config_path.parent / "logs" / "algoarchive.log"
         self.maintenance = False
+        self.active_test_runs = {}
+        self.active_test_runs_lock = threading.RLock()
+        self.compiler_version_cache = None
         super().__init__(address, RequestHandler)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(
@@ -2457,6 +2543,7 @@ class LocalServer(ThreadingHTTPServer):
         return f"http://127.0.0.1:{self.server_address[1]}"
 
     def settings_payload(self):
+        compiler = self.compiler_payload()
         return {
             "version": APP_VERSION,
             "address": self.local_address,
@@ -2471,7 +2558,154 @@ class LocalServer(ThreadingHTTPServer):
                 tz=timezone.utc,
             ).isoformat().replace("+00:00", "Z"),
             "database_schema": DATABASE_SCHEMA_VERSION,
+            "compiler": compiler,
+            "cph": {
+                "author": CPH_AUTHOR,
+                "repository": CPH_REPOSITORY,
+                "license": CPH_LICENSE,
+                "reference_commit": CPH_REFERENCE_COMMIT,
+            },
         }
+
+    def compiler_payload(self):
+        compiler_path, standard = resolve_cpp_compiler(self.config)
+        if self.compiler_version_cache is None or (
+            self.compiler_version_cache.get("path") != str(compiler_path or "")
+        ):
+            self.compiler_version_cache = {
+                "path": str(compiler_path or ""),
+                "version": compiler_version(compiler_path),
+            }
+        return {
+            "path": str(compiler_path or ""),
+            "configured_path": str(
+                (self.config.get("compiler") or {}).get("cpp_path") or ""
+            ),
+            "standard": standard,
+            "standards": list(CPP_STANDARDS),
+            "available": bool(compiler_path and compiler_path.is_file()),
+            "version": self.compiler_version_cache["version"],
+            "auto_detected": not bool(
+                (self.config.get("compiler") or {}).get("cpp_path")
+            ),
+        }
+
+    def update_compiler_settings(self, payload):
+        cpp_path = str(payload.get("cpp_path") or "").strip()
+        standard = str(payload.get("standard") or DEFAULT_CPP_STANDARD)
+        if standard not in CPP_STANDARDS:
+            raise AppError("C++ 标准不受支持")
+        if len(cpp_path) > 2048:
+            raise AppError("编译器路径过长")
+        if cpp_path:
+            candidate = Path(cpp_path).expanduser()
+            if not candidate.is_absolute() or not candidate.is_file():
+                raise AppError("C++ 编译器路径不存在或不是文件")
+            if os.name == "nt" and candidate.suffix.casefold() not in {
+                ".exe",
+                ".com",
+            }:
+                raise AppError("Windows C++ 编译器必须是可执行文件")
+            cpp_path = str(candidate.resolve())
+            if not compiler_version(candidate):
+                raise AppError("无法执行所选 C++ 编译器")
+        self.config["compiler"] = {
+            "cpp_path": cpp_path,
+            "cpp_standard": standard,
+        }
+        save_user_config(self.config, self.config_path)
+        self.compiler_version_cache = None
+        return self.compiler_payload()
+
+    def test_compiler_capabilities(self, payload=None):
+        payload = dict(payload or {})
+        config = dict(self.config)
+        compiler = dict(config.get("compiler") or {})
+        if "cpp_path" in payload:
+            compiler["cpp_path"] = str(payload.get("cpp_path") or "").strip()
+        if "standard" in payload:
+            compiler["cpp_standard"] = str(
+                payload.get("standard") or DEFAULT_CPP_STANDARD
+            )
+        if compiler["cpp_standard"] not in CPP_STANDARDS:
+            raise AppError("C++ 标准不受支持")
+        configured_path = str(compiler.get("cpp_path") or "").strip()
+        if configured_path:
+            candidate = Path(configured_path).expanduser()
+            if not candidate.is_absolute() or not candidate.is_file():
+                raise AppError("C++ 编译器路径不存在或不是文件")
+        config["compiler"] = compiler
+        compiler_path, standard = resolve_cpp_compiler(config)
+        if not compiler_path:
+            raise AppError("未找到可用的 g++ 编译器", 503, "compiler_missing")
+        runner = CppTestRunner(compiler_path, standard)
+        source = r"""
+#include <bits/stdc++.h>
+using namespace std;
+int main() {
+    __int128 value = 1;
+    value <<= 100;
+    multiset<int> ordered{2, 1};
+    unordered_map<int, int> mapped{{1, 20}};
+    if (value <= 0 || *ordered.begin() != 1 || mapped[1] != 20) return 1;
+    cout << "CPH_OK\n";
+}
+"""
+        result = runner.run(
+            source,
+            [{"input": "", "output": "CPH_OK\n"}],
+            time_limit_ms=3000,
+        )
+        return {
+            "ok": bool(result.get("ok")),
+            "compiler": str(compiler_path),
+            "standard": standard,
+            "checks": {
+                "__int128": result.get("ok", False),
+                "multiset": result.get("ok", False),
+                "unordered_map": result.get("ok", False),
+            },
+            "result": result,
+        }
+
+    def run_cpp_tests(self, payload):
+        run_id = payload.get("run_id")
+        if (
+            not isinstance(run_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", run_id)
+        ):
+            raise AppError("测试运行标识不正确")
+        compiler_path, standard = resolve_cpp_compiler(self.config)
+        runner = CppTestRunner(compiler_path, standard)
+        with self.active_test_runs_lock:
+            if run_id in self.active_test_runs:
+                raise AppError("该测试任务已在运行")
+            self.active_test_runs[run_id] = runner
+        try:
+            return runner.run(
+                payload.get("code", ""),
+                payload.get("tests"),
+                payload.get("time_limit_ms", 3000),
+            )
+        except ValueError as exc:
+            raise AppError(str(exc)) from None
+        finally:
+            with self.active_test_runs_lock:
+                self.active_test_runs.pop(run_id, None)
+
+    def run_problem_tests(self, problem_id, payload):
+        self.repo.get_problem(problem_id)
+        return self.run_cpp_tests(payload)
+
+    def stop_problem_tests(self, run_id):
+        if not isinstance(run_id, str):
+            raise AppError("测试运行标识不正确")
+        with self.active_test_runs_lock:
+            runner = self.active_test_runs.get(run_id)
+        if runner is None:
+            return {"ok": False, "message": "没有找到正在运行的测试任务"}
+        runner.stop()
+        return {"ok": True, "message": "已请求停止测试运行"}
 
     def update_browser_settings(self, payload):
         mode = str(payload.get("mode") or "default").casefold()
@@ -2681,6 +2915,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             return self._json(
                 {"browser": self.server.update_browser_settings(body)}
             )
+        if self.command == "PUT" and path == "/api/settings/compiler":
+            return self._json(
+                {"compiler": self.server.update_compiler_settings(body)}
+            )
         if self.command == "POST" and path == "/api/settings/browser/test":
             settings = {
                 key: body.get(key, "")
@@ -2688,6 +2926,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             }
             return self._json(
                 {"launch": launch_browser(self.server.local_address, settings)}
+            )
+        if self.command == "POST" and path == "/api/settings/compiler/test":
+            return self._json(
+                {"diagnostic": self.server.test_compiler_capabilities(body)}
             )
         if self.command == "POST" and path == "/api/backups/create":
             return self._json({"backup": repo.create_backup()}, 201)
@@ -2763,6 +3005,33 @@ class RequestHandler(BaseHTTPRequestHandler):
             return self._json({"problem": repo.create_problem(body)}, 201)
         if self.command == "POST" and path == "/api/problems/import":
             return self._json(repo.import_problems(body), 201)
+        match = re.fullmatch(
+            r"/api/problems/([a-f0-9]{32})/tests", path
+        )
+        if self.command == "PUT" and match:
+            return self._json(
+                {"tests": repo.replace_problem_tests(match[1], body)}
+            )
+        match = re.fullmatch(
+            r"/api/problems/([a-f0-9]{32})/run", path
+        )
+        if self.command == "POST" and match:
+            return self._json(
+                self.server.run_problem_tests(match[1], body)
+            )
+        match = re.fullmatch(
+            r"/api/problems/([a-f0-9]{32})/run/stop", path
+        )
+        if self.command == "POST" and match:
+            return self._json(
+                self.server.stop_problem_tests(body.get("run_id"))
+            )
+        if self.command == "POST" and path == "/api/compiler/run":
+            return self._json(self.server.run_cpp_tests(body))
+        if self.command == "POST" and path == "/api/compiler/run/stop":
+            return self._json(
+                self.server.stop_problem_tests(body.get("run_id"))
+            )
         if self.command == "PUT" and path == "/api/problems/order":
             return self._json(repo.reorder_problems(body))
         match = re.fullmatch(

@@ -398,6 +398,67 @@ class StorageMigrationTests(unittest.TestCase):
         finally:
             repo.close()
 
+    def test_restoring_schema7_backup_upgrades_it_to_schema8(self):
+        source = self.root / "schema7-source"
+        seed = Repository(source)
+        try:
+            problem = seed.create_problem(
+                {
+                    "platform": "codeforces",
+                    "number": "OLD",
+                    "name": "旧版备份",
+                    "url": "https://codeforces.com/contest/1/problem/OLD",
+                    "language": "cpp",
+                    "code": "int main() { return 0; }\n",
+                    "contest_id": None,
+                    "algorithm_id": None,
+                }
+            )
+        finally:
+            seed.close()
+        with closing(sqlite3.connect(source / "archive.sqlite3")) as db:
+            db.execute("DROP TABLE problem_tests")
+            db.execute(
+                "UPDATE settings SET value='7' WHERE key='schema_version'"
+            )
+            db.commit()
+
+        archive = self.root / "schema7-backup.zip"
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.write(source / "archive.sqlite3", "archive.sqlite3")
+            for item in (source / "codes").iterdir():
+                zipped.write(item, f"codes/{item.name}")
+            zipped.writestr(
+                "manifest.json",
+                json.dumps(
+                    {
+                        "format": 1,
+                        "app_version": "2.0.5",
+                        "created_at": "2026-10-29T00:00:00.000Z",
+                    }
+                ),
+            )
+
+        repo = Repository(self.root / "restore-target")
+        try:
+            backup = repo.import_backup_file(archive, archive.name)
+            repo.restore_backup(backup["name"], confirmed=True)
+            schema = repo.db.execute(
+                "SELECT value FROM settings WHERE key='schema_version'"
+            ).fetchone()[0]
+            self.assertEqual(schema, "8")
+            restored = repo.get_problem(problem["id"])
+            self.assertEqual(restored["name"], "旧版备份")
+            self.assertEqual(restored["tests"], [])
+            self.assertEqual(
+                repo.db.execute(
+                    "SELECT COUNT(*) FROM problem_tests"
+                ).fetchone()[0],
+                0,
+            )
+        finally:
+            repo.close()
+
     def test_successful_migration_copies_database_and_codes_then_moves_legacy(self):
         legacy = make_v1_data(self.root / "app" / "data")
         target = self.root / "Local" / "AlgoArchive" / "data"
@@ -441,7 +502,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "7")
+        self.assertEqual(version, "8")
         self.assertEqual(repo.state()["contests"][0]["title"], "保留比赛")
         self.assertEqual(repo.state()["problems"][0]["name"], "保留题目")
         self.assertEqual(
@@ -454,7 +515,15 @@ class StorageMigrationTests(unittest.TestCase):
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
-        self.assertTrue({"algorithms", "algorithm_snippets", "algorithm_links"} <= tables)
+        self.assertTrue(
+            {
+                "algorithms",
+                "algorithm_snippets",
+                "algorithm_links",
+                "problem_tests",
+            }
+            <= tables
+        )
         problem_columns = {
             row[1] for row in repo.db.execute("PRAGMA table_info(problems)")
         }
@@ -475,7 +544,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "7")
+        self.assertEqual(version, "8")
         problem = repo.create_problem({
             "platform": "洛谷",
             "number": "P3374",
@@ -502,7 +571,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "7")
+        self.assertEqual(version, "8")
         contest_sql = repo.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='contests'"
         ).fetchone()[0]
@@ -541,7 +610,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "7")
+        self.assertEqual(version, "8")
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["algorithm_order"],
@@ -571,7 +640,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "7")
+        self.assertEqual(version, "8")
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["global_order"],

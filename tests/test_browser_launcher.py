@@ -39,6 +39,17 @@ class BrowserLauncherTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("Source code (zip)", readme)
+
+    def test_cph_attribution_and_license_are_bundled(self):
+        root = Path(__file__).resolve().parents[1]
+        notices = (root / "THIRD_PARTY.txt").read_text(encoding="utf-8")
+        license_file = root / "licenses" / "CPH-GPL-3.0.txt"
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Divyanshu Agrawal", notices)
+        self.assertIn("https://github.com/agrawal-d/cph", notices)
+        self.assertIn("GPL-3.0-or-later", notices)
+        self.assertTrue(license_file.is_file())
+        self.assertGreater(license_file.stat().st_size, 30_000)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64-Setup.exe", readme)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64.zip", readme)
 

@@ -19,7 +19,9 @@
   };
   const languages = {cpp: 'C++', python: 'Python', java: 'Java', other: '其他'};
   const extensions = {cpp: '.cpp', python: '.py', java: '.java', other: '.txt'};
-  const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, settings: null, backups: []};
+  const PLAYGROUND_DRAFT_KEY = 'algoarchive.compiler-playground.v1';
+  const PLAYGROUND_DEFAULT_CODE = '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n';
+  const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, running: false, runId: ''}};
   let navigating = false;
   let renderNumber = 0;
   let draggedAlgorithmProblemId = null;
@@ -101,10 +103,19 @@
   }
   function readEditorForm() {
     if (!state.editor) return null;
-    return state.editor.kind === 'snippet' ? readSnippetForm() : readProblemForm();
+    if (state.editor.kind === 'snippet') return readSnippetForm();
+    if (state.editor.entity?.standalone) return readPlaygroundForm();
+    return readProblemForm();
   }
-  function isDirty() { const current = readEditorForm(); return !!state.editor && !!current && state.editor.initial !== JSON.stringify(current); }
-  function allowLeave() { return !isDirty() || window.confirm('当前编辑内容有尚未保存的修改。确定放弃修改并离开吗？'); }
+  function cphTestsDirty() {
+    return state.editor?.kind==='problem' && state.editor.initialTests!==JSON.stringify(state.editor.tests||[]);
+  }
+  function isDirty() {
+    const current=readEditorForm();
+    const timeDirty=state.editor?.entity?.standalone&&Number($('#cph-time-limit')?.value||3000)!==Number(state.editor.initialTimeLimit||3000);
+    return !!state.editor&&((!!current&&state.editor.initial!==JSON.stringify(current))||cphTestsDirty()||timeDirty);
+  }
+  function allowLeave() { return !isDirty() || window.confirm('当前有尚未保存的代码或测试用例。确定放弃修改并离开吗？'); }
   async function go(route, {force=false}={}) {
     if (state.busy) { toast('正在保存，请稍候。'); return; }
     if (!force && route !== state.route && !allowLeave()) return;
@@ -312,6 +323,7 @@
       if(path==='home'||!path) home();
       else if(path==='contests') allContests();
       else if(path==='problems') allProblems();
+      else if(path==='compiler') compilerWorkspace();
       else if(path==='algorithms') allAlgorithms();
       else if(parts[0]==='platform'&&platforms[parts[1]]) allProblems(parts[1]);
       else if(parts[0]==='contest') contestDetail(parts[1]);
@@ -330,15 +342,307 @@
 
   function contestSelect(platform, selected) { const key=platformKey(platform); return option('','未关联比赛',selected||'')+state.contests.filter(c=>platformKey(c.platform)===key).map(c=>option(c.id,c.title,selected)).join(''); }
   function algorithmSelect(selected) { return option('','未关联算法',selected||'')+sortedAlgorithms(state.algorithms).map(a=>option(a.id,a.name,selected)).join(''); }
+  function normalizeCphTests(tests) {
+    if(!Array.isArray(tests)||!tests.length)return [{input:'',output:''}];
+    return tests.map(item=>({input:String(item?.input??''),output:String(item?.output??'')}));
+  }
+  function currentCphTest() {
+    if(state.editor?.kind!=='problem')return null;
+    const tests=state.editor.tests;
+    return tests[state.cph.active]||tests[0]||null;
+  }
+  function commitCphFields() {
+    const test=currentCphTest();
+    if(!test)return;
+    const input=$('#cph-input'), output=$('#cph-expected-output');
+    if(input)test.input=input.value;
+    if(output)test.output=output.value;
+  }
+  function cphStatusLabel(status) {
+    return ({passed:'通过',wrong_answer:'答案错误',runtime_error:'运行错误',time_limit:'超时',cancelled:'已停止'}[status]||status||'');
+  }
+  function cphTestPanel(p) {
+    const tests=normalizeCphTests(p.tests);
+    const active=Math.min(state.cph.active,tests.length-1);
+    state.cph.active=active;
+    const current=tests[active];
+    const existing=!!p.id||!!p.standalone;
+    return `<section class="cph-runner" aria-labelledby="cph-title"><div class="cph-runner-head"><div><div class="cph-kicker">CPH COMPATIBLE / LOCAL RUNNER</div><h2 id="cph-title">测试用例</h2><p>编译当前编辑器中的代码，不会自动提交到在线评测。</p></div><div class="cph-head-actions"><input type="file" id="cph-import-file" accept=".prob,.json,application/json" hidden><button type="button" class="btn small" data-import-cph>导入 .prob</button><button type="button" class="btn small" data-export-cph>导出 CPH</button>${p.standalone?'':`<button type="button" class="btn small" data-save-cph-tests ${existing?'':'disabled'}>保存用例</button>`}</div></div><div class="cph-case-tabs" id="cph-case-tabs" role="tablist" aria-label="测试用例">${tests.map((test,index)=>`<button type="button" class="cph-case-tab${index===active?' active':''}${state.cph.results[index]?.status?' has-'+esc(state.cph.results[index].status):''}" role="tab" aria-selected="${index===active}" data-cph-case="${index}"><span>${index+1}</span>${state.cph.results[index]?.status?`<i title="${esc(cphStatusLabel(state.cph.results[index].status))}"></i>`:''}</button>`).join('')}<button type="button" class="cph-add-case" data-add-cph-test aria-label="添加测试用例">+</button><button type="button" class="cph-remove-case" data-remove-cph-test aria-label="删除当前测试用例" ${tests.length<=1?'disabled':''}>−</button></div><div class="cph-case-editor"><label><span>输入</span><textarea id="cph-input" spellcheck="false" wrap="off" placeholder="标准输入">${esc(current.input)}</textarea></label><label><span>期望输出</span><textarea id="cph-expected-output" spellcheck="false" wrap="off" placeholder="逐行比较时忽略每行首尾空白">${esc(current.output)}</textarea></label></div><div class="cph-runbar"><label class="cph-time-limit"><span>单例时限</span><input type="number" id="cph-time-limit" min="50" max="30000" step="50" value="${Number(state.cph.timeLimit)||3000}" aria-label="单个测试用例时限（毫秒）"><b>ms</b></label><span class="cph-tests-state" id="cph-tests-state">${cphTestsDirty()?(p.standalone?'● 草稿尚未保存':'● 用例尚未保存'):(p.standalone?'✓ 草稿已保存':'✓ 用例已保存')}</span><div class="cph-run-actions"><button type="button" class="btn small" data-run-cph-current ${existing?'':'disabled'}>运行当前</button><button type="button" class="btn small primary" data-run-cph-all ${existing?'':'disabled'}>运行全部</button><button type="button" class="btn small danger" data-stop-cph hidden>停止</button></div></div><div class="cph-results" id="cph-results" aria-live="polite"></div><div class="cph-source">兼容格式与评测行为参考 <strong>CPH</strong>，原作者 <strong>Divyanshu Agrawal</strong> · <a href="https://github.com/agrawal-d/cph" target="_blank" rel="noopener noreferrer">GitHub 仓库</a> · ${esc('GPL-3.0-or-later')}。本功能为算法档案独立实现。</div></section>`;
+  }
+  function renderCphCaseTabs() {
+    if(state.editor?.kind!=='problem')return;
+    const tests=state.editor.tests;
+    state.cph.active=Math.max(0,Math.min(state.cph.active,tests.length-1));
+    const current=tests[state.cph.active];
+    const tabs=$('#cph-case-tabs');
+    if(tabs){
+      tabs.innerHTML=tests.map((test,index)=>`<button type="button" class="cph-case-tab${index===state.cph.active?' active':''}${state.cph.results[index]?.status?' has-'+esc(state.cph.results[index].status):''}" role="tab" aria-selected="${index===state.cph.active}" data-cph-case="${index}"><span>${index+1}</span>${state.cph.results[index]?.status?`<i title="${esc(cphStatusLabel(state.cph.results[index].status))}"></i>`:''}</button>`).join('')+'<button type="button" class="cph-add-case" data-add-cph-test aria-label="添加测试用例">+</button><button type="button" class="cph-remove-case" data-remove-cph-test aria-label="删除当前测试用例" '+(tests.length<=1?'disabled':'')+'>−</button>';
+    }
+    if($('#cph-input'))$('#cph-input').value=current.input;
+    if($('#cph-expected-output'))$('#cph-expected-output').value=current.output;
+    updateCphTestsState();
+  }
+  function updateCphTestsState() {
+    const el=$('#cph-tests-state');
+    if(!el||state.editor?.kind!=='problem')return;
+    const dirty=cphTestsDirty();
+    el.className=`cph-tests-state${dirty?' dirty':''}`;
+    const standalone=state.editor.entity?.standalone;
+    el.textContent=dirty?(standalone?'● 草稿尚未保存':'● 用例尚未保存'):(standalone?'✓ 草稿已保存':'✓ 用例已保存');
+  }
+  function addCphTest() {
+    if(state.editor?.kind!=='problem')return;
+    commitCphFields();
+    if(state.editor.tests.length>=100){toast('单道题目最多保存 100 个测试用例。',true);return;}
+    state.editor.tests.push({input:'',output:''});
+    state.cph.active=state.editor.tests.length-1;
+    renderCphCaseTabs();
+    updateSaveState();
+    $('#cph-input')?.focus();
+  }
+  function removeCphTest() {
+    if(state.editor?.kind!=='problem'||state.editor.tests.length<=1)return;
+    state.editor.tests.splice(state.cph.active,1);
+    state.cph.results={};
+    state.cph.active=Math.max(0,state.cph.active-1);
+    renderCphCaseTabs();
+    renderCphResults();
+    updateSaveState();
+  }
+  function activateCphTest(index) {
+    if(state.editor?.kind!=='problem'||!Number.isInteger(index))return;
+    commitCphFields();
+    state.cph.active=Math.max(0,Math.min(index,state.editor.tests.length-1));
+    renderCphCaseTabs();
+  }
+  function renderCphResults() {
+    const target=$('#cph-results');
+    if(!target||state.editor?.kind!=='problem')return;
+    const compile=state.cph.compile;
+    const results=Object.entries(state.cph.results||{}).sort((a,b)=>Number(a[0])-Number(b[0]));
+    if(!compile&&!results.length){target.innerHTML='';return;}
+    let html='';
+    if(compile&&compile.status!=='success'){
+      const setupAction=compile.status==='compiler_missing'||compile.status==='compiler_error'?`<button type="button" class="btn small primary" data-open-compiler-settings>选择 g++ 编译器</button>`:'';
+      html+=`<div class="cph-compile ${esc(compile.status)}"><div><strong>${compile.status==='compiler_missing'?'未找到 C++ 编译器':'编译失败'}</strong><span>${Number(compile.elapsed_ms)||0} ms</span></div><pre>${esc(compile.stderr||compile.stdout||'编译器没有返回详细信息。')}</pre>${setupAction?`<div class="cph-compile-action">${setupAction}<span>请在设置中选择完整 MinGW 工具链里的 bin\\g++.exe。</span></div>`:''}</div>`;
+    }else{
+      const passed=results.filter(([,item])=>item.status==='passed').length;
+      html+=`<div class="cph-summary"><strong>${passed} / ${results.length} 通过</strong><span>编译 ${Number(compile?.elapsed_ms)||0} ms${state.cph.totalMs?` · 运行 ${state.cph.totalMs} ms`:''}</span></div>`;
+      const currentIndex=state.cph.active;
+      const current=results.find(([index])=>Number(index)===currentIndex);
+      if(current){
+        const item=current[1];
+        html+=`<div class="cph-result ${esc(item.status)}"><div class="cph-result-head"><span class="cph-status">${esc(cphStatusLabel(item.status))}</span><span>用例 ${Number(current[0])+1} · ${Number(item.elapsed_ms)||0} ms · 退出码 ${esc(item.return_code)}</span></div><div class="cph-output-grid"><div><span>实际输出</span><pre>${esc(item.stdout||'（空）')}</pre></div><div><span>错误输出</span><pre>${esc(item.stderr||'（空）')}</pre></div></div></div>`;
+      }else{
+        html+=`<div class="cph-result-note">切换到带结果标记的用例查看输出。</div>`;
+      }
+    }
+    target.innerHTML=html;
+  }
+  function setCphRunning(running) {
+    state.cph.running=running;
+    const all=$('[data-run-cph-all]'), current=$('[data-run-cph-current]'), stop=$('[data-stop-cph]');
+    if(all)all.hidden=running;
+    if(current)current.hidden=running;
+    if(stop)stop.hidden=!running;
+  }
+  function newCphRunId() {
+    if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID().replace(/[^A-Za-z0-9_-]/g,'').slice(0,80);
+    return `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  async function runCphTests(allCases=false) {
+    if(state.busy||state.cph.running||state.editor?.kind!=='problem')return;
+    const problem=state.editor.entity;
+    if(!problem.id&&!problem.standalone){toast('请先保存题目，再运行测试。',true);return;}
+    commitCphFields();
+    const tests=allCases?state.editor.tests:[currentCphTest()];
+    if(!tests.length||tests.some(test=>!test)){toast('请先填写测试用例。',true);return;}
+    const timeLimit=Math.max(50,Math.min(30000,Number($('#cph-time-limit')?.value)||3000));
+    state.cph.timeLimit=timeLimit;
+    const runId=newCphRunId();
+    state.cph.runId=runId;
+    state.cph.compile=null;
+    state.cph.results={};
+    state.cph.totalMs=0;
+    setCphRunning(true);
+    renderCphResults();
+    try{
+      const endpoint=problem.standalone?'/api/compiler/run':`/api/problems/${encodeURIComponent(problem.id)}/run`;
+      const result=await api(endpoint,'POST',{run_id:runId,code:$('#code-input').value,tests,time_limit_ms:timeLimit});
+      state.cph.compile=result.compile;
+      state.cph.totalMs=result.elapsed_ms;
+      result.cases.forEach(item=>{
+        const index=allCases?item.ordinal-1:state.cph.active;
+        state.cph.results[index]=item;
+      });
+      if(result.cancelled)toast('测试运行已停止。');
+      else if(result.ok)toast(allCases?'全部测试通过。':`测试 ${state.cph.active+1} 通过。`);
+      else if(result.compile?.status!=='success')toast('编译失败，请查看测试面板。',true);
+      else toast('测试未通过，请查看测试面板。',true);
+    }catch(error){
+      state.cph.compile={status:'runner_error',elapsed_ms:0,stderr:error.message,stdout:''};
+      toast(error.message,true);
+    }finally{
+      setCphRunning(false);
+      renderCphCaseTabs();
+      renderCphResults();
+    }
+  }
+  async function stopCphTests() {
+    if(!state.cph.running||!state.cph.runId)return;
+    const endpoint=state.editor.entity.standalone?'/api/compiler/run/stop':`/api/problems/${encodeURIComponent(state.editor.entity.id)}/run/stop`;
+    try{await api(endpoint,'POST',{run_id:state.cph.runId});toast('正在停止测试…');}
+    catch(error){toast(error.message,true);}
+  }
+  async function saveCphTests(quiet=false) {
+    if(state.busy||state.editor?.kind!=='problem')return false;
+    const problem=state.editor.entity;
+    if(problem.standalone)return savePlaygroundDraft(quiet);
+    if(!problem.id){if(!quiet)toast('请先保存题目，再保存测试用例。',true);return false;}
+    commitCphFields();
+    try{
+      const result=await api(`/api/problems/${encodeURIComponent(problem.id)}/tests`,'PUT',{tests:state.editor.tests});
+      state.editor.tests=normalizeCphTests(result.tests);
+      state.editor.initialTests=JSON.stringify(state.editor.tests);
+      state.cph.active=Math.min(state.cph.active,state.editor.tests.length-1);
+      renderCphCaseTabs();updateSaveState();
+      if(!quiet)toast('测试用例已保存。');
+      return true;
+    }catch(error){toast(error.message,true);return false;}
+  }
+  function extractCphTests(value) {
+    const items=Array.isArray(value)?value:Array.isArray(value?.tests)?value.tests:Array.isArray(value?.testcases)?value.testcases:null;
+    if(!items)throw new Error('文件中没有可导入的 tests 用例。');
+    const tests=items.map(item=>{
+      const source=item?.testcase&&typeof item.testcase==='object'?item.testcase:item;
+      if(!source||typeof source!=='object')throw new Error('CPH 用例格式不正确。');
+      return {input:String(source.input??''),output:String(source.output??'')};
+    });
+    if(!tests.length)throw new Error('文件中没有测试用例。');
+    if(tests.length>100)throw new Error('单道题目最多保存 100 个测试用例。');
+    return tests;
+  }
+  async function importCphFile(file) {
+    if(!file||state.editor?.kind!=='problem')return;
+    if(file.size>10*1024*1024){toast('CPH 用例文件不能超过 10 MiB。',true);return;}
+    try{
+      const tests=extractCphTests(JSON.parse(await file.text()));
+      state.editor.tests=tests;state.cph.active=0;state.cph.results={};state.cph.compile=null;
+      renderCphCaseTabs();renderCphResults();updateSaveState();
+      if(state.editor.entity.id&&await saveCphTests(true))toast(`已导入并保存 ${tests.length} 个 CPH 测试用例。`);
+      else if(state.editor.entity.standalone&&await savePlaygroundDraft(true))toast(`已导入 ${tests.length} 个测试用例到代码试跑草稿。`);
+      else if(!state.editor.entity.id)toast(`已导入 ${tests.length} 个测试用例，保存题目时会一并写入。`);
+    }catch(error){toast(error instanceof SyntaxError?'CPH 用例文件不是有效 JSON。':error.message,true);}
+    finally{const input=$('#cph-import-file');if(input)input.value='';}
+  }
+  function exportCphFile() {
+    if(state.editor?.kind!=='problem')return;
+    commitCphFields();
+    const problem=state.editor.entity;
+    const payload={
+      name:[problem.number,problem.name].filter(Boolean).join(' - ')||'AlgoArchive CPH',
+      url:problem.url||'',
+      tests:state.editor.tests.map((item,index)=>({id:Date.now()+index,input:item.input,output:item.output})),
+      interactive:false,
+      memoryLimit:1024,
+      timeLimit:Math.max(50,Math.min(30000,Number($('#cph-time-limit')?.value)||3000)),
+      srcPath:problem.code_path||'main.cpp',
+      group:'local',
+      local:true
+    };
+    const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'}));
+    const link=document.createElement('a');
+    const base=([problem.number,problem.name].filter(Boolean).join('-')||'code-playground').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_');
+    link.href=url;link.download=`${base}.prob`;link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),0);
+    toast('已导出 CPH 兼容 .prob 文件。');
+  }
+  function readPlaygroundForm() {
+    const code=$('#code-input');
+    return code?{code:code.value}:null;
+  }
+  function loadPlaygroundDraft() {
+    try{
+      const value=JSON.parse(localStorage.getItem(PLAYGROUND_DRAFT_KEY)||'null');
+      if(value&&typeof value==='object'){
+        return {
+          code:typeof value.code==='string'?value.code:PLAYGROUND_DEFAULT_CODE,
+          tests:normalizeCphTests(value.tests),
+          timeLimit:Math.max(50,Math.min(30000,Number(value.timeLimit)||3000))
+        };
+      }
+    }catch(_){}
+    return {code:PLAYGROUND_DEFAULT_CODE,tests:[{input:'',output:''}],timeLimit:3000};
+  }
+  async function savePlaygroundDraft(quiet=false) {
+    if(state.editor?.kind!=='problem'||!state.editor.entity?.standalone)return false;
+    commitCphFields();
+    const code=$('#code-input')?.value??'';
+    const timeLimit=Math.max(50,Math.min(30000,Number($('#cph-time-limit')?.value)||3000));
+    const draft={format:1,code,tests:state.editor.tests.map(item=>({input:item.input,output:item.output})),timeLimit,savedAt:new Date().toISOString()};
+    try{localStorage.setItem(PLAYGROUND_DRAFT_KEY,JSON.stringify(draft));}
+    catch(_){toast('草稿无法写入浏览器本地存储，请先复制代码保留。',true);return false;}
+    state.editor.initial=JSON.stringify({code});
+    state.editor.initialTests=JSON.stringify(state.editor.tests);
+    state.editor.initialTimeLimit=timeLimit;
+    state.cph.timeLimit=timeLimit;
+    updateSaveState();updateCphTestsState();
+    if(!quiet)toast('代码试跑草稿已保存在当前浏览器。');
+    return true;
+  }
+  function resetPlayground() {
+    if(!window.confirm('确定清空代码试跑草稿吗？此操作不会影响题库中的代码。'))return;
+    try{localStorage.removeItem(PLAYGROUND_DRAFT_KEY);}catch(_){}
+    compilerWorkspace();
+    toast('代码试跑草稿已清空。');
+  }
+  function compilerMissingHTML(detail='') {
+    return `<div class="compiler-missing-banner"><div class="compiler-missing-mark" aria-hidden="true">!</div><div><strong>未找到 C++ 编译器</strong><p>代码试跑需要完整的 MinGW-w64 工具链。请安装或解压 MinGW，然后选择其中的 <code>bin\\g++.exe</code>。${detail?`<span>${esc(detail)}</span>`:''}</p></div><button type="button" class="btn primary" data-open-compiler-settings>选择 g++ 编译器</button></div>`;
+  }
+  async function refreshCompilerAvailability() {
+    const target=$('#compiler-availability');
+    if(!target)return;
+    try{
+      const result=await api('/api/settings');
+      state.settings=result.settings;
+      const compiler=result.settings?.compiler||{};
+      target.innerHTML=compiler.available?'':compilerMissingHTML(compiler.path?'当前路径无法执行。':'');
+    }catch(error){
+      target.innerHTML=compilerMissingHTML(error.message);
+    }
+  }
+  function compilerWorkspace() {
+    const draft=loadPlaygroundDraft();
+    let hasSavedDraft=false;
+    try{hasSavedDraft=!!localStorage.getItem(PLAYGROUND_DRAFT_KEY);}catch(_){}
+    const p={standalone:true,id:null,number:'',name:'代码试跑',url:'',language:'cpp',code:draft.code,tests:draft.tests,code_path:'main.cpp'};
+    state.context={};
+    state.cph={active:0,results:{},compile:null,running:false,runId:'',totalMs:0,timeLimit:draft.timeLimit};
+    state.editor={kind:'problem',entity:{...p},tests:normalizeCphTests(draft.tests),initial:'',initialTests:JSON.stringify(normalizeCphTests(draft.tests)),initialTimeLimit:draft.timeLimit};
+    main.innerHTML=pageHeader('代码试跑','在独立草稿中编译 C++ 并用多组测试数据快速验证，不会写入题库。',`<button type="button" class="btn" data-reset-playground>清空草稿</button><button type="submit" form="playground-form" class="btn primary" id="save-playground">保存草稿 <span aria-hidden="true">↵</span></button>`,'COMPILER / 本地试跑')+
+      `<div id="compiler-availability" class="compiler-availability" aria-live="polite"></div><div id="editor-error" class="error-banner" role="alert"></div><form id="playground-form" class="editor-panel" novalidate><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">&gt;_</span><strong>源代码</strong><span class="playground-language">C++ · GNU++14</span></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码试跑编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${hasSavedDraft?'✓ 草稿已保存':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · .cpp</span></div></form><div class="below-editor"><span>草稿只保存在当前浏览器；切题、备份和题库导出均不会包含这里的临时代码。</span><span>使用设置中的 g++ 编译器</span></div>`+
+      cphTestPanel(p);
+    $('#code-input').value=draft.code;
+    state.editor.initial=JSON.stringify(readPlaygroundForm());
+    highlightCode();updateCursor();
+    const importInput=$('#cph-import-file');
+    if(importInput)importInput.addEventListener('change',()=>importCphFile(importInput.files?.[0]));
+    refreshCompilerAvailability();
+  }
   function problemEditor(p) {
     state.context={};
+    p.tests=normalizeCphTests(p.tests);
+    state.cph={active:0,results:{},compile:null,running:false,runId:'',totalMs:0};
+    state.editor={kind:'problem',entity:{...p},tests:normalizeCphTests(p.tests),initial:'',initialTests:JSON.stringify(normalizeCphTests(p.tests))};
     const back=p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems';
     const backLabel=p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
     main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
-      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、洛谷、牛客" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options">${problemPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field"><span>题目编号 <small>编号与名称至少填写一项</small></span><input name="number" maxlength="50" placeholder="例如 A、B、abc350_a" value="${esc(p.number)}"></label><label class="field"><span>题目名称 <small>可选</small></span><input name="name" maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field wide"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码将作为真实源文件保存在项目的 data/codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`;
+      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、洛谷、牛客" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options">${problemPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field"><span>题目编号 <small>编号与名称至少填写一项</small></span><input name="number" maxlength="50" placeholder="例如 A、B、abc350_a" value="${esc(p.number)}"></label><label class="field"><span>题目名称 <small>可选</small></span><input name="name" maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field wide"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码将作为真实源文件保存在项目的 data/codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
     $('#code-input').value=p.code||'';
-    state.editor={kind:'problem',entity:{...p},initial:''}; state.editor.initial=JSON.stringify(readProblemForm());
+    state.editor.initial=JSON.stringify(readProblemForm());
     highlightCode(); updateCursor();
+    const importInput=$('#cph-import-file');
+    if(importInput)importInput.addEventListener('change',()=>importCphFile(importInput.files?.[0]));
   }
   function readProblemForm() {
     const form=$('#problem-form'); if(!form)return null;
@@ -398,17 +702,18 @@
     }
   }
   function highlightCode() {
-    const area=$('#code-input');if(!area)return;const code=area.value,lang=$('#editor-language').value;
+    const area=$('#code-input');if(!area)return;const code=area.value,lang=$('#editor-language')?.value||state.editor?.entity?.language||'cpp';
     $('#highlight-code').innerHTML=highlightSource(code,lang);
     $('#line-numbers').textContent=Array.from({length:code.split('\n').length},(_,i)=>i+1).join('\n'); syncScroll(); updateSaveState();
   }
   function syncScroll(){const area=$('#code-input');if(!area)return;$('#highlight-pre').scrollTop=area.scrollTop;$('#highlight-pre').scrollLeft=area.scrollLeft;$('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;}
   function updateCursor(){const a=$('#code-input');if(!a)return;const before=a.value.slice(0,a.selectionStart).split('\n');$('#cursor-status').textContent=`第 ${before.length} 行，第 ${before[before.length-1].length+1} 列 · ${a.value.length.toLocaleString()} 字符`;}
-  function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(state.editor.entity.id?'✓ 已保存到本地':'尚未保存');}
+  function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();const standalone=state.editor.entity?.standalone;status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(standalone?'✓ 草稿已保存':(state.editor.entity.id?'✓ 已保存到本地':'尚未保存'));}
   function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
   async function saveProblem(event){event?.preventDefault();if(state.busy||!state.editor)return;const form=$('#problem-form');if(!validateRequiredFields(form))return;const data=readProblemForm();if(!data.number.trim()&&!data.name.trim()){showEditorError(new Error('题目编号与题目名称至少填写一项。'));return;}
+    commitCphFields();const testsToSave=state.editor.tests.map(item=>({input:item.input,output:item.output}));const testsDirty=cphTestsDirty();
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
-    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,...(old.id?{version:old.version}:{})});await loadState();state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目与代码已保存，所有页面已同步。');}
+    try{const old=state.editor.entity;if(old.id&&testsDirty)await api(`/api/problems/${encodeURIComponent(old.id)}/tests`,'PUT',{tests:testsToSave});const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,...(old.id?{version:old.version}:{})});if(!old.id&&testsDirty)await api(`/api/problems/${encodeURIComponent(saved.problem.id)}/tests`,'PUT',{tests:testsToSave});await loadState();state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');}
     catch(e){showEditorError(e);}finally{state.busy=false;$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   async function saveSnippet(event){
@@ -424,7 +729,7 @@
     }catch(e){showEditorError(e);}
     finally{state.busy=false;$('#snippet-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-snippet')){$('#save-snippet').disabled=false;$('#save-snippet').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
-  function saveCurrentEditor(event){if(state.editor?.kind==='snippet')return saveSnippet(event);return saveProblem(event);}
+  function saveCurrentEditor(event){if(state.editor?.kind==='snippet')return saveSnippet(event);if(state.editor?.entity?.standalone){event?.preventDefault();return savePlaygroundDraft();}return saveProblem(event);}
   async function copyCode(){const area=$('#code-input');try{await navigator.clipboard.writeText(area.value);toast('代码已复制。');}catch(_){const start=area.selectionStart,end=area.selectionEnd;area.focus();area.select();const ok=document.execCommand('copy');if(ok)area.setSelectionRange(start,end);toast(ok?'代码已复制。':'请按 Ctrl + C 复制选中的代码。',!ok);}}
   function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';}
   function setModalBusy(busy){state.busy=busy;modal.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=busy;});}
@@ -535,6 +840,12 @@
     const mode=browser.mode||'default', windowMode=browser.window_mode||'tab';
     return `<form id="browser-settings-form" novalidate><div class="settings-section-head"><div><h3>启动浏览器</h3><p>首次使用系统默认浏览器；此设置不会修改 Windows 全局默认应用。</p></div></div><label class="field"><span>浏览器</span><select name="mode" id="browser-mode">${option('default','系统默认浏览器',mode)}${option('edge','Microsoft Edge',mode)}${option('chrome','Google Chrome',mode)}${option('firefox','Mozilla Firefox',mode)}${option('custom','自定义可执行文件',mode)}</select></label><label class="field" id="browser-custom-field"><span>自定义浏览器路径 <small>仅接受本机可执行文件</small></span><input name="custom_path" id="browser-custom-path" maxlength="2048" value="${esc(browser.custom_path||'')}" placeholder="C:\\Program Files\\Browser\\browser.exe"></label><label class="field"><span>窗口模式</span><select name="window_mode" id="browser-window-mode">${option('tab','普通标签页',windowMode)}${option('app','独立应用窗口（Chrome / Edge）',windowMode)}</select></label><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="button" class="btn" id="browser-test">测试打开</button><button type="submit" class="btn primary">保存浏览器设置</button></div></form>`;
   }
+  function settingsCompilerHTML(){
+    const compiler=state.settings?.compiler||{};
+    const standard=compiler.standard||'gnu++14';
+    const missing=compiler.available?'':`<div class="compiler-missing-banner compact"><div class="compiler-missing-mark" aria-hidden="true">!</div><div><strong>未找到 C++ 编译器</strong><p>请安装或解压完整的 MinGW-w64，然后填写其 <code>bin\\g++.exe</code> 路径。不要只复制单个 g++.exe；它需要同一工具链中的配套程序。</p></div></div>`;
+    return `<form id="compiler-settings-form" novalidate><div class="settings-section-head"><div><h3>C++ 编译与运行</h3><p>默认自动使用当前 VS Code 工作区的 MinGW g++ 8.1.0，并以 GNU++14 编译。</p></div></div><div class="compiler-status ${compiler.available?'ok':'missing'}"><span>${compiler.available?'可用':'未找到'}</span><div><strong>${esc(compiler.version||'没有检测到 g++')}</strong><small>${compiler.auto_detected?'自动检测路径':'自定义路径'} · ${esc(compiler.standard||standard)}</small></div></div>${missing}<label class="field"><span>g++ 可执行文件路径 <small>留空时自动检测</small></span><input name="cpp_path" id="compiler-cpp-path" maxlength="2048" value="${esc(compiler.configured_path||'')}" placeholder="${esc(compiler.path||'D:\\mingw64\\bin\\g++.exe')}"></label><div class="settings-path"><code>${esc(compiler.path||'未找到编译器')}</code><button type="button" class="btn small" data-copy-compiler-path>复制实际路径</button></div><label class="field"><span>C++ 标准</span><select name="standard" id="compiler-standard">${(compiler.standards||['gnu++14']).map(value=>option(value,value,standard)).join('')}</select></label><div id="compiler-diagnostic" class="compiler-diagnostic" aria-live="polite"><strong>尚未运行能力检查</strong><span>检查将对 __int128、multiset 和 unordered_map 进行真实编译运行。</span></div><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="button" class="btn" id="compiler-test">编译能力检查</button><button type="submit" class="btn primary">保存编译器设置</button></div></form>`;
+  }
   function settingsDataHTML(){
     const settings=state.settings||{};
     const backups=state.backups||[];
@@ -542,15 +853,17 @@
   }
   function settingsAboutHTML(){
     const settings=state.settings||{};
-    return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
+    const cph=settings.cph||{};
+    return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>应用作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div></div><div class="settings-section"><div class="settings-section-head"><div><h3>CPH 第三方声明</h3><p>测试用例格式与本地评测行为兼容 CPH；运行器由算法档案独立实现。</p></div></div><dl class="settings-diagnostics"><dt>原作者</dt><dd>${esc(cph.author||'Divyanshu Agrawal')}</dd><dt>上游仓库</dt><dd><a href="${esc(cph.repository||'https://github.com/agrawal-d/cph')}" target="_blank" rel="noopener noreferrer">${esc(cph.repository||'https://github.com/agrawal-d/cph')}</a></dd><dt>许可证</dt><dd>${esc(cph.license||'GPL-3.0-or-later')}</dd><dt>参考提交</dt><dd><code>${esc(cph.reference_commit||'')}</code></dd></dl><div class="settings-note">程序目录中的 THIRD_PARTY.txt 与 licenses/CPH-GPL-3.0.txt 保留完整来源和许可证说明。</div></div><div class="settings-section"><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
   }
   function showSettingsTab(tab='profile'){
-    const safeTab=['profile','browser','data','about'].includes(tab)?tab:'profile';
+    const safeTab=['profile','browser','compiler','data','about'].includes(tab)?tab:'profile';
     modal.querySelectorAll('[data-settings-tab]').forEach(button=>button.classList.toggle('active',button.dataset.settingsTab===safeTab));
     const content=$('#settings-content');
-    content.innerHTML=safeTab==='profile'?settingsProfileHTML():safeTab==='browser'?settingsBrowserHTML():safeTab==='data'?settingsDataHTML():settingsAboutHTML();
+    content.innerHTML=safeTab==='profile'?settingsProfileHTML():safeTab==='browser'?settingsBrowserHTML():safeTab==='compiler'?settingsCompilerHTML():safeTab==='data'?settingsDataHTML():settingsAboutHTML();
     if(safeTab==='profile')bindProfileSettings();
     else if(safeTab==='browser')bindBrowserSettings();
+    else if(safeTab==='compiler')bindCompilerSettings();
     else if(safeTab==='data')bindDataSettings();
     else bindAboutSettings();
   }
@@ -559,7 +872,7 @@
     try{
       const [settingsResult,backupResult]=await Promise.all([api('/api/settings'),api('/api/backups')]);
       state.settings=settingsResult.settings;state.backups=backupResult.backups||[];
-      modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
+      modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('compiler','编译与运行')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
       modal.showModal();
       $('.settings-tabs',modal).addEventListener('click',event=>{
         const button=event.target.closest('[data-settings-tab]');
@@ -627,6 +940,42 @@
       event.preventDefault();if(state.busy)return;setModalBusy(true);
       try{const result=await api('/api/settings/browser','PUT',readBrowserSettingsForm());state.settings.browser=result.browser;setModalBusy(false);toast('浏览器设置已保存。');}
       catch(error){setModalBusy(false);const target=$('#settings-error');if(target)target.textContent=error.message;}
+    });
+  }
+  function readCompilerSettingsForm(){
+    const form=$('#compiler-settings-form');
+    if(!form)return null;
+    return {cpp_path:form.elements.cpp_path.value.trim(),standard:form.elements.standard.value};
+  }
+  function bindCompilerSettings(){
+    $('[data-copy-compiler-path]')?.addEventListener('click',async()=>{
+      try{await navigator.clipboard.writeText(state.settings?.compiler?.path||'');toast('编译器路径已复制。');}
+      catch(_){toast('无法写入剪贴板。',true);}
+    });
+    $('#compiler-test')?.addEventListener('click',async()=>{
+      if(state.busy)return;
+      setModalBusy(true);
+      const target=$('#compiler-diagnostic');
+      if(target)target.innerHTML='<strong>正在编译能力检查…</strong><span>临时程序会依次验证 __int128、multiset 和 unordered_map。</span>';
+      try{
+        const result=await api('/api/settings/compiler/test','POST',readCompilerSettingsForm());
+        setModalBusy(false);
+        const diagnostic=result.diagnostic||{};
+        if(target)target.className=`compiler-diagnostic ${diagnostic.ok?'ok':'error'}`;
+        if(target)target.innerHTML=diagnostic.ok?`<strong>三项能力检查通过</strong><span>${esc(diagnostic.standard)} · __int128 ✓ · multiset ✓ · unordered_map ✓</span>`:`<strong>能力检查未通过</strong><span>${esc(diagnostic.result?.compile?.stderr||'请检查编译器路径和 C++ 标准。')}</span>`;
+        toast(diagnostic.ok?'编译器能力检查通过。':'编译器能力检查未通过。',!diagnostic.ok);
+      }catch(error){
+        setModalBusy(false);
+        if(target){target.className='compiler-diagnostic error';target.innerHTML=`<strong>能力检查未通过</strong><span>${esc(error.message)}</span>`;}
+        toast(error.message,true);
+      }
+    });
+    $('#compiler-settings-form')?.addEventListener('submit',async event=>{
+      event.preventDefault();if(state.busy)return;setModalBusy(true);
+      try{
+        const result=await api('/api/settings/compiler','PUT',readCompilerSettingsForm());
+        state.settings.compiler=result.compiler;setModalBusy(false);showSettingsTab('compiler');toast('编译器设置已保存。');
+      }catch(error){setModalBusy(false);const target=$('#settings-error');if(target)target.textContent=error.message;}
     });
   }
   async function refreshBackups(){
@@ -835,11 +1184,22 @@
     else if(t.hasAttribute('data-delete-contest'))deleteContest(t.dataset.deleteContest);
     else if(t.hasAttribute('data-add-algorithm-link'))addAlgorithmLinkRow();
     else if(t.hasAttribute('data-remove-algorithm-link'))t.closest('.link-row')?.remove();
+    else if(t.hasAttribute('data-cph-case'))activateCphTest(Number(t.dataset.cphCase));
+    else if(t.hasAttribute('data-add-cph-test'))addCphTest();
+    else if(t.hasAttribute('data-remove-cph-test'))removeCphTest();
+    else if(t.hasAttribute('data-save-cph-tests'))await saveCphTests();
+    else if(t.hasAttribute('data-run-cph-all'))await runCphTests(true);
+    else if(t.hasAttribute('data-run-cph-current'))await runCphTests(false);
+    else if(t.hasAttribute('data-stop-cph'))await stopCphTests();
+    else if(t.hasAttribute('data-import-cph'))$('#cph-import-file')?.click();
+    else if(t.hasAttribute('data-export-cph'))exportCphFile();
+    else if(t.hasAttribute('data-reset-playground'))resetPlayground();
     else if(t.hasAttribute('data-copy-code'))await copyCode();
     else if(t.hasAttribute('data-delete-problem'))deleteProblem();
     else if(t.hasAttribute('data-delete-snippet'))deleteSnippet();
     else if(t.hasAttribute('data-unlink-contest'))unlinkContest();
     else if(t.hasAttribute('data-unlink-algorithm'))unlinkAlgorithm();
+    else if(t.hasAttribute('data-open-compiler-settings'))await openSettings('compiler');
     else if(t.hasAttribute('data-open-profile-settings'))await openSettings('profile');
     else if(t.hasAttribute('data-close-modal'))closeModal();
     else if(t.hasAttribute('data-retry'))await renderRoute(state.route);
@@ -852,14 +1212,16 @@
     if(selection&&!selection.isCollapsed&&row.contains(selection.anchorNode))return;
     await openProblemPreview(row.dataset.problemPreview);
   });
-  document.addEventListener('submit',e=>{if(e.target.id==='problem-form'||e.target.id==='snippet-form')saveCurrentEditor(e);});
+  document.addEventListener('submit',e=>{if(e.target.id==='problem-form'||e.target.id==='snippet-form'||e.target.id==='playground-form')saveCurrentEditor(e);});
   document.addEventListener('input',e=>{
     if(e.target.closest('.field'))clearFieldError(e.target);
     if(e.target.id==='filter-query'){state.filter.q=e.target.value;updateTable();}
     else if(e.target.id==='contest-search')updateContests();
     else if(e.target.id==='algorithm-search')updateAlgorithms();
+    else if(e.target.id==='cph-input'||e.target.id==='cph-expected-output'){commitCphFields();updateCphTestsState();updateSaveState();}
     else if(e.target.id==='code-input'){highlightCode();updateCursor();}
     else if(e.target.id==='editor-platform'){$('#editor-contest').innerHTML=contestSelect(e.target.value,'');updateSaveState();}
+    else if(e.target.id==='cph-time-limit'){state.cph.timeLimit=Math.max(50,Math.min(30000,Number(e.target.value)||3000));updateSaveState();}
     else if(e.target.closest('#problem-form'))updateSaveState();
     else if(e.target.closest('#snippet-form'))updateSaveState();
   });

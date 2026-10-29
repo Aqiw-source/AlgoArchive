@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.0.5"
+#define MyAppVersion "2.1.2"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "启动.bat"
 
@@ -38,6 +38,7 @@ Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 
 [Files]
 Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\启动.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\创建桌面快捷方式.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -50,6 +51,7 @@ Source: "..\LICENSE-PENDING.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\ACM-ICPC-Windows.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\scripts\create-desktop-shortcut.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\docs\screenshots\*"; DestDir: "{app}\docs\screenshots"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 

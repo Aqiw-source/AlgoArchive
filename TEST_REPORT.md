@@ -1,16 +1,17 @@
 # 交付验证记录
 
-版本：2.0.5
+版本：2.1.2
 
-验证日期：2026-10-28
+验证日期：2026-10-29
 
 执行环境：
 
 - Windows 10.0.26100 x64
 - Python 3.12.5（开发测试）
 - 内置 Python 3.13.9 Windows x64 运行时（发布包）
-- Node.js 20 语法检查
-- Google Chrome 无头浏览器
+- Node.js 24.19.0 语法检查
+- Google Chrome 156 无头浏览器
+- MinGW-W64 g++ 8.1.0（GNU++14）
 - Inno Setup 6.7.3
 
 ## 已实际执行
@@ -21,15 +22,23 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：78 项通过。
+结果：92 项通过。
 
 覆盖范围包括：
 
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。
 - 全局题目和算法内题目拖动排序、逆序和版本冲突。
+- CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。
+- 当前编辑器代码的本地 C++ 编译、逐用例判题、编译错误、运行错误、超时和停止。
+- 独立“代码试跑”接口不创建题目、不写源码文件，并使用题库外临时编译目录。
+- 显式配置但已经不存在的编译器路径会报告不可用，不会静默回退到其他编译器。
+- CPH 的 CRLF 统一及逐行首尾空白比较规则。
+- MinGW-W64 g++ 8.1.0 下 `__int128`、`multiset` 和 `unordered_map` 实际编译运行。
+- Windows 崩溃型测试程序不弹出系统异常对话框。
 - JSON 批量导入、链接原文保存和自定义平台。
 - SQLite 事务、源码恢复日志、CRLF 保留、缺失代码保护。
-- 数据库 schema 1/3/4/5/6 到 7 的升级及升级前备份。
+- 数据库 schema 1/3/4/5/6/7 到 8 的升级及升级前备份。
+- schema 7 备份恢复时先在暂存区升级到 schema 8，无需重启即可继续使用。
 - 不兼容数据库在写入前拒绝，且不创建业务表。
 - 默认数据目录、用户配置优先级和 `--data-dir` 主动覆盖。
 - UTF-8 BOM、旧版 Windows ANSI/GB18030 配置读取和非 ASCII 用户路径。
@@ -48,14 +57,18 @@ node --check web/app.js
 
 结果：通过。
 
-使用本机 Chrome 对隔离实例执行：
+使用本机 Chrome 156 对隔离实例执行：
 
-- 检查侧栏 Codeforces、AtCoder、洛谷、牛客入口和首页七个统计项。
-- 从“新建比赛”弹窗选择牛客快捷项并创建 QA 比赛。
-- 验证新比赛出现在牛客工作空间的比赛卡片中。
-- 验证新弹窗不再使用会遮挡底部按钮的原生平台下拉浮层。
-- 检查平台输入框仍可接受任意文本，链接字段不进行平台网址白名单判断。
-- 检查弹窗快捷项、字段、底部操作区和移动端单列布局。
+- 打开真实题目编辑页并检查 CPH 面板、作者声明和多用例标签。
+- 通过文件选择导入现有 `.prob` 用例，增加第二个用例并保存。
+- 运行全部用例，确认 `2 / 2` 通过及实际输出。
+- 导出 `.prob`，重新解析并确认包含两个用例。
+- 在设置页运行编译器能力检查，确认三项能力全部通过。
+- 在“关于与诊断”确认 CPH 原作者、仓库和许可证声明。
+- 检查停止按钮默认隐藏、运行中控制和测试状态标记。
+- 验证“全部题目”下方存在“代码试跑”，独立草稿保存、刷新恢复和多用例运行。
+- 验证代码试跑前后题目数量不变，临时代码不会写入题库。
+- 模拟无 MinGW 环境，验证“未找到 C++ 编译器”提示、完整工具链说明和设置跳转。
 - 桌面视口 1440×1000。
 - 移动视口 390×844。
 - 页面控制台错误：0。
@@ -63,23 +76,28 @@ node --check web/app.js
 
 截图：
 
-- `algoarchive-home-2.0.5.png`
-- `algoarchive-modal-2.0.5.png`
-- `algoarchive-niuke-workspace-2.0.5.png`
-- `algoarchive-modal-mobile-2.0.5.png`
+- `docs/screenshots/cph-runner.png`
+- `docs/screenshots/cph-compiler-settings.png`
+- `docs/screenshots/cph-runner-mobile.png`
+- `docs/screenshots/compiler-playground.png`
+- `docs/screenshots/compiler-playground-run.png`
+- `docs/screenshots/compiler-playground-mobile.png`
+- `docs/screenshots/compiler-missing-banner.png`
+- `docs/screenshots/compiler-missing-settings.png`
+- `docs/screenshots/compiler-missing-mobile.png`
 
 ### 发行构建
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.0.5
+.\scripts\build-portable.ps1 -Version 2.1.2
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.2-Windows-x64.zip
 ```
 
 结果：
 
-- 便携 ZIP 构建成功。
+- 便携 ZIP 构建成功，并生成同名 `.sha256` 校验文件。
 - 发布包隐私和文件清单检查通过。
-- Inno Setup 安装程序编译成功。
-- 便携 ZIP 与安装程序均生成 SHA-256 文件。
+- 发布包包含 `cph_runner.py`、CPH 第三方声明和完整 GPL 许可证副本。
 
 ## 安装包设计验证
 
@@ -100,7 +118,8 @@ node --check web/app.js
 - 安装器静默安装/卸载烟雾测试被当前命令执行策略拦截，未计为通过。
 - 所有用户安装的 UAC 流程通过静态脚本和编译验证，未在第二台机器实测。
 - 自定义浏览器路径只验证了参数数组和失败回退逻辑，未覆盖所有第三方浏览器版本。
-- 项目许可证尚未由维护者选择。
+- 项目整体许可证尚未由维护者选择；CPH 来源与 GPL-3.0-or-later
+  许可证副本已随程序声明。
 - 安装程序尚未进行 Authenticode 签名，Windows 可能显示未知发布者提示。
 - 未进行大规模题库压力测试；现有实现保持 SQLite 单库和逐记录代码文件边界。
 

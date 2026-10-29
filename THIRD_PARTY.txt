@@ -17,3 +17,17 @@ Source: https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation
 Usage: Build-time installer language file only; it is not embedded as an
 application runtime dependency. The file identifies Inno Setup 6.5.0+ and
 retains its own header and attribution.
+
+CPH (Competitive Programming Helper)
+Original author: Divyanshu Agrawal
+Copyright: Copyright (C) 2019 - Present Divyanshu Agrawal
+Source: https://github.com/agrawal-d/cph
+Reference commit: ef8c7a70a7beff150bf5ed5e5ad8c631539a3fd6
+License: GNU General Public License version 3 or later (GPL-3.0-or-later)
+License copy: licenses/CPH-GPL-3.0.txt
+
+AlgoArchive implements a compatible local test-case import/export format and
+judging workflow. The compiler and execution code in cph_runner.py is an
+independent Python implementation; no CPH TypeScript source is bundled.
+The CPH name, original author, repository, reference commit, and license are
+shown in the test panel and the About/Diagnostics settings page.

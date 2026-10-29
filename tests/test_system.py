@@ -9,6 +9,7 @@ import concurrent.futures
 import json
 from pathlib import Path
 import re
+import shutil
 import socket
 import sqlite3
 import subprocess
@@ -21,6 +22,9 @@ import urllib.request
 
 
 PROJECT = Path(__file__).resolve().parents[1]
+VSCODE_GXX = Path(
+    r"D:\x86_64-8.1.0-release-posix-seh-rt_v6-rev0\mingw64\bin\g++.exe"
+)
 
 
 class SystemTests(unittest.TestCase):
@@ -165,6 +169,144 @@ class SystemTests(unittest.TestCase):
         state = self.request("GET", "/api/state")
         self.assertEqual(state["problems"][0]["name"], "修改后的题名")
         self.assertEqual(self.request("GET", "/api/problems/" + problem["id"])["problem"]["code"], changed["code"])
+
+    @unittest.skipUnless(
+        VSCODE_GXX.is_file() or shutil.which("g++"),
+        "g++ is required",
+    )
+    def test_cph_test_cases_save_run_and_survive_restart(self):
+        problem = self.problem(
+            number="CPH",
+            name="A+B",
+            url="https://example.com/problems/a-plus-b",
+            code=(
+                "#include <bits/stdc++.h>\n"
+                "using namespace std;\n"
+                "int main(){int a,b;cin>>a>>b;cout<<a+b<<'\\n';}\n"
+            ),
+        )
+        tests = [
+            {"input": "1 2\n", "output": "3\n"},
+            {"input": "-4 9\n", "output": "5\n"},
+        ]
+        saved = self.request(
+            "PUT",
+            f"/api/problems/{problem['id']}/tests",
+            {"tests": tests},
+        )["tests"]
+        self.assertEqual(
+            [{"input": item["input"], "output": item["output"]} for item in saved],
+            tests,
+        )
+        result = self.request(
+            "POST",
+            f"/api/problems/{problem['id']}/run",
+            {
+                "run_id": "system-test-cph-run",
+                "code": problem["code"],
+                "tests": tests,
+                "time_limit_ms": 3000,
+            },
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(
+            [item["status"] for item in result["cases"]],
+            ["passed", "passed"],
+        )
+
+        self.stop_server()
+        self.start_server()
+        loaded = self.request(
+            "GET",
+            f"/api/problems/{problem['id']}",
+        )["problem"]
+        self.assertEqual(
+            [
+                {"input": item["input"], "output": item["output"]}
+                for item in loaded["tests"]
+            ],
+            tests,
+        )
+
+    @unittest.skipUnless(
+        VSCODE_GXX.is_file() or shutil.which("g++"),
+        "g++ is required",
+    )
+    def test_cph_run_can_be_stopped(self):
+        problem = self.problem(
+            number="STOP",
+            name="无限循环",
+            url="https://example.com/problems/infinite-loop",
+            code="int main(){for(;;){}}\n",
+        )
+        run_id = "system-stop-cph-run"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                self.request,
+                "POST",
+                f"/api/problems/{problem['id']}/run",
+                {
+                    "run_id": run_id,
+                    "code": problem["code"],
+                    "tests": [{"input": "", "output": ""}],
+                    "time_limit_ms": 5000,
+                },
+            )
+            deadline = time.monotonic() + 4
+            stopped = False
+            while time.monotonic() < deadline:
+                stop = self.request(
+                    "POST",
+                    f"/api/problems/{problem['id']}/run/stop",
+                    {"run_id": run_id},
+                )
+                if stop["ok"]:
+                    stopped = True
+                    break
+                time.sleep(0.1)
+            self.assertTrue(stopped, "run did not become stoppable")
+            result = future.result(timeout=8)
+        self.assertTrue(result["cancelled"], result)
+        if result["cases"]:
+            self.assertEqual(result["cases"][0]["status"], "cancelled")
+
+    @unittest.skipUnless(
+        VSCODE_GXX.is_file() or shutil.which("g++"),
+        "g++ is required",
+    )
+    def test_standalone_compiler_runs_without_creating_a_problem(self):
+        before = self.request("GET", "/api/state")
+        result = self.request(
+            "POST",
+            "/api/compiler/run",
+            {
+                "run_id": "standalone-compiler-run",
+                "code": (
+                    "#include <bits/stdc++.h>\n"
+                    "using namespace std;\n"
+                    "int main(){int a,b;cin>>a>>b;cout<<a+b<<'\\n';}\n"
+                ),
+                "tests": [
+                    {"input": "2 5\n", "output": "7\n"},
+                    {"input": "-3 8\n", "output": "5\n"},
+                ],
+                "time_limit_ms": 3000,
+            },
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(
+            [case["status"] for case in result["cases"]],
+            ["passed", "passed"],
+        )
+        after = self.request("GET", "/api/state")
+        self.assertEqual(after["problems"], before["problems"])
+        self.assertEqual(self.source_files(), [])
+        stopped = self.request(
+            "POST",
+            "/api/compiler/run/stop",
+            {"run_id": "standalone-stop-missing"},
+        )
+        self.assertFalse(stopped["ok"])
 
     def test_custom_contest_platform_and_link_can_be_created_and_updated(self):
         contest = self.contest(
@@ -372,6 +514,20 @@ class SystemTests(unittest.TestCase):
     def test_index_exposes_niuke_workspace(self):
         self.assertIn('href="#platform/niuke"', self.index_html)
         self.assertIn(">牛客</a>", self.index_html)
+
+    def test_index_exposes_code_compiler_below_all_problems(self):
+        problems_position = self.index_html.index('data-nav="problems"')
+        compiler_position = self.index_html.index('data-nav="compiler"')
+        self.assertGreater(compiler_position, problems_position)
+        self.assertIn("代码试跑", self.index_html)
+
+    def test_code_playground_has_missing_compiler_setup_prompt(self):
+        script = (PROJECT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("compiler-missing-banner", script)
+        self.assertIn("data-open-compiler-settings", script)
+        self.assertIn("未找到 C++ 编译器", script)
+        self.assertIn("选择 g++ 编译器", script)
+        self.assertIn("完整 MinGW", script)
 
     def test_profile_name_and_avatar_persist_after_restart(self):
         avatar = (
@@ -854,6 +1010,44 @@ class SystemTests(unittest.TestCase):
         saved = self.request("GET", "/api/settings")["settings"]
         self.assertEqual(saved["browser"]["mode"], "edge")
         self.assertEqual(saved["browser"]["window_mode"], "app")
+
+    @unittest.skipUnless(
+        VSCODE_GXX.is_file() or shutil.which("g++"),
+        "g++ is required",
+    )
+    def test_compiler_settings_and_cph_attribution_are_reported(self):
+        settings = self.request("GET", "/api/settings")["settings"]
+        self.assertEqual(settings["compiler"]["standard"], "gnu++14")
+        self.assertTrue(settings["compiler"]["available"])
+        self.assertEqual(settings["cph"]["author"], "Divyanshu Agrawal")
+        self.assertEqual(settings["cph"]["license"], "GPL-3.0-or-later")
+
+        diagnostic = self.request(
+            "POST",
+            "/api/settings/compiler/test",
+            {
+                "cpp_path": str(
+                    VSCODE_GXX if VSCODE_GXX.is_file() else Path(shutil.which("g++"))
+                ),
+                "standard": "gnu++14",
+            },
+        )["diagnostic"]
+        self.assertTrue(diagnostic["ok"], diagnostic)
+        self.assertEqual(
+            diagnostic["checks"],
+            {"__int128": True, "multiset": True, "unordered_map": True},
+        )
+
+        updated = self.request(
+            "PUT",
+            "/api/settings/compiler",
+            {
+                "cpp_path": diagnostic["compiler"],
+                "standard": "gnu++14",
+            },
+        )["compiler"]
+        self.assertEqual(updated["standard"], "gnu++14")
+        self.assertTrue(updated["available"])
 
     def test_backup_and_restore_round_trip(self):
         contest = self.contest()

@@ -7,11 +7,12 @@
 
 AlgoArchive 使用本地 Python 标准库服务和原生 HTML/CSS/JavaScript 界面。
 比赛、题目、算法模板、多份代码、参考链接、头像和设置均保存在当前
-Windows 用户的数据目录中，不上传、不自动提交，也不执行代码。
+Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测试只会在本机
+临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.0.5-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.0.5-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.1.2-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.1.2-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -42,6 +43,30 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 ![题目代码编辑器](docs/screenshots/editor.png)
 
+### CPH 兼容测试
+
+每道题可以保存多组测试用例，使用当前 VS Code 的 MinGW g++ 在本机编译运行，
+并支持 `.prob` 导入导出。
+
+![CPH 兼容测试面板](docs/screenshots/cph-runner.png)
+
+编译器路径和能力检查位于设置页，实际验证 `__int128`、`multiset` 与
+`unordered_map`。
+
+![编译器设置](docs/screenshots/cph-compiler-settings.png)
+
+### 代码试跑
+
+侧栏“全部题目”下方的独立工作区，可以快速验证临时 C++ 代码；草稿只在当前
+浏览器保存，不会创建题目或进入题库备份。
+
+![代码试跑工作区](docs/screenshots/compiler-playground.png)
+
+如果电脑没有 MinGW，程序会直接显示安装说明和“选择 g++ 编译器”按钮，
+并跳转到编译器设置，不会只返回一条模糊的运行错误。
+
+![缺少编译器提示](docs/screenshots/compiler-missing-banner.png)
+
 ### 设置与诊断
 
 浏览器与窗口打开方式可在本地设置中选择，不修改 Windows 全局默认应用。
@@ -58,6 +83,8 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
 | 排序与导入 | 全局题目和算法内题目独立排序，支持逆序和 JSON 批量导入 |
 | 代码工作台 | VS Code 风格配色、语法高亮、行号、自动缩进和 `Ctrl+S` 保存 |
+| 本地评测 | CPH 兼容测试用例、`.prob` 导入导出、单例/全部运行、停止和编译诊断 |
+| 代码试跑 | 独立 C++ 草稿、多用例编译运行和浏览器本地保存，不写入题库 |
 | 个人资料 | 自定义头像和用户名，头像保存在数据目录 |
 | 数据位置 | 默认数据目录、自定义目录、迁移前校验和冲突保护 |
 | 浏览器设置 | 系统默认、Edge、Chrome、Firefox 或自定义可执行文件 |
@@ -71,7 +98,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.0.5-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.1.2-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -277,13 +304,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.0.5
+.\scripts\build-portable.ps1 -Version 2.1.2
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.0.5
+.\scripts\build-release.ps1 -Version 2.1.2
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -295,13 +322,12 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.0.5 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.1.2 已验证：
 
 - 隔离后端测试全部通过。
 - `node --check web/app.js` 通过。
-- 洛谷与牛客工作空间、新比赛弹窗和平台快捷项在桌面及 390px 移动视口正常，
-  无控制台错误和横向溢出。
-- Inno Setup 6.7.3 成功编译 Windows x64 安装程序。
+- CPH 面板、多用例、`.prob` 导入导出、本地运行和编译器诊断在桌面及
+  390px 移动视口正常，无控制台错误和横向溢出。
 - 便携 ZIP 成功生成并通过发布内容与隐私检查。
 
 真实用户数据不会在自动化测试中使用。
@@ -311,7 +337,8 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 本版本不包含：
 
 - 在线抓取题目或同步提交记录。
-- 编译、运行、测试或在线判题。
+- 在线提交、在线判题或远程评测。
+- Python、Java 等 CPH 非 C++ 运行器；当前本地评测聚焦 C++。
 - 代码版本历史、账号系统或云端同步。
 - 系统性修改程序目录后修复所有外部入口；便携版移动目录后应重新运行快捷
   方式创建工具。

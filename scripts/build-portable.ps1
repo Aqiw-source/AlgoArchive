@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.0.5",
+    [string]$Version = "2.1.2",
     [string]$OutputRoot
 )
 
@@ -15,6 +15,7 @@ $archivePath = Join-Path $OutputRoot "$packageName.zip"
 
 $requiredFiles = @(
     "app.py",
+    "cph_runner.py",
     "启动.bat",
     "start.bat",
     "创建桌面快捷方式.bat",
@@ -32,7 +33,7 @@ foreach ($name in $requiredFiles) {
         throw "缺少发布文件: $path"
     }
 }
-foreach ($name in @("runtime", "web")) {
+foreach ($name in @("runtime", "web", "licenses")) {
     $path = Join-Path $projectRoot $name
     if (-not (Test-Path -LiteralPath $path -PathType Container)) {
         throw "缺少发布目录: $path"
@@ -51,7 +52,7 @@ New-Item -ItemType Directory -Path $staging | Out-Null
 foreach ($name in $requiredFiles) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $staging
 }
-foreach ($name in @("runtime", "web")) {
+foreach ($name in @("runtime", "web", "licenses")) {
     $source = Join-Path $projectRoot $name
     if (Test-Path -LiteralPath $source -PathType Container) {
         Copy-Item -LiteralPath $source -Destination $staging -Recurse

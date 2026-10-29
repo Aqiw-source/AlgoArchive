@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.1.2 - 2026-10-29
+
+- Added an actionable missing-compiler banner to the standalone code
+  playground and per-problem test runner.
+- The prompt links directly to compiler settings and explains that a complete
+  MinGW-w64 toolchain is required, not just a copied `g++.exe`.
+- Invalid explicitly configured compiler paths now report as unavailable
+  instead of silently falling back to another compiler.
+
+## 2.1.1 - 2026-10-29
+
+- Added a standalone "Code Playground" workspace below All Problems in the
+  sidebar for compiling and testing temporary C++ without creating a problem.
+- Playground code, test cases, and time limit persist as a browser-local draft.
+- Added a generic local compiler API shared with per-problem CPH testing.
+
+## 2.1.0 - 2026-10-29
+
+- Added a CPH-compatible C++ test-case panel with per-case and run-all
+  execution, stop control, compile diagnostics, and CPH line-trim judging.
+- Added `.prob` and JSON test-case import plus CPH-compatible `.prob` export.
+- Test cases are stored in SQLite with the problem and survive backups,
+  restarts, deletion, and schema upgrades.
+- Defaulted C++ compilation to the current VS Code MinGW g++ 8.1.0 compiler
+  with GNU++14, while allowing a custom compiler path and standard.
+- Declared CPH author Divyanshu Agrawal, the upstream repository, reference
+  commit, and GPL-3.0-or-later license in the app, third-party notices, and
+  bundled license copy.
+
 ## 2.0.5 - 2026-10-28
 
 - Added a built-in NowCoder workspace and NowCoder summary on the home page

@@ -1,10 +1,10 @@
-算法档案 · AlgoArchive 2.0.5
+算法档案 · AlgoArchive 2.1.2
 作者：Aqiw
 GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.0.5-Windows-x64-Setup.exe。安装完成后会自动创建
+安装版：运行 AlgoArchive-2.1.2-Windows-x64-Setup.exe。安装完成后会自动创建
 桌面快捷方式。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -12,7 +12,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.0.5-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.1.2-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 启动.bat。首次启动会自动创建桌面快捷方式；
@@ -35,11 +35,11 @@ Source code (zip)。源码包不含 Python 运行环境，不能直接双击启�
 用户配置默认位于：
 %USERPROFILE%\AlgoArchive\config.json
 
-2.0.3 起兼容旧安装器写出的 Windows ANSI/GB18030 配置；新安装器使用 UTF-8
+2.1.0 起兼容旧安装器写出的 Windows ANSI/GB18030 配置；新安装器使用 UTF-8
 无 BOM。中文用户名路径不会再导致配置解析失败。
 
 程序目录与数据目录相互独立。默认数据目录包含：
-- archive.sqlite3：比赛、题目、算法、个人资料和业务设置。
+- archive.sqlite3：比赛、题目、测试用例、算法、个人资料和业务设置。
 - codes：题目代码和算法模板代码。
 - avatar：头像图片。
 - runtime.lock：单实例锁和实际端口。
@@ -80,7 +80,38 @@ Source code (zip)。源码包不含 Python 运行环境，不能直接双击启�
 代码编辑支持 Ctrl+S 保存、Tab 缩进、回车自动缩进和复制代码。C++ 保存为
 .cpp，Python 为 .py，Java 为 .java，其他语言为 .txt。单份代码上限 2 MiB。
 
-五、备份与恢复
+侧栏“全部题目”下方的“代码试跑”提供独立 C++ 草稿工作区。点击“保存草稿”
+或 Ctrl+S 后，代码、测试用例和单例时限保存在当前浏览器的本地存储中；刷新
+页面后仍可恢复。它不会创建题目、不会写入 archive.sqlite3，也不会进入题库
+备份或迁移。
+
+如果电脑没有安装 MinGW，代码试跑页会显示“未找到 C++ 编译器”，并提供
+“选择 g++ 编译器”按钮。请安装或解压完整的 MinGW-w64 工具链，在设置中填写
+其 bin\g++.exe 路径；只复制单独的 g++.exe 通常无法工作，因为还需要同一工具
+链中的配套程序和库。
+
+五、CPH 兼容测试
+
+题目编辑页下方的“测试用例”面板支持多组输入和期望输出，可以运行当前用例
+或全部用例、停止运行，并导入或导出 CPH `.prob` 文件。测试用例保存在
+archive.sqlite3，重启、备份和恢复后仍会保留。
+
+程序默认调用当前 VS Code 工作区使用的：
+D:\x86_64-8.1.0-release-posix-seh-rt_v6-rev0\mingw64\bin\g++.exe
+
+默认标准为 GNU++14。可在“设置 → 编译与运行”检查 __int128、multiset 和
+unordered_map 的真实编译运行能力，也可以改用其他 g++ 路径和标准。
+
+测试代码只写入系统临时目录，编译成功后逐个用例运行，结束后清理。不会自动
+保存代码或提交到在线评测。Windows 系统错误弹窗已对测试子进程禁用。
+
+CPH 原作者：Divyanshu Agrawal
+上游仓库：https://github.com/agrawal-d/cph
+许可证：GPL-3.0-or-later
+本程序中的运行器为独立 Python 实现；完整声明位于 THIRD_PARTY.txt，
+许可证副本位于 licenses\CPH-GPL-3.0.txt。
+
+六、备份与恢复
 
 “设置 → 数据管理”可以创建完整 ZIP 备份、导入其他电脑的 ZIP、恢复列表中的
 备份。备份包含 SQLite 数据库、全部代码、头像和业务设置。
@@ -90,7 +121,7 @@ Source code (zip)。源码包不含 Python 运行环境，不能直接双击启�
 
 配置文件中的浏览器绝对路径不写入备份，避免跨电脑恢复时强制使用旧机器路径。
 
-六、日志与诊断
+七、日志与诊断
 
 日志默认位于：
 %USERPROFILE%\AlgoArchive\logs\algoarchive.log
@@ -101,7 +132,7 @@ Source code (zip)。源码包不含 Python 运行环境，不能直接双击启�
 “设置 → 关于与诊断”显示版本、实际服务地址、数据目录、配置文件、数据库版本
 和日志路径，并可打开日志目录。
 
-七、卸载和移动
+八、卸载和移动
 
 安装版升级会复用既有安装位置并保留用户数据和配置。卸载默认不删除数据目录、
 备份和配置。
@@ -109,14 +140,14 @@ Source code (zip)。源码包不含 Python 运行环境，不能直接双击启�
 便携版整体移动目录后，桌面快捷方式可能失效；请在新的完整目录中重新运行
 创建桌面快捷方式.bat。数据目录不受程序目录移动影响。
 
-八、开发与发布
+九、开发与发布
 
 运行测试：
 python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.0.5
+.\scripts\build-release.ps1 -Version 2.1.2
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。
