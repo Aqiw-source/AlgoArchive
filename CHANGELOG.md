@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.3 - 2026-10-29
+
+- Fixed a Windows CI race where stopping a test run could be acknowledged
+  before the compiler or student process was registered. A stopped runner no
+  longer starts a new child process and now returns a cancelled result
+  immediately.
+- Added deterministic regression tests for stop-before-run and
+  stop-before-process-launch behavior.
+
 ## 2.1.2 - 2026-10-29
 
 - Added an actionable missing-compiler banner to the standalone code

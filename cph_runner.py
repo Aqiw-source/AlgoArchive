@@ -171,6 +171,21 @@ class CppTestRunner:
         except OSError:
             pass
 
+    @staticmethod
+    def _cancelled_result():
+        return {
+            "ok": False,
+            "compile": {
+                "status": "cancelled",
+                "stdout": "",
+                "stderr": "测试运行已停止",
+                "elapsed_ms": 0,
+            },
+            "cases": [],
+            "elapsed_ms": 0,
+            "cancelled": True,
+        }
+
     def _execute(self, arguments, cwd, stdin_data=b"", timeout_seconds=3):
         creationflags = (
             subprocess.CREATE_NO_WINDOW
@@ -178,15 +193,24 @@ class CppTestRunner:
             else 0
         )
         started = time.monotonic()
-        process = _popen_without_windows_error_dialog(
-            arguments,
-            cwd=str(cwd),
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=creationflags,
-        )
         with self._active_lock:
+            if self._stopped.is_set():
+                return {
+                    "return_code": None,
+                    "timed_out": False,
+                    "elapsed_ms": 0,
+                    "stdout": "",
+                    "stderr": "",
+                    "cancelled": True,
+                }
+            process = _popen_without_windows_error_dialog(
+                arguments,
+                cwd=str(cwd),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=creationflags,
+            )
             self._active_process = process
         buffers = [bytearray(), bytearray()]
 
@@ -243,6 +267,7 @@ class CppTestRunner:
             "elapsed_ms": round((time.monotonic() - started) * 1000),
             "stdout": stdout,
             "stderr": stderr,
+            "cancelled": self._stopped.is_set(),
         }
 
     def run(self, code, cases, time_limit_ms=3000):
@@ -260,6 +285,8 @@ class CppTestRunner:
             raise ValueError("运行时限格式不正确") from None
         if not 50 <= time_limit_ms <= 30_000:
             raise ValueError("单个测试用例的运行时限必须在 50 到 30000 毫秒之间")
+        if self._stopped.is_set():
+            return self._cancelled_result()
         if self.compiler_path is None or not self.compiler_path.is_file():
             return {
                 "ok": False,
@@ -303,6 +330,8 @@ class CppTestRunner:
                     timeout_seconds=COMPILE_TIMEOUT_SECONDS,
                 )
             except OSError as exc:
+                if self._stopped.is_set():
+                    return self._cancelled_result()
                 return {
                     "ok": False,
                     "compile": {
@@ -315,6 +344,8 @@ class CppTestRunner:
                     "elapsed_ms": 0,
                     "cancelled": False,
                 }
+            if compile_result.get("cancelled"):
+                return self._cancelled_result()
             compile_status = "success"
             if compile_result["timed_out"]:
                 compile_status = "timeout"

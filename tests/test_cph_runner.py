@@ -5,6 +5,7 @@ import secrets
 import shutil
 import os
 from pathlib import Path
+import sys
 import time
 import unittest
 
@@ -118,6 +119,40 @@ class CphRunnerTests(unittest.TestCase):
         compiler_path, standard = app_module.resolve_cpp_compiler(config)
         self.assertIsNone(compiler_path)
         self.assertEqual(standard, "gnu++14")
+
+    def test_stop_before_run_returns_cancelled_without_starting_compiler(self):
+        runner = app_module.CppTestRunner(
+            Path(__file__).resolve(),
+            "gnu++14",
+            temp_root=PROJECT / ".test-tmp",
+        )
+        runner.stop()
+
+        result = runner.run(
+            "int main() { for (;;) {} }\n",
+            [{"input": "", "output": ""}],
+            time_limit_ms=100,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["cancelled"])
+        self.assertEqual(result["compile"]["status"], "cancelled")
+        self.assertEqual(result["cases"], [])
+
+    def test_stopped_runner_does_not_launch_a_process(self):
+        runner = app_module.CppTestRunner(None, "gnu++14")
+        runner.stop()
+        started = time.monotonic()
+
+        result = runner._execute(
+            [sys.executable, "-c", "import time; time.sleep(10)"],
+            PROJECT,
+            timeout_seconds=5,
+        )
+
+        self.assertTrue(result["cancelled"])
+        self.assertFalse(result["timed_out"])
+        self.assertLess(time.monotonic() - started, 1)
 
     @unittest.skipUnless(available_compiler(), "g++ is required")
     def test_runner_supports_int128_multiset_and_unordered_map(self):

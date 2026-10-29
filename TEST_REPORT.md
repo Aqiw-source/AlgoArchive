@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.1.2
+版本：2.1.3
 
 验证日期：2026-10-29
 
@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：92 项通过。
+结果：94 项通过。
 
 覆盖范围包括：
 
@@ -30,6 +30,8 @@ python -X utf8 -m unittest discover -s tests -v
 - 全局题目和算法内题目拖动排序、逆序和版本冲突。
 - CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。
 - 当前编辑器代码的本地 C++ 编译、逐用例判题、编译错误、运行错误、超时和停止。
+- 停止请求早于编译器或程序进程启动时立即返回取消结果，不再启动新子进程。
+- 停止场景在 Windows 集成测试中连续运行 10 次，全部通过。
 - 独立“代码试跑”接口不创建题目、不写源码文件，并使用题库外临时编译目录。
 - 显式配置但已经不存在的编译器路径会报告不可用，不会静默回退到其他编译器。
 - CPH 的 CRLF 统一及逐行首尾空白比较规则。
@@ -89,8 +91,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.2
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.2-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.1.3
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.3-Windows-x64.zip
 ```
 
 结果：
