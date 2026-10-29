@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.1.3
+版本：2.1.4
 
 验证日期：2026-10-29
 
@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：94 项通过。
+结果：96 项通过。
 
 覆盖范围包括：
 
@@ -50,6 +50,7 @@ python -X utf8 -m unittest discover -s tests -v
 - 完整备份、恢复、当前数据预备份及恢复后源码一致。
 - 恶意 ZIP 路径越界拒绝。
 - 头像和用户名持久化、HTTP Host、Origin、CSRF 和请求体校验。
+- 成功的静态资源和 `/api/state` 轮询日志被隐藏；错误请求和写操作保持可见。
 
 ### 前端
 
@@ -91,8 +92,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.3
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.3-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.1.4
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.4-Windows-x64.zip
 ```
 
 结果：

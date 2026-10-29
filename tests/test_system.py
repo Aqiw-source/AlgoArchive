@@ -624,6 +624,29 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/api/problems/" + problem["id"])["problem"]["code"], problem["code"])
         self.assertEqual(len(self.source_files()), 1)
 
+    def test_successful_polling_is_hidden_from_console_log(self):
+        for _ in range(3):
+            self.request("GET", "/api/state")
+
+        log_path = self.config_path.parent / "logs" / "algoarchive.log"
+        log_text = log_path.read_text(encoding="utf-8")
+
+        self.assertNotIn('"GET /api/state HTTP/1.1" 200', log_text)
+
+    def test_mutations_and_failed_requests_remain_visible_in_console_log(self):
+        self.request(
+            "PUT",
+            "/api/profile",
+            {"name": "日志测试", "avatar": ""},
+        )
+        self.request("GET", "/api/not-found", expected=404)
+
+        log_path = self.config_path.parent / "logs" / "algoarchive.log"
+        log_text = log_path.read_text(encoding="utf-8")
+
+        self.assertIn('"PUT /api/profile HTTP/1.1" 200', log_text)
+        self.assertIn('"GET /api/not-found HTTP/1.1" 404', log_text)
+
     def test_concurrent_duplicate_add_has_one_winner(self):
         payload = {"platform": "codeforces", "number": "A", "name": "same",
                    "url": "https://codeforces.com/contest/2000/problem/A", "language": "cpp", "code": "int main() {}", "contest_id": None}

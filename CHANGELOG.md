@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.4 - 2026-10-29
+
+- Reduced startup-window log noise by hiding successful static-file requests
+  and repeated `/api/state` polling.
+- Kept startup information, failed requests, warnings, exceptions, and concise
+  records for successful create, update, and delete operations.
+
 ## 2.1.3 - 2026-10-29
 
 - Fixed a Windows CI race where stopping a test run could be acknowledged

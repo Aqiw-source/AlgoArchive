@@ -44,7 +44,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.1.3"
+APP_VERSION = "2.1.4"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 8
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
@@ -3098,13 +3098,27 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._json({"error": "不允许跨站请求", "code": "forbidden_origin"}, 403)
 
-    def log_message(self, fmt, *args):
-        # Standard console logging contains request routes, never request bodies.
-        self.server.logger.info(
-            "%s %s",
-            self.client_address[0],
-            fmt % args,
+    def log_request(self, code="-", size="-"):
+        try:
+            status = int(code)
+        except (TypeError, ValueError):
+            status = 0
+        method = str(self.command or "").upper()
+        is_write = method in {"POST", "PUT", "PATCH", "DELETE"}
+        if status < 400 and not is_write:
+            return
+        level = logging.WARNING if status >= 400 else logging.INFO
+        self.server.logger.log(
+            level,
+            '"%s" %s %s',
+            self.requestline,
+            code,
+            size,
         )
+
+    def log_message(self, fmt, *args):
+        # Malformed-request messages bypass log_request, so keep them visible.
+        self.server.logger.warning(fmt, *args)
 
 
 def create_app(data_dir=None, port=0, web_dir=None):
