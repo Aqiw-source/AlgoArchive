@@ -393,6 +393,29 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(problem["url"], "题面稍后补充")
         self.assertEqual(len(self.source_files()), 1)
 
+    def test_www_problem_and_contest_links_are_expanded_to_https(self):
+        contest = self.contest(
+            platform="洛谷",
+            title="洛谷公开赛",
+            url="www.luogu.com.cn/contest/123",
+        )
+        self.assertEqual(
+            contest["url"],
+            "https://www.luogu.com.cn/contest/123",
+        )
+
+        problem = self.problem(
+            platform="洛谷",
+            number="P1001",
+            name="A+B Problem",
+            url="WWW.luogu.com.cn/problem/P1001",
+            contest_id=contest["id"],
+        )
+        self.assertEqual(
+            problem["url"],
+            "https://WWW.luogu.com.cn/problem/P1001",
+        )
+
     def test_contest_platform_must_match_problem(self):
         contest = self.contest(platform="atcoder")
         valid = {"platform": "codeforces", "number": "A", "name": "", "url": "https://codeforces.com/contest/2000/problem/A",
@@ -701,6 +724,19 @@ class SystemTests(unittest.TestCase):
         detail = self.request("GET", "/api/algorithms/" + algorithm["id"])["algorithm"]
         self.assertEqual(len(detail["links"]), 1)
         self.assertEqual(detail["links"][0]["title"], "OI Wiki")
+
+    def test_www_algorithm_links_are_expanded_to_https(self):
+        algorithm = self.algorithm(
+            links=[
+                {"title": "参考文档", "url": "www.example.com/algorithm"},
+            ]
+        )
+        detail = self.request("GET", "/api/algorithms/" + algorithm["id"])["algorithm"]
+
+        self.assertEqual(
+            detail["links"][0]["url"],
+            "https://www.example.com/algorithm",
+        )
 
     def test_algorithm_can_contain_problems_without_duplicating_code(self):
         algorithm = self.algorithm()

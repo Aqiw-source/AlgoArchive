@@ -16,6 +16,8 @@ try {
     $required = @(
         "app.py",
         "启动.bat",
+        "自检.bat",
+        "self_check.py",
         "web/index.html",
         "web/app.js",
         "runtime/python.exe",

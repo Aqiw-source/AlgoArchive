@@ -44,7 +44,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.1.4"
+APP_VERSION = "2.1.5"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 8
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
@@ -692,9 +692,29 @@ def editable_platform_value(value):
     return PROBLEM_PLATFORM_ALIASES.get(platform.casefold(), platform)
 
 
+def expand_www_url(value):
+    """Add HTTPS to a scheme-less www link without changing free-form notes."""
+    if (
+        len(value) <= 4
+        or not value.casefold().startswith("www.")
+        or any(char.isspace() for char in value)
+    ):
+        return value
+    candidate = f"https://{value}"
+    try:
+        parsed = urlsplit(candidate)
+        if not parsed.hostname:
+            return value
+        parsed.port
+    except ValueError:
+        return value
+    return candidate
+
+
 def normalize_external_url(value):
     """Validate a general reference URL and return a stable identity."""
     value = text_value(value, "链接", 2048, True)
+    value = expand_www_url(value)
     try:
         parsed = urlsplit(value)
         scheme = parsed.scheme.lower()
@@ -1764,7 +1784,9 @@ class Repository:
         name = text_value(payload.get("name", ""), "题目名称", 300)
         if not number and not name:
             raise AppError("请至少填写题目编号或名称")
-        url = text_value(payload.get("url"), "题目链接", 2048, True)
+        url = expand_www_url(
+            text_value(payload.get("url"), "题目链接", 2048, True)
+        )
         language = payload.get("language")
         if not isinstance(language, str) or language not in EXTENSIONS:
             raise AppError("代码语言不受支持")
@@ -1931,7 +1953,9 @@ class Repository:
             self._ready()
             platform = editable_platform_value(payload.get("platform"))
             title = text_value(payload.get("title"), "比赛标题", 300, True)
-            url = text_value(payload.get("url"), "比赛链接", 2048, True)
+            url = expand_www_url(
+                text_value(payload.get("url"), "比赛链接", 2048, True)
+            )
             identifier, timestamp = uuid.uuid4().hex, now()
             with self.db:
                 self.db.execute("INSERT INTO contests VALUES (?,?,?,?,?,?,1)",
@@ -1946,7 +1970,9 @@ class Repository:
             values = {**old, **payload}
             platform = editable_platform_value(values.get("platform"))
             title = text_value(values.get("title"), "比赛标题", 300, True)
-            url = text_value(values.get("url"), "比赛链接", 2048, True)
+            url = expand_www_url(
+                text_value(values.get("url"), "比赛链接", 2048, True)
+            )
             if platform != old["platform"] and self.db.execute("SELECT 1 FROM problems WHERE contest_id=? LIMIT 1", (identifier,)).fetchone():
                 raise AppError("比赛已有题目，不能更换平台。请先取消这些题目的关联。")
             with self.db:

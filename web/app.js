@@ -41,7 +41,8 @@
   }
   renderProfile({name:userName,avatar:''});
   const time = v => { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.valueOf()) ? '—' : new Intl.DateTimeFormat('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d); };
-  const safeURL = v => { try { const u = new URL(v); return ['https:','http:'].includes(u.protocol) ? esc(u.href) : '#'; } catch (_) { return '#'; } };
+  const copyableURL = v => { let candidate=String(v??'').trim(); if(/^www\.\S+$/i.test(candidate))candidate=`https://${candidate}`; try { const u = new URL(candidate); return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
+  const safeURL = v => { const href=copyableURL(v); return href ? esc(href) : '#'; };
   const badge = p => {
     const key=platformKey(p);
     return `<span class="platform-badge ${knownPlatform(key) ? esc(key) : 'custom'}">${esc(platformLabel(p))}</span>`;
@@ -129,9 +130,13 @@
   function addContestButton(platform='') { return `<button class="btn" data-new-contest="${esc(platform)}"><span class="plus">+</span> 新建比赛</button>`; }
   function addAlgorithmButton() { return `<button class="btn" data-new-algorithm><span class="plus">+</span> 新建算法</button>`; }
   function empty(title, desc, button='', compact=false) { return `<div class="empty${compact?' compact':''}"><div class="empty-symbol">⌘</div><h3>${esc(title)}</h3><p>${esc(desc)}</p>${button}</div>`; }
+  function problemTableActions(p) {
+    const link=copyableURL(p.url);
+    return `<button class="text-link" data-open-problem="${esc(p.id)}">编辑</button>${external(p.url, '原题 ↗')}${link?`<button class="text-link" data-copy-problem-link="${esc(p.id)}">复制链接</button>`:''}`;
+  }
   function problemTable(items, filtered=false) {
     if (!items.length) return empty(filtered?'没有找到匹配的题目':'还没有题目',filtered?'试着调整关键词或筛选条件。':'保存第一份解答，从这里开始积累。',filtered?'':addProblemButton(state.context.contest || '',state.context.platform || '',state.context.algorithm || ''));
-    return `<div class="table-wrap"><table><thead><tr><th>题目名称与编号</th><th>平台</th><th>所属比赛</th><th>所属算法</th><th>语言</th><th>最近修改</th><th>操作</th></tr></thead><tbody>${items.map(p => `<tr class="problem-row-preview" data-problem-preview="${esc(p.id)}" tabindex="0" title="点击空白处查看代码" aria-label="查看「${esc(problemName(p))}」的代码"><td><div class="problem-title"><span class="number-box">${esc(p.number || '·')}</span>${problemTitleLink(p)}</div></td><td>${badge(p.platform)}</td><td class="contest-cell">${p.contest_id?`<button class="text-link" data-open-contest="${esc(p.contest_id)}">${esc(p.contest_title || '查看比赛')}</button>`:'未关联比赛'}</td><td class="contest-cell">${p.algorithm_id?`<button class="text-link" data-open-algorithm="${esc(p.algorithm_id)}">${esc(p.algorithm_name || '查看算法')}</button>`:'未关联算法'}</td><td><span class="lang-badge">${esc(languages[p.language] || p.language)}</span></td><td class="date-cell">${time(p.updated_at)}</td><td><div class="table-actions"><button class="text-link" data-open-problem="${esc(p.id)}">编辑</button>${external(p.url, '原题 ↗')}</div></td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-wrap"><table><thead><tr><th>题目名称与编号</th><th>平台</th><th>所属比赛</th><th>所属算法</th><th>语言</th><th>最近修改</th><th>操作</th></tr></thead><tbody>${items.map(p => `<tr class="problem-row-preview" data-problem-preview="${esc(p.id)}" tabindex="0" title="点击空白处查看代码" aria-label="查看「${esc(problemName(p))}」的代码"><td><div class="problem-title"><span class="number-box">${esc(p.number || '·')}</span>${problemTitleLink(p)}</div></td><td>${badge(p.platform)}</td><td class="contest-cell">${p.contest_id?`<button class="text-link" data-open-contest="${esc(p.contest_id)}">${esc(p.contest_title || '查看比赛')}</button>`:'未关联比赛'}</td><td class="contest-cell">${p.algorithm_id?`<button class="text-link" data-open-algorithm="${esc(p.algorithm_id)}">${esc(p.algorithm_name || '查看算法')}</button>`:'未关联算法'}</td><td><span class="lang-badge">${esc(languages[p.language] || p.language)}</span></td><td class="date-cell">${time(p.updated_at)}</td><td><div class="table-actions">${problemTableActions(p)}</div></td></tr>`).join('')}</tbody></table></div>`;
   }
   function contestCards(items) {
     if (!items.length) return empty('还没有比赛','新建一场比赛，把每一道题目的思路都收好。',addContestButton(state.context.platform || ''));
@@ -731,6 +736,17 @@
   }
   function saveCurrentEditor(event){if(state.editor?.kind==='snippet')return saveSnippet(event);if(state.editor?.entity?.standalone){event?.preventDefault();return savePlaygroundDraft();}return saveProblem(event);}
   async function copyCode(){const area=$('#code-input');try{await navigator.clipboard.writeText(area.value);toast('代码已复制。');}catch(_){const start=area.selectionStart,end=area.selectionEnd;area.focus();area.select();const ok=document.execCommand('copy');if(ok)area.setSelectionRange(start,end);toast(ok?'代码已复制。':'请按 Ctrl + C 复制选中的代码。',!ok);}}
+  async function copyProblemLink(id){
+    const problem=state.problems.find(item=>item.id===id);
+    const value=copyableURL(problem?.url);
+    if(!value){toast('这道题目没有可复制的原题链接。',true);return;}
+    try{await navigator.clipboard.writeText(value);toast('原题链接已复制。');}
+    catch(_){
+      const area=document.createElement('textarea');area.value=value;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';document.body.append(area);area.select();
+      const ok=document.execCommand('copy');area.remove();
+      toast(ok?'原题链接已复制。':'无法写入剪贴板，请手动复制原题链接。',!ok);
+    }
+  }
   function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';}
   function setModalBusy(busy){state.busy=busy;modal.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=busy;});}
   function dialogHeader(title){return `<div class="modal-header"><h2 id="dialog-title">${esc(title)}</h2><button type="button" class="modal-close" data-close-modal aria-label="关闭">×</button></div>`;}
@@ -1178,6 +1194,7 @@
     else if(t.hasAttribute('data-new-contest')){if(allowLeave())openContestForm('',t.dataset.newContest);}
     else if(t.hasAttribute('data-new-algorithm')){if(allowLeave())openAlgorithmForm();}
     else if(t.hasAttribute('data-new-snippet')){e.preventDefault();await go(`new-snippet?algorithm=${encodeURIComponent(t.dataset.newSnippet)}`);}
+    else if(t.hasAttribute('data-copy-problem-link')){e.preventDefault();await copyProblemLink(t.dataset.copyProblemLink);}
     else if(t.hasAttribute('data-edit-algorithm'))openAlgorithmForm(t.dataset.editAlgorithm);
     else if(t.hasAttribute('data-delete-algorithm'))deleteAlgorithm(t.dataset.deleteAlgorithm);
     else if(t.hasAttribute('data-edit-contest'))openContestForm(t.dataset.editContest);

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.1.4",
+    [string]$Version = "2.1.5",
     [string]$OutputRoot
 )
 
@@ -19,6 +19,8 @@ $requiredFiles = @(
     "启动.bat",
     "start.bat",
     "创建桌面快捷方式.bat",
+    "自检.bat",
+    "self_check.py",
     "README.md",
     "使用说明.txt",
     "CHANGELOG.md",

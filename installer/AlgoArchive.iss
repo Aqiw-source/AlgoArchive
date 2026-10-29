@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.1.4"
+#define MyAppVersion "2.1.5"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "启动.bat"
 
@@ -42,6 +42,8 @@ Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\启动.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\创建桌面快捷方式.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\self_check.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion

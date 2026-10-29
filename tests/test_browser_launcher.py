@@ -53,6 +53,39 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64-Setup.exe", readme)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64.zip", readme)
 
+    def test_problem_table_exposes_copy_link_action(self):
+        app_js = (
+            Path(__file__).resolve().parents[1] / "web" / "app.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("data-copy-problem-link", app_js)
+        self.assertIn("copyProblemLink", app_js)
+        self.assertIn("navigator.clipboard.writeText", app_js)
+
+    def test_release_manifests_include_self_check(self):
+        root = Path(__file__).resolve().parents[1]
+        portable = (root / "scripts" / "build-portable.ps1").read_text(
+            encoding="utf-8"
+        )
+        verifier = (root / "scripts" / "verify-release.ps1").read_text(
+            encoding="utf-8"
+        )
+        installer = (root / "installer" / "AlgoArchive.iss").read_text(
+            encoding="utf-8"
+        )
+
+        for manifest in (portable, verifier, installer):
+            self.assertIn("自检.bat", manifest)
+            self.assertIn("self_check.py", manifest)
+
+    def test_self_check_is_a_lightweight_production_smoke_check(self):
+        self_check = (
+            Path(__file__).resolve().parents[1] / "self_check.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("生产自检通过", self_check)
+        self.assertNotIn("unittest.defaultTestLoader", self_check)
+
     def test_chrome_candidates_include_standard_program_files_path(self):
         candidates = app.chrome_candidates()
         self.assertIn(

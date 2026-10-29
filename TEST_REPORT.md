@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.1.4
+版本：2.1.5
 
 验证日期：2026-10-29
 
@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：96 项通过。
+结果：101 项通过。
 
 覆盖范围包括：
 
@@ -51,6 +51,9 @@ python -X utf8 -m unittest discover -s tests -v
 - 恶意 ZIP 路径越界拒绝。
 - 头像和用户名持久化、HTTP Host、Origin、CSRF 和请求体校验。
 - 成功的静态资源和 `/api/state` 轮询日志被隐藏；错误请求和写操作保持可见。
+- 题目、比赛和算法参考链接中的 `www.` 地址自动补全 HTTPS；普通备注保持不变。
+- 题库表格对有效原题地址提供复制按钮，普通备注不会显示复制操作。
+- 发布清单包含 `自检.bat`、`self_check.py` 和生产自检烟雾测试。
 
 ### 前端
 
@@ -71,6 +74,8 @@ node --check web/app.js
 - 检查停止按钮默认隐藏、运行中控制和测试状态标记。
 - 验证“全部题目”下方存在“代码试跑”，独立草稿保存、刷新恢复和多用例运行。
 - 验证代码试跑前后题目数量不变，临时代码不会写入题库。
+- 验证题库表格“编辑 / 原题 / 复制链接”操作，并确认复制内容为规范化 URL。
+- 运行生产自检，确认核心文件、临时数据库、运行环境和编译器状态检查正常。
 - 模拟无 MinGW 环境，验证“未找到 C++ 编译器”提示、完整工具链说明和设置跳转。
 - 桌面视口 1440×1000。
 - 移动视口 390×844。
@@ -92,8 +97,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.4
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.4-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.1.5
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.5-Windows-x64.zip
 ```
 
 结果：

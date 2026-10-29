@@ -11,8 +11,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.1.4-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.1.4-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.1.5-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.1.5-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -79,7 +79,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | --- | --- |
 | 平台工作空间 | 侧栏内建 Codeforces、AtCoder、洛谷和牛客入口，统一查看平台比赛与题目 |
 | 比赛归档 | 平台可自由输入，支持 Codeforces、AtCoder、洛谷、牛客和其他完整比赛 |
-| 统一题库 | 比赛题目与独立题目共享同一记录和同一份源代码 |
+| 统一题库 | 比赛题目与独立题目共享同一记录和同一份源代码，支持复制原题链接 |
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
 | 排序与导入 | 全局题目和算法内题目独立排序，支持逆序和 JSON 批量导入 |
 | 代码工作台 | VS Code 风格配色、语法高亮、行号、自动缩进和 `Ctrl+S` 保存 |
@@ -90,6 +90,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | 浏览器设置 | 系统默认、Edge、Chrome、Firefox 或自定义可执行文件 |
 | 完整备份 | 一键 ZIP 备份、导入、恢复、当前数据预备份和路径越界校验 |
 | 诊断 | 显示版本、实际地址、数据目录、配置文件和轮转日志路径 |
+| 发布自检 | `自检.bat` 检查核心文件、临时数据库、运行环境和可选编译器，不读取用户数据 |
 | 本地安全 | 仅监听 `127.0.0.1`，校验 Host、Origin、CSRF 和请求大小 |
 
 ## 安装
@@ -98,7 +99,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.1.4-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.1.5-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -117,6 +118,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 1. 完整解压 ZIP，不要在压缩包内直接运行。
 2. 双击 `启动.bat`。
 3. 首次启动会自动创建桌面快捷方式；也可以运行 `创建桌面快捷方式.bat` 手动刷新。
+4. 需要检查发布包时，双击 `自检.bat`；自检使用独立临时目录，不访问用户数据。
 
 便携包包含 Windows x64 Python 运行环境，不需要安装 Python、Node、
 执行 `pip` 或下载前端依赖。
@@ -236,8 +238,8 @@ data/
 启动器使用参数数组启动外部进程，不拼接 shell 命令。所选路径失效或启动失败
 时，会回退到系统默认浏览器，并在服务仍运行时保留本地地址。
 
-题目原题和算法参考链接继续在外部浏览器的新标签页打开，只接受可由浏览器
-打开的 `http` / `https` 地址。
+题目原题和算法参考链接继续在外部浏览器的新标签页打开，接受 `http` /
+`https` 地址；以 `www.` 开头的地址会自动补全为 HTTPS。
 
 ## 代码编辑器
 
@@ -257,11 +259,14 @@ data/
 %USERPROFILE%\AlgoArchive\logs\algoarchive.log
 ```
 
-单文件上限约 1 MiB，保留 3 个轮转文件。日志记录启动、请求路由和异常摘要，
-不记录源代码、数据库内容或完整请求体。
+单文件上限约 1 MiB，保留 3 个轮转文件。日志记录启动、写操作、错误和异常摘要，
+隐藏成功静态资源与状态轮询；不记录源代码、数据库内容或完整请求体。
 
 “关于与诊断”显示应用版本、实际服务地址、数据目录、配置文件、数据库版本
 和日志路径，并提供复制路径、打开文件夹和退出程序操作。
+
+安装版和便携 ZIP 都包含 `自检.bat`。它只检查发布文件、临时数据库、运行环境和
+可选 C++ 编译器，不会读取或修改 `%USERPROFILE%\AlgoArchive\data`。
 
 ## 项目结构
 
@@ -304,13 +309,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.4
+.\scripts\build-portable.ps1 -Version 2.1.5
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.1.4
+.\scripts\build-release.ps1 -Version 2.1.5
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -322,7 +327,7 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.1.4 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.1.5 已验证：
 
 - 隔离后端测试全部通过。
 - `node --check web/app.js` 通过。

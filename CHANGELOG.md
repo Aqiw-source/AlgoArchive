@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.5 - 2026-10-29
+
+- Accept scheme-less links beginning with `www.` for algorithm references,
+  problems, and contests, storing them with an HTTPS scheme.
+- Keep free-form problem and contest notes unchanged when they contain spaces
+  or do not represent a `www.` URL.
+- Allow older stored `www.` links to remain clickable in the frontend.
+- Add a `Copy link` action next to Edit and Original for valid problem links.
+- Package a lightweight `自检.bat` with the portable ZIP and installer. It
+  verifies core files and a temporary database without reading user data.
+
 ## 2.1.4 - 2026-10-29
 
 - Reduced startup-window log noise by hiding successful static-file requests
