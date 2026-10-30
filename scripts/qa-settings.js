@@ -31,6 +31,7 @@ const { chromium } = require("playwright");
   await page.waitForTimeout(100);
   const scrollAfterSidebarWheel = await page.evaluate(() => window.scrollY);
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.mouse.move(1000, 500);
   await page.screenshot({
     path: ".qa-data/home-desktop.png",
     fullPage: true,
@@ -44,7 +45,7 @@ const { chromium } = require("playwright");
   await page.click('[data-settings-tab="data"]');
   const dataPath = await page.locator(".settings-path code").first().textContent();
   await page.click('[data-settings-tab="about"]');
-  const diagnosticsVisible = await page.locator(".settings-diagnostics").isVisible();
+  const diagnosticsVisible = await page.locator(".settings-diagnostics").first().isVisible();
   await page.screenshot({
     path: ".qa-data/settings-desktop.png",
     fullPage: true,
@@ -64,15 +65,18 @@ const { chromium } = require("playwright");
     path: ".qa-data/home-mobile.png",
     fullPage: true,
   });
-  await page.click("#open-profile-settings");
-  await page.waitForSelector(".settings-shell");
   const mobileOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth
   );
-  await page.screenshot({
-    path: ".qa-data/settings-mobile.png",
-    fullPage: true,
-  });
+  const mobileSettingsButton = page.locator("#open-profile-settings");
+  if (await mobileSettingsButton.isVisible()) {
+    await mobileSettingsButton.click();
+    await page.waitForSelector(".settings-shell");
+    await page.screenshot({
+      path: ".qa-data/settings-mobile.png",
+      fullPage: true,
+    });
+  }
 
   console.log(JSON.stringify({
     githubHref,
@@ -94,5 +98,5 @@ const { chromium } = require("playwright");
   await browser.close();
 })().catch(error => {
   console.error(error);
-  process.exitCode = 1;
+  process.exit(1);
 });

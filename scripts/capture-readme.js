@@ -41,6 +41,7 @@ async function main() {
 
     let algorithm;
     let featureProblem;
+    let acwingContest;
     if (!initial.algorithms.length && !initial.contests.length && !initial.problems.length) {
       await request("/api/profile", "PUT", { name: "Aqiw", avatar: "" });
       algorithm = (await request("/api/algorithms", "POST", {
@@ -183,9 +184,52 @@ async function main() {
           "",
         ].join("\n"),
       })).problem;
+      acwingContest = (await request("/api/contests", "POST", {
+        platform: "AcWing",
+        title: "AcWing · 算法基础示例赛",
+        url: "https://www.acwing.com/activity/content/1/",
+      })).contest;
+      const acwingCode = [
+        "#include <bits/stdc++.h>",
+        "using namespace std;",
+        "",
+        "int main() {",
+        "    ios::sync_with_stdio(false);",
+        "    cin.tie(nullptr);",
+        "    int n, q;",
+        "    cin >> n >> q;",
+        "    vector<long long> sum(n + 1);",
+        "    for (int i = 1; i <= n; ++i) {",
+        "        cin >> sum[i];",
+        "        sum[i] += sum[i - 1];",
+        "    }",
+        "    while (q--) {",
+        "        int l, r;",
+        "        cin >> l >> r;",
+        "        cout << sum[r] - sum[l - 1] << '\\n';",
+        "    }",
+        "}",
+        "",
+      ].join("\n");
+      const acwingProblems = [
+        ["1", "示例：区间求和"],
+        ["2", "示例：静态矩阵"],
+        ["3", "示例：栈与队列"],
+        ["4", "示例：状态搜索"],
+      ];
+      for (const [number, name] of acwingProblems) {
+        await request("/api/problems", "POST", {
+          platform: "AcWing",
+          contest_id: acwingContest.id,
+          url: `https://www.acwing.com/problem/content/${number}/`,
+          number,
+          name,
+          language: "cpp",
+          code: acwingCode,
+        });
+      }
     } else {
-      algorithm = initial.algorithms[0];
-      featureProblem = initial.problems.find(problem => problem.algorithm_id === algorithm?.id) || initial.problems[0];
+      throw new Error("README 截图必须使用全新的空数据目录，拒绝从未脱敏题库生成截图。");
     }
 
     if (!algorithm || !featureProblem) {
@@ -196,6 +240,10 @@ async function main() {
     await page.goto(`${baseUrl}#home`, { waitUntil: "networkidle" });
     await page.waitForSelector(".stats-grid");
     await page.screenshot({ path: path.join(screenshots, "dashboard.png") });
+
+    await page.goto(`${baseUrl}#platform/acwing`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".platform-page");
+    await page.screenshot({ path: path.join(screenshots, "acwing-workspace.png") });
 
     await page.goto(`${baseUrl}#algorithm/${algorithm.id}`, { waitUntil: "networkidle" });
     await page.waitForSelector(".algorithm-info");
@@ -213,7 +261,14 @@ async function main() {
     console.log(JSON.stringify({
       algorithm_id: algorithm.id,
       problem_id: featureProblem.id,
-      screenshots: ["dashboard.png", "algorithm.png", "editor.png", "settings.png"],
+      acwing_contest_id: acwingContest.id,
+      screenshots: [
+        "dashboard.png",
+        "acwing-workspace.png",
+        "algorithm.png",
+        "editor.png",
+        "settings.png",
+      ],
     }, null, 2));
   } finally {
     await browser.close();

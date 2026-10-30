@@ -398,7 +398,7 @@ class StorageMigrationTests(unittest.TestCase):
         finally:
             repo.close()
 
-    def test_restoring_schema7_backup_upgrades_it_to_schema8(self):
+    def test_restoring_schema7_backup_upgrades_it_to_schema9(self):
         source = self.root / "schema7-source"
         seed = Repository(source)
         try:
@@ -446,7 +446,7 @@ class StorageMigrationTests(unittest.TestCase):
             schema = repo.db.execute(
                 "SELECT value FROM settings WHERE key='schema_version'"
             ).fetchone()[0]
-            self.assertEqual(schema, "8")
+            self.assertEqual(schema, "9")
             restored = repo.get_problem(problem["id"])
             self.assertEqual(restored["name"], "旧版备份")
             self.assertEqual(restored["tests"], [])
@@ -502,7 +502,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "8")
+        self.assertEqual(version, "9")
         self.assertEqual(repo.state()["contests"][0]["title"], "保留比赛")
         self.assertEqual(repo.state()["problems"][0]["name"], "保留题目")
         self.assertEqual(
@@ -530,6 +530,17 @@ class StorageMigrationTests(unittest.TestCase):
         self.assertIn("algorithm_id", problem_columns)
         self.assertIn("algorithm_order", problem_columns)
         self.assertIn("global_order", problem_columns)
+        contest_columns = {
+            row[1] for row in repo.db.execute("PRAGMA table_info(contests)")
+        }
+        algorithm_columns = {
+            row[1] for row in repo.db.execute("PRAGMA table_info(algorithms)")
+        }
+        self.assertIn("sort_order", contest_columns)
+        self.assertIn("sort_order", algorithm_columns)
+        state = repo.state()
+        self.assertEqual(state["contest_order_version"], 1)
+        self.assertEqual(state["algorithm_order_version"], 1)
         table_sql = repo.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='problems'"
         ).fetchone()[0]
@@ -544,7 +555,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "8")
+        self.assertEqual(version, "9")
         problem = repo.create_problem({
             "platform": "洛谷",
             "number": "P3374",
@@ -571,7 +582,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "8")
+        self.assertEqual(version, "9")
         contest_sql = repo.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='contests'"
         ).fetchone()[0]
@@ -610,7 +621,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "8")
+        self.assertEqual(version, "9")
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["algorithm_order"],
@@ -640,7 +651,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "8")
+        self.assertEqual(version, "9")
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["global_order"],

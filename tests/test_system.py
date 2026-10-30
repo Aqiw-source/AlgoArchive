@@ -349,7 +349,7 @@ class SystemTests(unittest.TestCase):
             platform="AtCoder",
             url="https://www.luogu.com.cn/contest/123",
         )
-        self.assertEqual(contest["platform"], "atcoder")
+        self.assertEqual(contest["platform"], "AtCoder")
         self.assertEqual(contest["url"], "https://www.luogu.com.cn/contest/123")
 
     def test_optional_contest_associate_reassociate_and_unlink_preserve_code(self):
@@ -379,10 +379,35 @@ class SystemTests(unittest.TestCase):
             platform="AtCoder",
             url="https://www.luogu.com.cn/problem/P3374",
         )
-        self.assertEqual(problem["platform"], "atcoder")
+        self.assertEqual(problem["platform"], "AtCoder")
         self.assertEqual(
             problem["url"], "https://www.luogu.com.cn/problem/P3374"
         )
+
+    def test_known_platform_names_and_contest_associations_are_canonicalized(self):
+        cases = [
+            ("cOdEfOrCeS", "Codeforces", "https://codeforces.com/contest/3100"),
+            ("aTcOdEr", "AtCoder", "https://atcoder.jp/contests/abc310"),
+            ("AcWiNg", "AcWing", "https://www.acwing.com/activity/content/1/"),
+            ("LuOgU", "洛谷", "https://www.luogu.com.cn/contest/310"),
+            ("NOWCODER", "牛客", "https://ac.nowcoder.com/acm/contest/310"),
+        ]
+        for index, (raw, canonical, contest_url) in enumerate(cases):
+            contest = self.contest(
+                platform=raw,
+                title=f"平台规范化比赛 {index}",
+                url=contest_url,
+            )
+            self.assertEqual(contest["platform"], canonical)
+            problem = self.problem(
+                platform=raw.swapcase(),
+                number="",
+                name=f"平台规范化题目 {index}",
+                url=f"https://example.com/problem/{index}",
+                contest_id=contest["id"],
+            )
+            self.assertEqual(problem["platform"], canonical)
+            self.assertEqual(problem["contest_id"], contest["id"])
 
     def test_custom_platform_and_non_url_text_are_saved_verbatim(self):
         problem = self.problem(
@@ -571,6 +596,10 @@ class SystemTests(unittest.TestCase):
     def test_index_exposes_luogu_workspace(self):
         self.assertIn('href="#platform/luogu"', self.index_html)
         self.assertIn(">洛谷</a>", self.index_html)
+
+    def test_index_exposes_acwing_workspace(self):
+        self.assertIn('href="#platform/acwing"', self.index_html)
+        self.assertIn(">AcWing</a>", self.index_html)
 
     def test_index_exposes_niuke_workspace(self):
         self.assertIn('href="#platform/niuke"', self.index_html)
@@ -944,6 +973,100 @@ class SystemTests(unittest.TestCase):
             expected=409,
         )
         self.assertEqual(stale["code"], "version_conflict")
+
+    def test_contest_and_algorithm_card_orders_persist_after_restart(self):
+        contests = [
+            self.contest(title="比赛 A", url="https://example.com/contest/a"),
+            self.contest(title="比赛 B", url="https://example.com/contest/b"),
+            self.contest(title="比赛 C", url="https://example.com/contest/c"),
+        ]
+        algorithms = [
+            self.algorithm(
+                name="线段树",
+                category="数据结构",
+                description="区间维护。",
+                links=[],
+            ),
+            self.algorithm(
+                name="搜索",
+                category="搜索",
+                description="状态空间搜索。",
+                links=[],
+            ),
+            self.algorithm(
+                name="树状数组",
+                category="数据结构",
+                description="前缀和查询。",
+                links=[],
+            ),
+        ]
+        state = self.request("GET", "/api/state")
+        self.assertEqual(
+            [item["id"] for item in state["contests"]],
+            [item["id"] for item in contests],
+        )
+        self.assertEqual(
+            [item["id"] for item in state["algorithms"]],
+            [item["id"] for item in algorithms],
+        )
+
+        contest_ids = [contests[2]["id"], contests[0]["id"], contests[1]["id"]]
+        algorithm_ids = [algorithms[1]["id"], algorithms[0]["id"], algorithms[2]["id"]]
+        contest_result = self.request(
+            "PUT",
+            "/api/contests/order",
+            {
+                "version": state["contest_order_version"],
+                "ordered_ids": contest_ids,
+            },
+        )
+        algorithm_result = self.request(
+            "PUT",
+            "/api/algorithms/order",
+            {
+                "version": state["algorithm_order_version"],
+                "ordered_ids": algorithm_ids,
+            },
+        )
+        self.assertEqual(
+            contest_result["order_version"],
+            state["contest_order_version"] + 1,
+        )
+        self.assertEqual(
+            algorithm_result["order_version"],
+            state["algorithm_order_version"] + 1,
+        )
+
+        stale = self.request(
+            "PUT",
+            "/api/contests/order",
+            {
+                "version": state["contest_order_version"],
+                "ordered_ids": [item["id"] for item in contests],
+            },
+            expected=409,
+        )
+        self.assertEqual(stale["code"], "version_conflict")
+
+        self.stop_server()
+        self.start_server()
+        state = self.request("GET", "/api/state")
+        self.assertEqual(
+            [item["id"] for item in state["contests"]],
+            contest_ids,
+        )
+        self.assertEqual(
+            [item["id"] for item in state["algorithms"]],
+            algorithm_ids,
+        )
+        self.assertEqual(
+            [item["sort_order"] for item in state["contests"]],
+            [0, 1, 2],
+        )
+        self.assertEqual(
+            [item["sort_order"] for item in state["algorithms"]],
+            [0, 1, 2],
+        )
 
     def test_problem_import_supports_code_and_existing_relations(self):
         contest = self.contest(

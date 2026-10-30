@@ -1,8 +1,8 @@
 # 交付验证记录
 
-版本：2.1.6
+版本：2.2.0
 
-验证日期：2026-10-29
+验证日期：2026-10-30
 
 执行环境：
 
@@ -22,12 +22,12 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：105 项通过。
+结果：113 项通过。
 
 覆盖范围包括：
 
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。
-- 全局题目和算法内题目拖动排序、逆序和版本冲突。
+- 全局题目、算法内题目、算法卡片和比赛卡片拖动排序、逆序和版本冲突。
 - CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。
 - 当前编辑器代码的本地 C++ 编译、逐用例判题、编译错误、运行错误、超时和停止。
 - 停止请求早于编译器或程序进程启动时立即返回取消结果，不再启动新子进程。
@@ -39,8 +39,8 @@ python -X utf8 -m unittest discover -s tests -v
 - Windows 崩溃型测试程序不弹出系统异常对话框。
 - JSON 批量导入、链接原文保存和自定义平台。
 - SQLite 事务、源码恢复日志、CRLF 保留、缺失代码保护。
-- 数据库 schema 1/3/4/5/6/7 到 8 的升级及升级前备份。
-- schema 7 备份恢复时先在暂存区升级到 schema 8，无需重启即可继续使用。
+- 数据库 schema 1/3/4/5/6/7 到 9 的升级及升级前备份。
+- schema 7 备份恢复时先在暂存区升级到 schema 9，无需重启即可继续使用。
 - 不兼容数据库在写入前拒绝，且不创建业务表。
 - 默认数据目录、用户配置优先级和 `--data-dir` 主动覆盖。
 - UTF-8 BOM、旧版 Windows ANSI/GB18030 配置读取和非 ASCII 用户路径。
@@ -51,8 +51,12 @@ python -X utf8 -m unittest discover -s tests -v
 - 恶意 ZIP 路径越界拒绝。
 - 头像和用户名持久化、HTTP Host、Origin、CSRF 和请求体校验。
 - 成功的静态资源和 `/api/state` 轮询日志被隐藏；错误请求和写操作保持可见。
+- `/api/state` 使用固定数量的批量查询，算法数量增加时不再产生逐算法查询；
+  性能回归测试会阻止 N+1 查询模式重新引入。
 - 题目、比赛和算法参考链接中的裸域名自动补全 HTTPS，包括
   `example.com/problem/1`、`atcoder.jp` 等；普通备注和常见文件名保持不变。
+- Codeforces、AtCoder、AcWing、洛谷和牛客按固定大小写保存，常见英文别名
+  也能与所属比赛正确匹配。
 - 题库表格对有效原题地址提供复制按钮，普通备注不会显示复制操作。
 - 发布清单包含 `自检.bat`、`self_check.py` 和生产自检烟雾测试。
 
@@ -76,8 +80,15 @@ node --check web/app.js
 - 验证“全部题目”下方存在“代码试跑”，独立草稿保存、刷新恢复和多用例运行。
 - 验证代码试跑前后题目数量不变，临时代码不会写入题库。
 - 验证题库表格“编辑 / 原题 / 复制链接”操作，并确认复制内容为规范化 URL。
+- 验证五个平台使用本地打包的官网图标，平台标签与比赛关联标签宽度一致；
+  首页导航使用用户提供的房子图标，资源加载和移动端尺寸正常。
+- AcWing 工作区可从侧栏进入，首页包含 AcWing 独立统计；所属算法标签文字居中。
+- 首页统计精简为比赛、题目和五个平台共 7 项，在 1440×1000 桌面视口保持一行；
+  390×844 移动视口按两列换行，内容和操作按钮无重叠。
 - 在 390×844 视口确认为长题名按词组换行，隐藏所属比赛、所属算法、语言、
   最近修改和平台列，页面无横向溢出。
+- 在 1024×900 与 390×844 视口验证必要列和操作列宽度，题目不再被压成逐字纵向排列。
+- 验证算法卡片把“搜索”拖到“线段树”前、比赛卡片互换顺序，并确认刷新与重启后顺序保留。
 - 验证旧数据中的裸域名可打开和复制，无协议输入保存后统一为 HTTPS。
 - 验证编辑器多行选区覆盖整行，选区文字仍显示语法高亮，滚动条为紧凑灰色样式。
 - 运行生产自检，确认核心文件、临时数据库、运行环境和编译器状态检查正常。
@@ -89,21 +100,17 @@ node --check web/app.js
 
 截图：
 
-- `docs/screenshots/cph-runner.png`
-- `docs/screenshots/cph-compiler-settings.png`
-- `docs/screenshots/cph-runner-mobile.png`
-- `docs/screenshots/compiler-playground.png`
-- `docs/screenshots/compiler-playground-run.png`
-- `docs/screenshots/compiler-playground-mobile.png`
-- `docs/screenshots/compiler-missing-banner.png`
-- `docs/screenshots/compiler-missing-settings.png`
-- `docs/screenshots/compiler-missing-mobile.png`
+- `docs/screenshots/dashboard.png`
+- `docs/screenshots/acwing-workspace.png`
+- `docs/screenshots/algorithm.png`
+- `docs/screenshots/editor.png`
+- `docs/screenshots/settings.png`
 
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.6
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.1.6-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.2.0
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.0-Windows-x64.zip
 ```
 
 结果：

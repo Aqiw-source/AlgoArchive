@@ -11,8 +11,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.1.6-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.1.6-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.2.0-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.2.0-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -27,9 +27,9 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 
 ### 比赛归档
 
-Codeforces、AtCoder、洛谷和牛客提供固定工作空间；平台仍可自由输入，比赛链接也不受限制。
+Codeforces、AtCoder、AcWing、洛谷和牛客提供固定工作空间；平台仍可自由输入，比赛链接也不受限制。
 
-![新建比赛](docs/screenshots/contest-dialog.png)
+![AcWing 工作区](docs/screenshots/acwing-workspace.png)
 
 ### 算法模板
 
@@ -48,24 +48,16 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 每道题可以保存多组测试用例，使用当前 VS Code 的 MinGW g++ 在本机编译运行，
 并支持 `.prob` 导入导出。
 
-![CPH 兼容测试面板](docs/screenshots/cph-runner.png)
-
 编译器路径和能力检查位于设置页，实际验证 `__int128`、`multiset` 与
 `unordered_map`。
-
-![编译器设置](docs/screenshots/cph-compiler-settings.png)
 
 ### 代码试跑
 
 侧栏“全部题目”下方的独立工作区，可以快速验证临时 C++ 代码；草稿只在当前
 浏览器保存，不会创建题目或进入题库备份。
 
-![代码试跑工作区](docs/screenshots/compiler-playground.png)
-
 如果电脑没有 MinGW，程序会直接显示安装说明和“选择 g++ 编译器”按钮，
 并跳转到编译器设置，不会只返回一条模糊的运行错误。
-
-![缺少编译器提示](docs/screenshots/compiler-missing-banner.png)
 
 ### 设置与诊断
 
@@ -77,8 +69,8 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 | 能力 | 说明 |
 | --- | --- |
-| 平台工作空间 | 侧栏内建 Codeforces、AtCoder、洛谷和牛客入口，统一查看平台比赛与题目 |
-| 比赛归档 | 平台可自由输入，支持 Codeforces、AtCoder、洛谷、牛客和其他完整比赛 |
+| 平台工作空间 | 侧栏内建 Codeforces、AtCoder、AcWing、洛谷和牛客入口，统一查看平台比赛与题目 |
+| 比赛归档 | 平台可自由输入，支持 Codeforces、AtCoder、AcWing、洛谷、牛客和其他完整比赛 |
 | 统一题库 | 比赛题目与独立题目共享同一记录和同一份源代码，支持复制原题链接 |
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
 | 排序与导入 | 全局题目和算法内题目独立排序，支持逆序和 JSON 批量导入 |
@@ -99,7 +91,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.1.6-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.2.0-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -281,7 +273,9 @@ AlgoArchive/
 │  ├─ index.html
 │  ├─ app.js
 │  ├─ style.css
-│  └─ codex-theme.css
+│  ├─ codex-theme.css
+│  ├─ nav-icons/
+│  └─ platform-icons/
 ├─ runtime/
 ├─ installer/
 │  ├─ AlgoArchive.iss
@@ -311,13 +305,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.1.6
+.\scripts\build-portable.ps1 -Version 2.2.0
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.1.6
+.\scripts\build-release.ps1 -Version 2.2.0
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -329,13 +323,15 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.1.6 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.0 已验证：
 
 - 隔离后端测试全部通过。
 - `node --check web/app.js` 通过。
 - 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。
 - 小屏题库隐藏次要列，长题名正常换行且无横向溢出。
 - 编辑器多行选区按 VS Code 风格覆盖整行，滚动条使用细灰样式。
+- AcWing、Codeforces、AtCoder、洛谷和牛客使用本地打包的官网图标，标签宽度
+  统一；工作区、首页统计和比赛关联均支持大小写与常见别名规范化。
 - CPH 面板、多用例、`.prob` 导入导出、本地运行和编译器诊断在桌面及
   390px 移动视口正常，无控制台错误和横向溢出。
 - 便携 ZIP 成功生成并通过发布内容与隐私检查。

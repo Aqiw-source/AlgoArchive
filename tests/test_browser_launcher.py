@@ -62,6 +62,72 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("copyProblemLink", app_js)
         self.assertIn("navigator.clipboard.writeText", app_js)
 
+    def test_problem_table_uses_display_order_numbering(self):
+        app_js = (
+            Path(__file__).resolve().parents[1] / "web" / "app.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("序号与题目", app_js)
+        self.assertIn("items.map((p,index)", app_js)
+        self.assertIn('class="problem-order"', app_js)
+        self.assertIn("title.insertBefore(handle,order)", app_js)
+        self.assertNotIn("原题编号", app_js)
+        self.assertNotIn("<span>题目编号", app_js)
+        self.assertNotIn('name="number"', app_js)
+
+    def test_web_favicon_uses_single_bundled_icon(self):
+        root = Path(__file__).resolve().parents[1]
+        index = (root / "web" / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('href="/app.ico?', index)
+        self.assertTrue((root / "web" / "app.ico").is_file())
+        for legacy in ("app-acm.ico", "app-final.ico", "app-provided.ico"):
+            self.assertNotIn(legacy, index)
+            self.assertFalse((root / "web" / legacy).exists())
+
+    def test_home_nav_uses_bundled_house_icon(self):
+        root = Path(__file__).resolve().parents[1]
+        web = root / "web"
+        index = (web / "index.html").read_text(encoding="utf-8")
+        style = (web / "codex-theme.css").read_text(encoding="utf-8")
+
+        self.assertIn("/nav-icons/home.png", index)
+        self.assertNotIn('<span class="nav-icon">⌂</span>', index)
+        self.assertTrue((web / "nav-icons" / "home.png").is_file())
+        self.assertTrue((web / "nav-icons" / "SOURCES.md").is_file())
+        self.assertIn(".home-nav-icon", style)
+
+    def test_platform_site_icons_are_bundled_locally(self):
+        root = Path(__file__).resolve().parents[1]
+        web = root / "web"
+        index = (web / "index.html").read_text(encoding="utf-8")
+        app_js = (web / "app.js").read_text(encoding="utf-8")
+        style = (web / "codex-theme.css").read_text(encoding="utf-8")
+        sources = (web / "platform-icons" / "SOURCES.md").read_text(
+            encoding="utf-8"
+        )
+
+        for key in ("codeforces", "atcoder", "acwing", "luogu", "niuke"):
+            icon = web / "platform-icons" / f"{key}.png"
+            self.assertTrue(icon.is_file())
+            self.assertGreater(icon.stat().st_size, 300)
+            self.assertIn(f"{key}.png", index + app_js)
+        self.assertIn("acwing: 'AcWing'", app_js)
+        self.assertIn("https://codeforces.com/favicon.ico", sources)
+        self.assertIn("https://img.atcoder.jp/assets/favicon.png", sources)
+        self.assertNotIn("https://codeforces.com/favicon.ico", index + app_js)
+        self.assertIn(".contest-relation.contest-codeforces", style)
+        self.assertIn("background: #fff3df", style)
+        self.assertIn("width: 108px;", style)
+        self.assertIn("width: 136px;", style)
+        self.assertIn("canonicalPlatformValue", app_js)
+        self.assertIn(
+            'class="relation-badge algorithm-relation is-empty"',
+            app_js,
+        )
+        self.assertIn(".contest-cell .algorithm-relation {", style)
+        self.assertIn("justify-content: center;", style)
+
     def test_problem_table_has_mobile_column_markers(self):
         root = Path(__file__).resolve().parents[1]
         app_js = (root / "web" / "app.js").read_text(encoding="utf-8")
@@ -105,6 +171,8 @@ class BrowserLauncherTests(unittest.TestCase):
         for manifest in (portable, verifier, installer):
             self.assertIn("自检.bat", manifest)
             self.assertIn("self_check.py", manifest)
+        self.assertIn("web/platform-icons/acwing.png", verifier)
+        self.assertIn("web/nav-icons/home.png", verifier)
 
     def test_self_check_is_a_lightweight_production_smoke_check(self):
         self_check = (

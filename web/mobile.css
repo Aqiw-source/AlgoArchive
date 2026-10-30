@@ -2,6 +2,7 @@
   .problem-table {
     table-layout: fixed;
     width: 100%;
+    min-width: 0;
   }
 
   .problem-table .problem-col-secondary {
@@ -16,12 +17,14 @@
   .problem-table th:first-child,
   .problem-table td:first-child {
     width: auto;
+    min-width: 0;
     padding-left: 12px;
   }
 
   .problem-table th:last-child,
   .problem-table td:last-child {
     width: 116px;
+    min-width: 116px;
     padding-right: 10px;
   }
 
@@ -38,11 +41,6 @@
     word-break: normal;
   }
 
-  .problem-table .number-box {
-    min-width: 28px;
-    height: 28px;
-  }
-
   .problem-table .table-actions {
     gap: 7px;
     flex-wrap: wrap;
@@ -57,7 +55,8 @@
 
   .problem-table th:last-child,
   .problem-table td:last-child {
-    width: 108px;
+    width: 124px;
+    min-width: 124px;
   }
 
   .problem-table .drag-handle {
