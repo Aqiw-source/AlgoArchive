@@ -2,7 +2,6 @@
 
 import shutil
 import secrets
-import shutil
 import os
 from pathlib import Path
 import sys
@@ -55,6 +54,7 @@ class CphRunnerTests(unittest.TestCase):
         tests = repo.replace_problem_tests(
             problem["id"],
             {
+                "version": problem["version"],
                 "tests": [
                     {"input": "1 2\n", "output": "3\n"},
                     {"input": "3 4\n", "output": "7\n"},
@@ -85,7 +85,7 @@ class CphRunnerTests(unittest.TestCase):
 
         reopened.delete_problem(
             problem["id"],
-            {"version": problem["version"], "confirmed": True},
+            {"version": reopened.get_problem(problem["id"])["version"], "confirmed": True},
         )
         self.assertEqual(
             reopened.db.execute(

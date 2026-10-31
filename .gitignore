@@ -1,4 +1,5 @@
 /data/
+/runtime/
 **/archive.sqlite3
 **/codes/
 *.sqlite3

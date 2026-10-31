@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import secrets
+import signal
 import shutil
 import subprocess
 import tempfile
@@ -120,6 +121,66 @@ def validate_test_cases(cases):
     return normalized
 
 
+class _WindowsProcessJob:
+    """Own compiler/program descendants, including handles inherited by child processes."""
+
+    def __init__(self, process):
+        import ctypes
+        from ctypes import wintypes
+
+        class BasicLimits(ctypes.Structure):
+            _fields_ = [
+                ("process_time", ctypes.c_int64), ("job_time", ctypes.c_int64),
+                ("flags", wintypes.DWORD), ("min_working_set", ctypes.c_size_t),
+                ("max_working_set", ctypes.c_size_t), ("active_processes", wintypes.DWORD),
+                ("affinity", ctypes.c_size_t), ("priority", wintypes.DWORD),
+                ("scheduling", wintypes.DWORD),
+            ]
+
+        class ExtendedLimits(ctypes.Structure):
+            _fields_ = [
+                ("basic", BasicLimits), ("io", ctypes.c_uint64 * 6),
+                ("process_memory", ctypes.c_size_t), ("job_memory", ctypes.c_size_t),
+                ("peak_process_memory", ctypes.c_size_t), ("peak_job_memory", ctypes.c_size_t),
+            ]
+
+        self.api = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.api.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        self.api.CreateJobObjectW.restype = wintypes.HANDLE
+        self.api.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        self.api.SetInformationJobObject.restype = wintypes.BOOL
+        self.api.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        self.api.AssignProcessToJobObject.restype = wintypes.BOOL
+        self.api.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        self.api.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.lock = threading.Lock()
+        self.handle = self.api.CreateJobObjectW(None, None)
+        if not self.handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+        limits = ExtendedLimits()
+        limits.basic.flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        try:
+            if not self.api.SetInformationJobObject(self.handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if not self.api.AssignProcessToJobObject(self.handle, int(process._handle)):
+                if process.poll() is None:
+                    raise ctypes.WinError(ctypes.get_last_error())
+        except Exception:
+            self.close()
+            raise
+
+    def terminate(self):
+        with self.lock:
+            if self.handle:
+                self.api.TerminateJobObject(self.handle, 1)
+
+    def close(self):
+        with self.lock:
+            if self.handle:
+                self.api.CloseHandle(self.handle)
+                self.handle = None
+
+
 class CppTestRunner:
     """Compile one source file and execute each case with a hard timeout."""
 
@@ -152,6 +213,16 @@ class CppTestRunner:
             self._terminate_process(process)
 
     def _terminate_process(self, process):
+        job = getattr(process, "_algoarchive_job", None)
+        if job is not None:
+            job.terminate()
+            return
+        if os.name != "nt":
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            return
         if process.poll() is not None:
             return
         if os.name == "nt":
@@ -193,8 +264,18 @@ class CppTestRunner:
             else 0
         )
         started = time.monotonic()
+        deadline = started + max(0.05, timeout_seconds)
+        # File-backed input cannot block waiting for a child to read a full stdin pipe.
+        input_file = tempfile.TemporaryFile(dir=str(cwd))
+        try:
+            input_file.write(stdin_data)
+            input_file.seek(0)
+        except Exception:
+            input_file.close()
+            raise
         with self._active_lock:
             if self._stopped.is_set():
+                input_file.close()
                 return {
                     "return_code": None,
                     "timed_out": False,
@@ -202,36 +283,57 @@ class CppTestRunner:
                     "stdout": "",
                     "stderr": "",
                     "cancelled": True,
+                    "output_limited": False,
+                    "stdout_truncated": False,
+                    "stderr_truncated": False,
                 }
-            process = _popen_without_windows_error_dialog(
-                arguments,
-                cwd=str(cwd),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=creationflags,
-            )
+            try:
+                process = _popen_without_windows_error_dialog(
+                    arguments,
+                    cwd=str(cwd),
+                    stdin=input_file,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=creationflags,
+                    start_new_session=os.name != "nt",
+                )
+                if os.name == "nt":
+                    process._algoarchive_job = _WindowsProcessJob(process)
+            except Exception:
+                input_file.close()
+                if "process" in locals():
+                    self._terminate_process(process)
+                    process.wait()
+                    process.stdout.close()
+                    process.stderr.close()
+                raise
             self._active_process = process
         buffers = [bytearray(), bytearray()]
+        truncated = [False, False]
+        output_limit = threading.Event()
 
-        def collect(stream, target):
+        def collect(stream, index):
+            target = buffers[index]
             while True:
-                chunk = stream.read(65536)
+                chunk = stream.read1(65536)
                 if not chunk:
                     break
                 remaining = MAX_CAPTURE_BYTES - len(target)
                 if remaining > 0:
                     target.extend(chunk[:remaining])
+                if len(chunk) > remaining:
+                    truncated[index] = True
+                    output_limit.set()
 
         readers = [
             threading.Thread(
                 target=collect,
-                args=(process.stdout, buffers[0]),
+                args=(process.stdout, 0),
                 daemon=True,
             ),
             threading.Thread(
                 target=collect,
-                args=(process.stderr, buffers[1]),
+                args=(process.stderr, 1),
                 daemon=True,
             ),
         ]
@@ -239,26 +341,28 @@ class CppTestRunner:
             reader.start()
         timed_out = False
         try:
-            try:
-                process.stdin.write(stdin_data)
-                process.stdin.close()
-            except (BrokenPipeError, OSError):
-                pass
-            try:
-                return_code = process.wait(timeout=max(0.05, timeout_seconds))
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                self._terminate_process(process)
-                return_code = process.wait(timeout=5)
+            while process.poll() is None:
+                timed_out = time.monotonic() >= deadline
+                if timed_out or output_limit.is_set() or self._stopped.is_set():
+                    self._terminate_process(process)
+                    break
+                output_limit.wait(min(0.01, max(0, deadline - time.monotonic())))
+            return_code = process.wait(timeout=5)
         finally:
+            # Close descendants too, including inherited output handles after parent exit.
+            self._terminate_process(process)
+            job = getattr(process, "_algoarchive_job", None)
+            if job is not None:
+                job.close()
             with self._active_lock:
                 if self._active_process is process:
                     self._active_process = None
             for reader in readers:
-                reader.join(timeout=1)
+                reader.join()
             for stream in (process.stdout, process.stderr):
                 if stream is not None:
                     stream.close()
+            input_file.close()
         stdout = bytes(buffers[0]).decode("utf-8", errors="replace")
         stderr = bytes(buffers[1]).decode("utf-8", errors="replace")
         return {
@@ -268,6 +372,9 @@ class CppTestRunner:
             "stdout": stdout,
             "stderr": stderr,
             "cancelled": self._stopped.is_set(),
+            "output_limited": output_limit.is_set(),
+            "stdout_truncated": truncated[0],
+            "stderr_truncated": truncated[1],
         }
 
     def run(self, code, cases, time_limit_ms=3000):
@@ -347,7 +454,9 @@ class CppTestRunner:
             if compile_result.get("cancelled"):
                 return self._cancelled_result()
             compile_status = "success"
-            if compile_result["timed_out"]:
+            if compile_result.get("output_limited"):
+                compile_status = "output_limit"
+            elif compile_result["timed_out"]:
                 compile_status = "timeout"
             elif compile_result["return_code"] != 0 or not executable.is_file():
                 compile_status = "error"
@@ -356,6 +465,8 @@ class CppTestRunner:
                 "stdout": compile_result["stdout"],
                 "stderr": compile_result["stderr"],
                 "elapsed_ms": compile_result["elapsed_ms"],
+                "stdout_truncated": compile_result.get("stdout_truncated", False),
+                "stderr_truncated": compile_result.get("stderr_truncated", False),
             }
             if compile_status != "success":
                 return {
@@ -382,6 +493,8 @@ class CppTestRunner:
                 )
                 if self._stopped.is_set():
                     status = "cancelled"
+                elif run_result.get("output_limited"):
+                    status = "output_limit"
                 elif run_result["timed_out"]:
                     status = "time_limit"
                 elif run_result["return_code"] != 0:
@@ -401,6 +514,8 @@ class CppTestRunner:
                         "stderr": run_result["stderr"],
                         "return_code": run_result["return_code"],
                         "elapsed_ms": run_result["elapsed_ms"],
+                        "stdout_truncated": run_result.get("stdout_truncated", False),
+                        "stderr_truncated": run_result.get("stderr_truncated", False),
                     }
                 )
             return {

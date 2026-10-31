@@ -1,6 +1,7 @@
 """Tests for browser settings and external-process launching."""
 
 from pathlib import Path
+import os
 import unittest
 from unittest import mock
 
@@ -182,6 +183,7 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("生产自检通过", self_check)
         self.assertNotIn("unittest.defaultTestLoader", self_check)
 
+    @unittest.skipUnless(os.name == "nt", "Windows browser paths")
     def test_chrome_candidates_include_standard_program_files_path(self):
         candidates = app.chrome_candidates()
         self.assertIn(

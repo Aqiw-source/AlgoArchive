@@ -44,7 +44,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.2.1"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 9
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
@@ -109,6 +109,8 @@ MAX_CODE_BYTES = 2 * 1024 * 1024
 MAX_AVATAR_BYTES = 512 * 1024
 MAX_BODY_BYTES = 4 * 1024 * 1024
 MAX_BACKUP_UPLOAD_BYTES = 512 * 1024 * 1024
+MAX_BACKUP_MEMBERS = 100000
+MAX_BACKUP_EXPANDED_BYTES = 2 * 1024 * 1024 * 1024
 AVATAR_EXTENSIONS = {
     "png": (".png", "image/png"),
     "jpeg": (".jpg", "image/jpeg"),
@@ -917,6 +919,8 @@ class Repository:
         self.avatar_dir = self.data_dir / "avatar"
         self.avatar_dir.mkdir(exist_ok=True)
         self.lock = threading.RLock()
+        self.maintenance = False
+        self._migration_owner = None
         self.db = sqlite3.connect(str(self.data_dir / "archive.sqlite3"), check_same_thread=False, timeout=30)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
@@ -1177,15 +1181,29 @@ class Repository:
                     json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
                 )
+                files = sorted(path for path in staging.rglob("*") if path.is_file())
+                self._validate_backup_members([
+                    (path.relative_to(staging).as_posix(), path.stat().st_size)
+                    for path in files
+                ])
                 with zipfile.ZipFile(
                     destination,
                     "w",
                     compression=zipfile.ZIP_DEFLATED,
                     compresslevel=6,
                 ) as archive:
-                    for path in sorted(staging.rglob("*")):
-                        if path.is_file():
-                            archive.write(path, path.relative_to(staging).as_posix())
+                    for path in files:
+                        archive.write(path, path.relative_to(staging).as_posix())
+                if destination.stat().st_size > MAX_BACKUP_UPLOAD_BYTES:
+                    raise AppError("备份超过可导入的压缩大小限制", 413, "backup_too_large")
+                with zipfile.ZipFile(destination) as archive:
+                    self._validate_backup_members([
+                        (item.filename, item.file_size) for item in archive.infolist()
+                    ])
+                    if archive.testzip() is not None:
+                        raise AppError("备份校验失败，未保存备份", 500, "backup_invalid")
+                if inspect_data_directory(staging)["state"] != "valid":
+                    raise AppError("备份副本不完整，未保存备份", 500, "backup_invalid")
             except Exception:
                 destination.unlink(missing_ok=True)
                 raise
@@ -1276,28 +1294,36 @@ class Repository:
             ).isoformat().replace("+00:00", "Z"),
         }
 
-    def _safe_extract_backup(self, archive, destination):
-        members = archive.infolist()
-        if len(members) > 10000:
-            raise AppError("备份文件包含过多文件", 400, "backup_invalid")
+    @staticmethod
+    def _validate_backup_members(members):
+        if len(members) > MAX_BACKUP_MEMBERS:
+            raise AppError(f"备份文件数量超过 {MAX_BACKUP_MEMBERS} 个", 413, "backup_too_large")
         total_size = 0
+        names = set()
         allowed = re.compile(
             r"^(?:manifest\.json|archive\.sqlite3|"
             r"codes/[a-f0-9]{32}\.(?:cpp|py|java|txt)|"
             r"avatar/avatar\.(?:png|jpg|webp))$"
         )
-        for member in members:
-            name = member.filename.replace("\\", "/")
+        for filename, size in members:
+            name = filename.replace("\\", "/")
             if (
                 name.startswith("/")
                 or ".." in Path(name).parts
-                or member.is_dir()
                 or not allowed.fullmatch(name)
+                or name in names
             ):
                 raise AppError("备份文件包含不安全的路径", 400, "backup_invalid")
-            total_size += member.file_size
-            if total_size > 2 * 1024 * 1024 * 1024:
-                raise AppError("备份解压后超过 2 GiB", 413, "backup_too_large")
+            names.add(name)
+            total_size += size
+            if total_size > MAX_BACKUP_EXPANDED_BYTES:
+                raise AppError("备份解压后超过容量限制（默认 2 GiB）", 413, "backup_too_large")
+
+    def _safe_extract_backup(self, archive, destination):
+        members = archive.infolist()
+        self._validate_backup_members([(item.filename, item.file_size) for item in members])
+        for member in members:
+            name = member.filename.replace("\\", "/")
             target = destination / name
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member) as source, target.open("wb") as output:
@@ -1308,6 +1334,7 @@ class Repository:
             return self._restore_backup_locked(name, confirmed)
 
     def _restore_backup_locked(self, name, confirmed=False):
+        self._ready()
         if confirmed is not True:
             raise AppError("恢复备份会覆盖当前数据，请再次确认", 400, "confirmation_required")
         if not isinstance(name, str) or Path(name).name != name:
@@ -1389,7 +1416,24 @@ class Repository:
         finally:
             shutil.rmtree(staging, ignore_errors=True)
 
-    def relocate_to(self, target):
+    def relocate_to(self, target, commit=None):
+        # Keep the barrier after success: queued writes must not reach the old library.
+        with self.lock:
+            self._ready()
+            self.maintenance = True
+            self._migration_owner = threading.get_ident()
+            try:
+                result = self._relocate_locked(target)
+                if commit is not None:
+                    commit(result)
+                return result
+            except Exception:
+                self.maintenance = False
+                raise
+            finally:
+                self._migration_owner = None
+
+    def _relocate_locked(self, target):
         target = Path(target).expanduser().resolve()
         source = self.data_dir.resolve()
         if target == source:
@@ -1598,6 +1642,9 @@ class Repository:
             raise AppError("代码文件写入尚未完成，请检查磁盘空间和目录权限，重启后会自动恢复。请勿删除 data 目录。", 503, "storage_pending") from exc
 
     def _ready(self):
+        if self.maintenance and self._migration_owner != threading.get_ident():
+            raise AppError("数据正在迁移，修改未保存。请等待程序退出后重新打开。",
+                           503, "storage_maintenance")
         self._flush_pending()
 
     def _avatar_path(self, relative):
@@ -1772,37 +1819,38 @@ class Repository:
             )
         ]
 
-    def replace_problem_tests(self, identifier, payload):
+    @staticmethod
+    def _validated_tests(payload):
         if not isinstance(payload, dict):
             raise AppError("测试用例请求格式不正确")
         try:
-            tests = validate_test_cases(payload.get("tests"))
+            return validate_test_cases(payload.get("tests"))
         except ValueError as exc:
             raise AppError(str(exc)) from None
+
+    def _write_problem_tests(self, identifier, tests, timestamp):
+        self.db.execute("DELETE FROM problem_tests WHERE problem_id=?", (identifier,))
+        self.db.executemany(
+            "INSERT INTO problem_tests (problem_id,ordinal,input,output,updated_at) VALUES (?,?,?,?,?)",
+            [(identifier, ordinal, item["input"], item["output"], timestamp)
+             for ordinal, item in enumerate(tests)],
+        )
+
+    def replace_problem_tests(self, identifier, payload):
+        tests = self._validated_tests(payload)
         with self.lock:
             self._ready()
-            self._row("problems", identifier)
+            old = self._row("problems", identifier)
+            self._version(old, payload)
             timestamp = now()
             with self.db:
+                self._write_problem_tests(identifier, tests, timestamp)
                 self.db.execute(
-                    "DELETE FROM problem_tests WHERE problem_id=?",
-                    (identifier,),
+                    "UPDATE problems SET updated_at=?,version=version+1 WHERE id=?",
+                    (timestamp, identifier),
                 )
-                self.db.executemany(
-                    "INSERT INTO problem_tests "
-                    "(problem_id,ordinal,input,output,updated_at) "
-                    "VALUES (?,?,?,?,?)",
-                    [
-                        (
-                            identifier,
-                            ordinal,
-                            item["input"],
-                            item["output"],
-                            timestamp,
-                        )
-                        for ordinal, item in enumerate(tests)
-                    ],
-                )
+                self._touch_contests([old["contest_id"]], timestamp)
+                self._touch_algorithm(old["algorithm_id"], timestamp)
             return self._problem_tests(identifier)
 
     def _algorithm_links(self, identifier):
@@ -2066,12 +2114,9 @@ class Repository:
                     "problem_count": len(problems),
                     "algorithm_count": len(algorithms),
                     "snippet_count": snippet_count,
-                    "codeforces_count": sum(
-                        p["platform"] == "codeforces" for p in problems
-                    ),
-                    "atcoder_count": sum(
-                        p["platform"] == "atcoder" for p in problems
-                    ),
+                    **{key + "_count": sum(platform_identity(p["platform"]) == platform_identity(key)
+                                            for p in problems)
+                       for key in ("codeforces", "atcoder", "acwing", "luogu", "niuke")},
                 },
             }
 
@@ -2150,6 +2195,7 @@ class Repository:
         with self.lock:
             self._ready()
             values, encoded = self._validate_problem(payload)
+            tests = self._validated_tests(payload) if "tests" in payload else []
             self._duplicate(values)
             identifier, timestamp = uuid.uuid4().hex, now()
             algorithm_order = self._next_algorithm_order(values["algorithm_id"])
@@ -2162,6 +2208,7 @@ class Repository:
                     values["url"], values["normalized_url"], values["language"], values["contest_id"],
                     values["algorithm_id"], algorithm_order, global_order, path, timestamp, timestamp))
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (path, encoded))
+                self._write_problem_tests(identifier, tests, timestamp)
                 self._touch_contests([values["contest_id"]], timestamp)
                 self._touch_algorithm(values["algorithm_id"], timestamp)
             self._flush_pending()
@@ -2173,6 +2220,7 @@ class Repository:
             old = self._problem(identifier)
             self._version(old, payload)
             values, encoded = self._validate_problem({**old, **payload})
+            tests = self._validated_tests(payload) if "tests" in payload else None
             self._duplicate(values, identifier)
             algorithm_order = (
                 old["algorithm_order"]
@@ -2187,6 +2235,8 @@ class Repository:
                     (values["platform"], values["number"], values["name"], values["url"], values["normalized_url"],
                      values["language"], values["contest_id"], values["algorithm_id"], algorithm_order,
                      path, timestamp, identifier))
+                if tests is not None:
+                    self._write_problem_tests(identifier, tests, timestamp)
                 if encoded != old["code"].encode("utf-8") or path != old["code_path"]:
                     self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (path, encoded))
                 if path != old["code_path"]:
@@ -3091,6 +3141,15 @@ class RequestHandler(BaseHTTPRequestHandler):
         mutation = self.command in {"POST", "PUT", "DELETE"}
         self._guard(mutation)
         path = urlsplit(self.path).path
+        # Run/stop need independent threads; persistent mutations share the migration barrier.
+        if mutation and not path.endswith(("/run", "/run/stop")):
+            with self.server.repo.lock:
+                self.server.repo._ready()
+                return self._dispatch_request()
+        return self._dispatch_request()
+
+    def _dispatch_request(self):
+        path = urlsplit(self.path).path
         repo = self.server.repo
         if self.command in {"GET", "HEAD"}:
             if path == "/api/health":
@@ -3210,9 +3269,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             target = Path(value).expanduser()
             if not target.is_absolute():
                 raise AppError("数据目录必须是绝对路径")
-            migrated = repo.relocate_to(target)
-            self.server.config["data_dir"] = migrated["new_data_dir"]
-            save_user_config(self.server.config, self.server.config_path)
+            def commit_migration(result):
+                config = {**self.server.config, "data_dir": result["new_data_dir"]}
+                save_user_config(config, self.server.config_path)
+                self.server.config = config
+
+            migrated = repo.relocate_to(target, commit=commit_migration)
+            threading.Timer(0.5, self.server.shutdown).start()
             self._json(
                 {
                     **migrated,
@@ -3220,7 +3283,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "message": "数据已迁移，程序即将退出。请重新打开算法档案。",
                 }
             )
-            threading.Timer(0.5, self.server.shutdown).start()
             return
         if self.command == "POST" and path == "/api/open-data-folder":
             try:
@@ -3272,9 +3334,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             r"/api/problems/([a-f0-9]{32})/tests", path
         )
         if self.command == "PUT" and match:
-            return self._json(
-                {"tests": repo.replace_problem_tests(match[1], body)}
-            )
+            tests = repo.replace_problem_tests(match[1], body)
+            return self._json({"tests": tests, "version": repo._row("problems", match[1])["version"]})
         match = re.fullmatch(
             r"/api/problems/([a-f0-9]{32})/run", path
         )

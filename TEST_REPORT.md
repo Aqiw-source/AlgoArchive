@@ -1,8 +1,8 @@
 # 交付验证记录
 
-版本：2.2.0
+版本：2.2.1
 
-验证日期：2026-10-30
+验证日期：2026-10-31
 
 执行环境：
 
@@ -22,10 +22,15 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：113 项通过。
+结果：131 项通过，其中新增 18 项可靠性回归。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
 
 覆盖范围包括：
 
+- 题目与用例原子保存、共享版本冲突、无效用例整体拒绝及磁盘写入恢复。
+- 迁移期间排队写入拒绝、配置切换失败后旧库恢复可写。
+- 9,999 题与 10,001 个 ZIP 成员的备份恢复、成员及大小上限契约。
+- 大输入不读或慢读、停止并发、父进程退出后的子进程与管道回收。
+- stdout/stderr 截断标记；实际 g++ 验证正确前缀追加错误内容不再通过。
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。
 - 全局题目、算法内题目、算法卡片和比赛卡片拖动排序、逆序和版本冲突。
 - CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。
@@ -68,7 +73,10 @@ node --check web/app.js
 
 结果：通过。
 
-使用本机 Chrome 156 对隔离实例执行：
+本次使用全新合成题库验证五个固定平台及 DemoJudge 的比赛详情、平台比赛筛选、
+双页面保存冲突及单独保存用例后再保存代码；桌面 1440×1000、移动端 390×844。
+
+以下为已有功能的累计隔离验收记录，未声明每项都在本次重复执行：
 
 - 打开真实题目编辑页并检查 CPH 面板、作者声明和多用例标签。
 - 通过文件选择导入现有 `.prob` 用例，增加第二个用例并保存。
@@ -109,8 +117,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.0
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.0-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.2.1
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.1-Windows-x64.zip
 ```
 
 结果：
@@ -141,6 +149,6 @@ node --check web/app.js
 - 项目整体许可证尚未由维护者选择；CPH 来源与 GPL-3.0-or-later
   许可证副本已随程序声明。
 - 安装程序尚未进行 Authenticode 签名，Windows 可能显示未知发布者提示。
-- 未进行大规模题库压力测试；现有实现保持 SQLite 单库和逐记录代码文件边界。
+- 已完成 9,999 题备份往返；尚未进行大规模题库的浏览器交互性能测试。
 
 不得将本记录解释为所有 Windows 环境均已验收。

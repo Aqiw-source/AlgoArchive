@@ -254,11 +254,11 @@
   }
   function filtersHTML() {
     const f=state.filter, ctx=state.context;
-    return `<div class="filters"><label class="search-field"><span aria-hidden="true">⌕</span><input id="filter-query" aria-label="搜索题目" placeholder="搜索题目、编号或比赛…" value="${esc(f.q)}"></label>${ctx.platform?'':`<select id="filter-platform" aria-label="平台筛选">${option('','全部平台',f.platform)}${problemPlatformOptions().map(([k,v])=>option(k,v,f.platform)).join('')}</select>`}${ctx.contest?'':`<select id="filter-contest" aria-label="比赛筛选">${option('','全部比赛',f.contest)}${option('none','未关联比赛',f.contest)}${state.contests.filter(c=>!(ctx.platform||f.platform)||c.platform===(ctx.platform||f.platform)).map(c=>option(c.id,c.title,f.contest)).join('')}</select>`}<select id="filter-language" aria-label="代码语言筛选">${option('','全部语言',f.language)}${Object.entries(languages).map(([k,v])=>option(k,v,f.language)).join('')}</select></div>`;
+    return `<div class="filters"><label class="search-field"><span aria-hidden="true">⌕</span><input id="filter-query" aria-label="搜索题目" placeholder="搜索题目、编号或比赛…" value="${esc(f.q)}"></label>${ctx.platform?'':`<select id="filter-platform" aria-label="平台筛选">${option('','全部平台',f.platform)}${problemPlatformOptions().map(([k,v])=>option(k,v,f.platform)).join('')}</select>`}${ctx.contest?'':`<select id="filter-contest" aria-label="比赛筛选">${option('','全部比赛',f.contest)}${option('none','未关联比赛',f.contest)}${state.contests.filter(c=>!(ctx.platform||f.platform)||platformKey(c.platform)===platformKey(ctx.platform||f.platform)).map(c=>option(c.id,c.title,f.contest)).join('')}</select>`}<select id="filter-language" aria-label="代码语言筛选">${option('','全部语言',f.language)}${Object.entries(languages).map(([k,v])=>option(k,v,f.language)).join('')}</select></div>`;
   }
   function filteredProblems() {
     const f=state.filter, ctx=state.context, q=f.q.trim().toLocaleLowerCase();
-    const items=state.problems.filter(p=>(!ctx.platform||platformKey(p.platform)===ctx.platform)&&(!ctx.contest||p.contest_id===ctx.contest)&&(!ctx.algorithm||p.algorithm_id===ctx.algorithm)&&(!f.platform||platformKey(p.platform)===platformKey(f.platform))&&(!f.language||p.language===f.language)&&(!f.contest||(f.contest==='none'?!p.contest_id:p.contest_id===f.contest))&&(!q||[p.number,p.name,p.url,p.contest_title,p.algorithm_name,platformLabel(p.platform)].join(' ').toLocaleLowerCase().includes(q)));
+    const items=state.problems.filter(p=>(!ctx.platform||platformKey(p.platform)===platformKey(ctx.platform))&&(!ctx.contest||p.contest_id===ctx.contest)&&(!ctx.algorithm||p.algorithm_id===ctx.algorithm)&&(!f.platform||platformKey(p.platform)===platformKey(f.platform))&&(!f.language||p.language===f.language)&&(!f.contest||(f.contest==='none'?!p.contest_id:p.contest_id===f.contest))&&(!q||[p.number,p.name,p.url,p.contest_title,p.algorithm_name,platformLabel(p.platform)].join(' ').toLocaleLowerCase().includes(q)));
     if(ctx.algorithm)return sortedAlgorithmProblems(items);
     if(state.route==='problems'&&!ctx.platform)return sortedGlobalProblems(items);
     return sortedProblems(items);
@@ -446,7 +446,7 @@
   function contestDetail(id) {
     const c=state.contests.find(c=>c.id===id);
     if(!c){missing('这场比赛不存在或已经删除。');return;}
-    state.context={contest:id,platform:c.platform};state.filter={q:'',platform:'',contest:'',language:''};
+    state.context={contest:id,platform:platformKey(c.platform)};state.filter={q:'',platform:'',contest:'',language:''};
     main.innerHTML=`<a class="back-link" href="#contests" data-nav="contests">← 返回完整比赛</a>`+pageHeader(c.title, '在这里保存的题目，也会同步显示在全部题目中。',`<button class="btn" data-edit-contest="${esc(id)}">编辑比赛</button>${addProblemButton(id,c.platform)}`,`${platformLabel(c.platform)} / 比赛详情`)+
       `<div class="contest-info">${badge(c.platform)}<span>${state.problems.filter(p=>p.contest_id===id).length} 道题目</span><span>创建于 ${time(c.created_at)}</span>${external(c.url,'打开比赛 ↗')}<button class="text-link" data-delete-contest="${esc(id)}">删除比赛</button></div><div class="section-head"><h2>比赛题目</h2><span class="muted">同一题目，只保存一份代码</span></div>`+tableArea();updateTable();
   }
@@ -497,7 +497,7 @@
     if(output)test.output=output.value;
   }
   function cphStatusLabel(status) {
-    return ({passed:'通过',wrong_answer:'答案错误',runtime_error:'运行错误',time_limit:'超时',cancelled:'已停止'}[status]||status||'');
+    return ({passed:'通过',wrong_answer:'答案错误',runtime_error:'运行错误',time_limit:'超时',output_limit:'输出超限',cancelled:'已停止'}[status]||status||'');
   }
   function cphTestPanel(p) {
     const tests=normalizeCphTests(p.tests);
@@ -562,7 +562,7 @@
     let html='';
     if(compile&&compile.status!=='success'){
       const setupAction=compile.status==='compiler_missing'||compile.status==='compiler_error'?`<button type="button" class="btn small primary" data-open-compiler-settings>选择 g++ 编译器</button>`:'';
-      html+=`<div class="cph-compile ${esc(compile.status)}"><div><strong>${compile.status==='compiler_missing'?'未找到 C++ 编译器':'编译失败'}</strong><span>${Number(compile.elapsed_ms)||0} ms</span></div><pre>${esc(compile.stderr||compile.stdout||'编译器没有返回详细信息。')}</pre>${setupAction?`<div class="cph-compile-action">${setupAction}<span>请在设置中选择完整 MinGW 工具链里的 bin\\g++.exe。</span></div>`:''}</div>`;
+      html+=`<div class="cph-compile ${esc(compile.status)}"><div><strong>${compile.status==='compiler_missing'?'未找到 C++ 编译器':compile.status==='output_limit'?'编译输出超限（已截断）':'编译失败'}</strong><span>${Number(compile.elapsed_ms)||0} ms</span></div><pre>${esc(compile.stderr||compile.stdout||'编译器没有返回详细信息。')}</pre>${setupAction?`<div class="cph-compile-action">${setupAction}<span>请在设置中选择完整 MinGW 工具链里的 bin\\g++.exe。</span></div>`:''}</div>`;
     }else{
       const passed=results.filter(([,item])=>item.status==='passed').length;
       html+=`<div class="cph-summary"><strong>${passed} / ${results.length} 通过</strong><span>编译 ${Number(compile?.elapsed_ms)||0} ms${state.cph.totalMs?` · 运行 ${state.cph.totalMs} ms`:''}</span></div>`;
@@ -570,7 +570,7 @@
       const current=results.find(([index])=>Number(index)===currentIndex);
       if(current){
         const item=current[1];
-        html+=`<div class="cph-result ${esc(item.status)}"><div class="cph-result-head"><span class="cph-status">${esc(cphStatusLabel(item.status))}</span><span>用例 ${Number(current[0])+1} · ${Number(item.elapsed_ms)||0} ms · 退出码 ${esc(item.return_code)}</span></div><div class="cph-output-grid"><div><span>实际输出</span><pre>${esc(item.stdout||'（空）')}</pre></div><div><span>错误输出</span><pre>${esc(item.stderr||'（空）')}</pre></div></div></div>`;
+        html+=`<div class="cph-result ${esc(item.status)}"><div class="cph-result-head"><span class="cph-status">${esc(cphStatusLabel(item.status))}</span><span>用例 ${Number(current[0])+1} · ${Number(item.elapsed_ms)||0} ms · 退出码 ${esc(item.return_code)}</span></div><div class="cph-output-grid"><div><span>实际输出${item.stdout_truncated?'（已截断，超过 1 MiB）':''}</span><pre>${esc(item.stdout||'（空）')}</pre></div><div><span>错误输出${item.stderr_truncated?'（已截断，超过 1 MiB）':''}</span><pre>${esc(item.stderr||'（空）')}</pre></div></div></div>`;
       }else{
         html+=`<div class="cph-result-note">切换到带结果标记的用例查看输出。</div>`;
       }
@@ -638,15 +638,20 @@
     if(problem.standalone)return savePlaygroundDraft(quiet);
     if(!problem.id){if(!quiet)toast('请先保存题目，再保存测试用例。',true);return false;}
     commitCphFields();
+    const editor=state.editor;
+    const tests=editor.tests.map(item=>({input:item.input,output:item.output}));
+    state.busy=true;
     try{
-      const result=await api(`/api/problems/${encodeURIComponent(problem.id)}/tests`,'PUT',{tests:state.editor.tests});
-      state.editor.tests=normalizeCphTests(result.tests);
-      state.editor.initialTests=JSON.stringify(state.editor.tests);
+      const result=await api(`/api/problems/${encodeURIComponent(problem.id)}/tests`,'PUT',{tests,version:problem.version});
+      if(state.editor!==editor)return true;
+      problem.version=result.version;
+      editor.initialTests=JSON.stringify(normalizeCphTests(result.tests));
       state.cph.active=Math.min(state.cph.active,state.editor.tests.length-1);
       renderCphCaseTabs();updateSaveState();
       if(!quiet)toast('测试用例已保存。');
       return true;
     }catch(error){toast(error.message,true);return false;}
+    finally{state.busy=false;}
   }
   function extractCphTests(value) {
     const items=Array.isArray(value)?value:Array.isArray(value?.tests)?value.tests:Array.isArray(value?.testcases)?value.testcases:null;
@@ -775,7 +780,7 @@
     const back=p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems';
     const backLabel=p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
     main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
-      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、AcWing、洛谷、牛客" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options">${problemPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field wide"><span>题目名称</span><input name="name" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码将作为真实源文件保存在项目的 data/codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
+      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、AcWing、洛谷、牛客" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options">${problemPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field wide"><span>题目名称</span><input name="name" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码保存在设置中的数据目录下的 codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
     $('#code-input').value=p.code||'';
     state.editor.initial=JSON.stringify(readProblemForm());
     highlightCode(); updateCursor();
@@ -897,10 +902,12 @@
   function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();const standalone=state.editor.entity?.standalone;status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(standalone?'✓ 草稿已保存':(state.editor.entity.id?'✓ 已保存到本地':'尚未保存'));}
   function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
   async function saveProblem(event){event?.preventDefault();if(state.busy||!state.editor)return;const form=$('#problem-form');if(!validateRequiredFields(form))return;const data=readProblemForm();
-    commitCphFields();const testsToSave=state.editor.tests.map(item=>({input:item.input,output:item.output}));const testsDirty=cphTestsDirty();
+    commitCphFields();const testsToSave=state.editor.tests.map(item=>({input:item.input,output:item.output}));
+    const caseControls=Array.from(main.querySelectorAll('.cph-runner input,.cph-runner textarea,.cph-runner button:not([data-stop-cph])'));
+    const caseDisabled=caseControls.map(el=>el.disabled);caseControls.forEach(el=>{el.disabled=true;});
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
-    try{const old=state.editor.entity;if(old.id&&testsDirty)await api(`/api/problems/${encodeURIComponent(old.id)}/tests`,'PUT',{tests:testsToSave});const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,...(old.id?{version:old.version}:{})});if(!old.id&&testsDirty)await api(`/api/problems/${encodeURIComponent(saved.problem.id)}/tests`,'PUT',{tests:testsToSave});await loadState();state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');}
-    catch(e){showEditorError(e);}finally{state.busy=false;$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
+    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;await loadState().catch(error=>toast('已保存；刷新列表失败：'+error.message,true));state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');}
+    catch(e){showEditorError(e);}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   async function saveSnippet(event){
     event?.preventDefault();if(state.busy||!state.editor||state.editor.kind!=='snippet')return;
@@ -1469,7 +1476,7 @@
     if(e.target.closest('.field'))clearFieldError(e.target);
     if(e.target.id.startsWith('filter-')&&e.target.id!=='filter-query'){
       const key=e.target.id.replace('filter-','');state.filter[key]=e.target.value;
-      if(key==='platform') {state.filter.contest='';const sel=$('#filter-contest');if(sel)sel.innerHTML=option('','全部比赛','')+option('none','未关联比赛','')+state.contests.filter(c=>!state.filter.platform||c.platform===state.filter.platform).map(c=>option(c.id,c.title,'')).join('');}updateTable();
+      if(key==='platform') {state.filter.contest='';const sel=$('#filter-contest');if(sel)sel.innerHTML=option('','全部比赛','')+option('none','未关联比赛','')+state.contests.filter(c=>!state.filter.platform||platformKey(c.platform)===platformKey(state.filter.platform)).map(c=>option(c.id,c.title,'')).join('');}updateTable();
     }else if(e.target.id==='contest-platform')updateContests();
     else if(e.target.id==='algorithm-category')updateAlgorithms();
     else if(e.target.id==='contest-form-platform'){e.target.value=canonicalPlatformValue(e.target.value);clearFieldError(e.target);}

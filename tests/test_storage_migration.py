@@ -232,6 +232,7 @@ class StorageMigrationTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
 
+    @unittest.skipUnless(os.name == "nt", "Windows data directory")
     def test_default_data_dir_is_outside_localappdata(self):
         profile = self.root / "User"
         local = profile / "AppData" / "Local"

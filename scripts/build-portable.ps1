@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.2.0",
+    [string]$Version = "2.2.1",
     [string]$OutputRoot
 )
 
@@ -25,6 +25,7 @@ $requiredFiles = @(
     "使用说明.txt",
     "CHANGELOG.md",
     "TEST_REPORT.md",
+    "LOCAL_FIXES.md",
     "THIRD_PARTY.txt",
     "LICENSE-PENDING.md",
     "ACM-ICPC-Windows.ico"

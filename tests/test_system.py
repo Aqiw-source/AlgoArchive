@@ -192,7 +192,7 @@ class SystemTests(unittest.TestCase):
         saved = self.request(
             "PUT",
             f"/api/problems/{problem['id']}/tests",
-            {"tests": tests},
+            {"tests": tests, "version": problem["version"]},
         )["tests"]
         self.assertEqual(
             [{"input": item["input"], "output": item["output"]} for item in saved],

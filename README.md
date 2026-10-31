@@ -11,8 +11,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.2.0-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.2.0-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.2.1-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.2.1-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -91,7 +91,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.2.0-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.2.1-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -243,7 +243,7 @@ data/
 - 多行选择采用 VS Code 风格的整行蓝色选区，滚动条使用紧凑灰色样式。
 - 单份代码上限为 2 MiB。
 
-编辑器只管理代码，不编译、运行或判题。
+编辑器负责保存代码；页面下方的 CPH 测试区可调用本机 g++ 编译和运行用例，不会提交到在线评测。
 
 ## 日志与诊断
 
@@ -305,13 +305,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.0
+.\scripts\build-portable.ps1 -Version 2.2.1
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.2.0
+.\scripts\build-release.ps1 -Version 2.2.1
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -323,9 +323,9 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.0 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.1 已验证：
 
-- 隔离后端测试全部通过。
+- 131 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、运行时限和输出超限。
 - `node --check web/app.js` 通过。
 - 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。
 - 小屏题库隐藏次要列，长题名正常换行且无横向溢出。
@@ -346,8 +346,8 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 - 在线提交、在线判题或远程评测。
 - Python、Java 等 CPH 非 C++ 运行器；当前本地评测聚焦 C++。
 - 代码版本历史、账号系统或云端同步。
-- 系统性修改程序目录后修复所有外部入口；便携版移动目录后应重新运行快捷
-  方式创建工具。
+- 移动程序文件夹后自动更新所有快捷方式。便携版移动后，请在新目录运行
+  `创建桌面快捷方式.bat`；开始菜单和任务栏的旧固定项需要重新固定。
 
 ## 许可证
 

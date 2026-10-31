@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.2.0"
+#define MyAppVersion "2.2.1"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "启动.bat"
 
@@ -48,6 +48,7 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\TEST_REPORT.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LOCAL_FIXES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\THIRD_PARTY.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE-PENDING.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\ACM-ICPC-Windows.ico"; DestDir: "{app}"; Flags: ignoreversion
