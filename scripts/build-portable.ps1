@@ -48,6 +48,19 @@ foreach ($name in @("runtime", "web", "licenses")) {
         throw "缺少发布目录: $path"
     }
 }
+$runtimePth = Join-Path $projectRoot "runtime\python313._pth"
+if (-not (Test-Path -LiteralPath $runtimePth -PathType Leaf)) {
+    throw "缺少内置 Python 路径文件: $runtimePth"
+}
+$runtimePthLines = @(Get-Content -LiteralPath $runtimePth)
+if (-not ($runtimePthLines | Where-Object { $_.Trim() -eq ".." })) {
+    $runtimePthLines += ".."
+    [System.IO.File]::WriteAllLines(
+        $runtimePth,
+        $runtimePthLines,
+        (New-Object System.Text.ASCIIEncoding)
+    )
+}
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 if (Test-Path -LiteralPath $staging) {
@@ -78,6 +91,15 @@ Get-ChildItem -LiteralPath $staging -Recurse -File |
         $text = $text -replace "`n", "`r`n"
         [System.IO.File]::WriteAllText($_.FullName, $text, $utf8NoBom)
     }
+
+$bundledPython = Join-Path $staging "runtime\python.exe"
+$runtimeProbe = @(
+    & $bundledPython -X utf8 -c "import app, cph_runner; print(app.APP_VERSION)" 2>&1
+)
+$runtimeProbeText = ($runtimeProbe -join "`n").Trim()
+if ($LASTEXITCODE -ne 0 -or $runtimeProbeText -ne $Version) {
+    throw "内置 Python 无法导入应用模块或版本不一致: $runtimeProbeText"
+}
 
 $screenshots = Join-Path $projectRoot "docs\screenshots"
 if (Test-Path -LiteralPath $screenshots -PathType Container) {

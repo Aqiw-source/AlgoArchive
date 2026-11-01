@@ -34,6 +34,7 @@ try {
         "web/platform-icons/luogu.png",
         "web/platform-icons/niuke.png",
         "web/platform-icons/SOURCES.md",
+        "runtime/python313._pth",
         "runtime/python.exe",
         "README.md",
         "使用说明.txt",
@@ -64,6 +65,24 @@ try {
                 throw "发布包包含禁止内容: $entry"
             }
         }
+    }
+    $runtimePthEntry = $archive.GetEntry("runtime/python313._pth")
+    $reader = New-Object System.IO.StreamReader(
+        $runtimePthEntry.Open(),
+        [System.Text.Encoding]::UTF8
+    )
+    try {
+        $runtimePthText = $reader.ReadToEnd()
+    } finally {
+        $reader.Dispose()
+    }
+    $runtimePaths = @(
+        $runtimePthText -split "\r?\n" |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ }
+    )
+    if (-not ($runtimePaths -contains "..")) {
+        throw "发布包未将父程序目录加入内置 Python 搜索路径"
     }
 } finally {
     $archive.Dispose()

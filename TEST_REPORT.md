@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：137 项通过。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
+结果：138 项通过。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
 
 覆盖范围包括：
 
@@ -32,6 +32,7 @@ python -X utf8 -m unittest discover -s tests -v
 - 大输入不读或慢读、停止并发、父进程退出后的子进程与管道回收。
 - stdout/stderr 截断标记；实际 g++ 验证正确前缀追加错误内容不再通过。
 - 单个及整套 CPH 用例 UTF-8 大小上限、无效备份清单对象校验。
+- 发布包嵌入式 Python 能直接导入 `app` 和 `cph_runner`，并校验 `.pth` 包含父程序目录。
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。
 - 全局题目、算法内题目、算法卡片和比赛卡片拖动排序、逆序和版本冲突。
 - CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。

@@ -252,6 +252,21 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("web/platform-icons/acwing.png", verifier)
         self.assertIn("web/nav-icons/home.png", verifier)
 
+    def test_release_packaging_checks_bundled_runtime_imports(self):
+        root = Path(__file__).resolve().parents[1]
+        portable = (root / "scripts" / "build-portable.ps1").read_text(
+            encoding="utf-8"
+        )
+        verifier = (root / "scripts" / "verify-release.ps1").read_text(
+            encoding="utf-8"
+        )
+        self_check = (root / "self_check.py").read_text(encoding="utf-8")
+
+        self.assertIn("python313._pth", portable)
+        self.assertIn("import app, cph_runner", portable)
+        self.assertIn('$runtimePaths -contains ".."', verifier)
+        self.assertIn("import app, cph_runner", self_check)
+
     def test_self_check_is_a_lightweight_production_smoke_check(self):
         self_check = (
             Path(__file__).resolve().parents[1] / "self_check.py"

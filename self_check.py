@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import traceback
@@ -31,6 +32,29 @@ def main():
         require((ROOT / relative).is_file(), f"缺少必要文件：{relative}")
     print("核心文件检查：通过", flush=True)
     bundled_runtime = ROOT / "runtime" / "python.exe"
+    if bundled_runtime.is_file():
+        probe = subprocess.run(
+            [
+                str(bundled_runtime),
+                "-X",
+                "utf8",
+                "-c",
+                "import app, cph_runner",
+            ],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+            check=False,
+        )
+        require(
+            probe.returncode == 0,
+            "内置 Python 无法导入程序模块："
+            + (probe.stderr or probe.stdout or "没有返回详细信息").strip(),
+        )
+        print("内置 Python 模块导入：通过", flush=True)
     print(
         "运行环境：发布包" if bundled_runtime.is_file() else "运行环境：开发 Python",
         flush=True,
