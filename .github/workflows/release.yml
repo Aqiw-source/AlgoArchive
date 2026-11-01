@@ -1,0 +1,77 @@
+name: Publish Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Verify tag and application version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $source = Get-Content -LiteralPath ".\app.py" -Raw
+          if ($source -notmatch 'APP_VERSION = "([0-9]+\.[0-9]+\.[0-9]+)"') {
+              throw "Unable to read APP_VERSION from app.py"
+          }
+          if ($Matches[1] -ne $version) {
+              throw "Tag version $version does not match app.py $($Matches[1])"
+          }
+      - name: Backend tests
+        run: python -X utf8 -m unittest discover -s tests -v
+      - name: Frontend syntax
+        run: node --check web/app.js
+      - name: Prepare bundled Python runtime
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "python-3.13.9-embed-amd64.zip"
+          $expected = "91d828c2da3a029b41699e918674a0cb379c02cf20dab9c501306885f837402a"
+          Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.13.9/python-3.13.9-embed-amd64.zip" -OutFile $archive
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+              throw "Python runtime SHA-256 mismatch: $actual"
+          }
+          New-Item -ItemType Directory -Path ".\runtime" -Force | Out-Null
+          Expand-Archive -LiteralPath $archive -DestinationPath ".\runtime" -Force
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build release artifacts
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          .\scripts\build-release.ps1 -Version $version
+      - name: Publish release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $assets = @(
+              "dist\AlgoArchive-$version-Windows-x64.zip",
+              "dist\AlgoArchive-$version-Windows-x64.zip.sha256",
+              "dist\AlgoArchive-$version-Windows-x64-Setup.exe",
+              "dist\AlgoArchive-$version-Windows-x64-Setup.exe.sha256"
+          )
+          $notes = ".github\release-notes\$version.md"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+              gh release upload $tag $assets --repo $env:GITHUB_REPOSITORY --clobber
+              gh release edit $tag --repo $env:GITHUB_REPOSITORY --title "AlgoArchive $version" --notes-file $notes
+          } else {
+              gh release create $tag $assets --repo $env:GITHUB_REPOSITORY --title "AlgoArchive $version" --notes-file $notes --verify-tag
+          }

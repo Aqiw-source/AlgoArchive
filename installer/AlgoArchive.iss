@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.2.1"
+#define MyAppVersion "2.2.2"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "start.bat"
 

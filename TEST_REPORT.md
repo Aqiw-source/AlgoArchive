@@ -1,8 +1,8 @@
 # 交付验证记录
 
-版本：2.2.1
+版本：2.2.2
 
-验证日期：2026-10-31
+验证日期：2026-11-01
 
 执行环境：
 
@@ -117,8 +117,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.1
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.1-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.2.2
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.2-Windows-x64.zip
 ```
 
 结果：
