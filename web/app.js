@@ -988,7 +988,10 @@
           language:'cpp',
           contest:'',
           algorithm:'树状数组',
-          code:'#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    return 0;\n}\n'
+          code:'#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    return 0;\n}\n',
+          tests:[
+            {input:'1\n',output:'1\n'}
+          ]
         }
       ]
     };
@@ -1001,7 +1004,7 @@
   }
   function openProblemImport(){
     let importItems=[];
-    modal.innerHTML=`<form id="problem-import-form" novalidate>${dialogHeader('导入题目')}<div class="modal-body"><p>选择 JSON 文件，单次最多导入 200 道题目。</p><div class="import-file-picker"><input type="file" id="problem-import-file" accept=".json,application/json" hidden><button type="button" class="btn" data-choose-import-file>选择 JSON 文件</button><span id="problem-import-file-name">尚未选择文件</span></div><div class="import-format"><code>{ platform, number, name, url, language, code, contest, algorithm }</code><button type="button" class="text-link" data-download-import-sample>下载示例</button></div><div id="dialog-error" class="error-text" role="alert"></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary" disabled>导入</button></div></form>`;
+    modal.innerHTML=`<form id="problem-import-form" novalidate>${dialogHeader('导入题目')}<div class="modal-body"><p>选择 JSON 文件，单次最多导入 200 道题目。测试用例会随题目一起保存。</p><div class="import-file-picker"><input type="file" id="problem-import-file" accept=".json,application/json" hidden><button type="button" class="btn" data-choose-import-file>选择 JSON 文件</button><span id="problem-import-file-name">尚未选择文件</span></div><div class="import-format"><code>{ platform, number, name, url, language, code, contest, algorithm, tests }</code><button type="button" class="text-link" data-download-import-sample>下载示例</button></div><div id="dialog-error" class="error-text" role="alert"></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary" disabled>导入</button></div></form>`;
     modal.showModal();
     const form=$('#problem-import-form');
     const fileInput=$('#problem-import-file');
@@ -1038,9 +1041,11 @@
       showError('');
       try{
         const result=await api('/api/problems/import','POST',{problems:importItems});
+        const warnings=Array.isArray(result.warnings)?result.warnings:[];
         setModalBusy(false);
         closeModal();
-        toast(`已导入 ${result.count} 道题目。`);
+        const warningSummary=warnings.length?` ${warnings.slice(0,3).join(' ')}${warnings.length>3?' …':''}`:'';
+        toast(`已导入 ${result.count} 道题目。${warningSummary}`,warnings.length>0);
         await go('problems',{force:true});
       }catch(error){
         setModalBusy(false);

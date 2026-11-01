@@ -2482,6 +2482,7 @@ class Repository:
             prepared = []
             seen = set()
             algorithm_counters = {}
+            warnings = []
             global_start = self._next_problem_global_order()
             for index, raw_item in enumerate(items):
                 if not isinstance(raw_item, dict):
@@ -2491,6 +2492,23 @@ class Repository:
                 algorithm_name = item.pop(
                     "algorithm", item.pop("algorithm_name", None)
                 )
+                known_fields = {
+                    "platform",
+                    "number",
+                    "name",
+                    "url",
+                    "language",
+                    "code",
+                    "contest_id",
+                    "algorithm_id",
+                    "tests",
+                }
+                ignored_fields = sorted(set(item) - known_fields)
+                if ignored_fields:
+                    warnings.append(
+                        f"第 {index + 1} 道题目未识别字段："
+                        + ", ".join(ignored_fields)
+                    )
                 contest = None
                 contest_id = item.get("contest_id")
                 if contest_id is not None and contest_id != "":
@@ -2546,6 +2564,7 @@ class Repository:
                 item.setdefault("code", "")
                 try:
                     values, encoded = self._validate_problem(item)
+                    tests = self._validated_tests(item) if "tests" in item else []
                     self._duplicate(values)
                 except AppError as exc:
                     raise AppError(
@@ -2574,6 +2593,7 @@ class Repository:
                     {
                         "values": values,
                         "encoded": encoded,
+                        "tests": tests,
                         "algorithm_order": algorithm_order,
                     }
                 )
@@ -2623,6 +2643,11 @@ class Repository:
                         "VALUES ('write',?,?)",
                         (path, prepared_item["encoded"]),
                     )
+                    self._write_problem_tests(
+                        identifier,
+                        prepared_item["tests"],
+                        timestamp,
+                    )
                 contest_ids = {
                     item["values"]["contest_id"] for item in prepared
                 } - {None}
@@ -2642,6 +2667,7 @@ class Repository:
                 "count": len(identifiers),
                 "problem_ids": identifiers,
                 "problem_order_version": next_version,
+                "warnings": warnings,
             }
 
     def delete_problem(self, identifier, payload):

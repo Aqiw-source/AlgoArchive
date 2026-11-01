@@ -17,12 +17,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Backend tests
-        run: python -X utf8 -m unittest discover -s tests -v
-      - name: Frontend syntax
-        run: node --check web/app.js
-      - name: Verify native launcher dependencies
-        run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Prepare bundled Python runtime
         shell: pwsh
         run: |
@@ -35,6 +29,12 @@ jobs:
           }
           New-Item -ItemType Directory -Path ".\runtime" -Force | Out-Null
           Expand-Archive -LiteralPath $archive -DestinationPath ".\runtime" -Force
+      - name: Backend tests
+        run: python -X utf8 -m unittest discover -s tests -v
+      - name: Frontend syntax
+        run: node --check web/app.js
+      - name: Verify native launcher dependencies
+        run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Build portable package
         shell: pwsh
         run: .\scripts\build-portable.ps1

@@ -1133,6 +1133,69 @@ class SystemTests(unittest.TestCase):
         self.request("POST", "/api/problems/import", duplicate, expected=409)
         self.assertEqual(self.source_files(), before)
 
+    def test_problem_import_persists_tests_and_warns_for_ignored_fields(self):
+        payload = {
+            "problems": [
+                {
+                    "platform": "Codeforces",
+                    "number": "A",
+                    "name": "JSON 用例导入",
+                    "url": "https://codeforces.com/contest/2000/problem/A",
+                    "language": "cpp",
+                    "code": "int main() { return 0; }\n",
+                    "tests": [
+                        {"input": "1\n", "output": "2\n"},
+                        {"input": "3\n", "output": "4\n"},
+                    ],
+                    "import_note": "not persisted",
+                }
+            ]
+        }
+        result = self.request(
+            "POST",
+            "/api/problems/import",
+            payload,
+            expected=201,
+        )
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(len(result["warnings"]), 1)
+        self.assertIn("import_note", result["warnings"][0])
+
+        imported = self.request(
+            "GET",
+            "/api/problems/" + result["problem_ids"][0],
+        )["problem"]
+        self.assertEqual(
+            [
+                {
+                    "ordinal": item["ordinal"],
+                    "input": item["input"],
+                    "output": item["output"],
+                }
+                for item in imported["tests"]
+            ],
+            [
+                {"ordinal": 0, "input": "1\n", "output": "2\n"},
+                {"ordinal": 1, "input": "3\n", "output": "4\n"},
+            ],
+        )
+
+        before = self.request("GET", "/api/state")["stats"]["problem_count"]
+        invalid = {
+            "problems": [
+                {
+                    "platform": "Codeforces",
+                    "number": "B",
+                    "name": "无效用例",
+                    "url": "https://codeforces.com/contest/2000/problem/B",
+                    "tests": "not-a-list",
+                }
+            ]
+        }
+        self.request("POST", "/api/problems/import", invalid, expected=400)
+        after = self.request("GET", "/api/state")["stats"]["problem_count"]
+        self.assertEqual(after, before)
+
     def test_stale_algorithm_and_snippet_updates_are_rejected(self):
         algorithm = self.algorithm()
         snippet = self.snippet(algorithm["id"])

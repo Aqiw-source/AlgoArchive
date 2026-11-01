@@ -57,7 +57,11 @@ class BrowserLauncherTests(unittest.TestCase):
         create.assert_called_once_with()
         start.assert_called_once_with(["--port", "18765", "--no-browser"])
 
-    @unittest.skipUnless(os.name == "nt", "Windows command-line passthrough")
+    @unittest.skipUnless(
+        os.name == "nt"
+        and (Path(__file__).resolve().parents[1] / "runtime" / "python.exe").is_file(),
+        "packaged Windows runtime",
+    )
     def test_batch_forwards_paths_ports_and_flags_to_application(self):
         root = Path(__file__).resolve().parents[1]
         with socket.socket() as probe:
@@ -255,6 +259,15 @@ class BrowserLauncherTests(unittest.TestCase):
             "bindShortcutSettings();",
             script[script.index("function bindAboutSettings"):],
         )
+
+    def test_problem_import_documents_tests_and_warnings(self):
+        script = (
+            Path(__file__).resolve().parents[1] / "web" / "app.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("tests:[", script)
+        self.assertIn("tests }</code>", script)
+        self.assertIn("result.warnings", script)
+        self.assertIn("测试用例会随题目一起保存", script)
 
     def test_frontend_preserves_edits_and_binds_async_results(self):
         script = (

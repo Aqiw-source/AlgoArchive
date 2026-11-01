@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：141 项全部通过，耗时 130.82 秒。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
+结果：143 项全部通过，耗时 148.12 秒。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
 
 覆盖范围包括：
 
@@ -33,6 +33,7 @@ python -X utf8 -m unittest discover -s tests -v
 - stdout/stderr 截断标记；实际 g++ 验证正确前缀追加错误内容不再通过。
 - 单个及整套 CPH 用例 UTF-8 大小上限、无效备份清单对象校验。
 - 发布包嵌入式 Python 能直接导入 `app` 和 `cph_runner`，并校验 `.pth` 包含父程序目录。
+- JSON 批量导入会保存题目内的测试用例；无效用例使整批导入回滚，未知字段返回可见提示。
 - `start.bat` 能在包含中文、空格、`&`、`%` 和括号的路径下透传数据目录、配置路径、端口和 `--no-browser`。
 - 原生启动器只导入 Windows 系统 DLL，不依赖未随包分发的 MinGW GCC、libstdc++ 或 pthread DLL。
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。

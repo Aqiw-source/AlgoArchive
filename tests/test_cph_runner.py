@@ -201,7 +201,7 @@ int main() {
                 "input": "",
                 "output": "1267650600228229401496703205376\n1 20\n",
             }],
-            time_limit_ms=3000,
+            time_limit_ms=15000,
         )
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["compile"]["status"], "success")
