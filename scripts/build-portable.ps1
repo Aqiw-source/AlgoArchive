@@ -16,7 +16,7 @@ $archivePath = Join-Path $OutputRoot "$packageName.zip"
 $requiredFiles = @(
     "app.py",
     "cph_runner.py",
-    "启动.bat",
+    "start.bat",
     "创建桌面快捷方式.bat",
     "自检.bat",
     "self_check.py",

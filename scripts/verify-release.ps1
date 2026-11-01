@@ -17,7 +17,7 @@ try {
         "app.py",
         "cph_runner.py",
         "LOCAL_FIXES.md",
-        "启动.bat",
+        "start.bat",
         "自检.bat",
         "self_check.py",
         "web/index.html",

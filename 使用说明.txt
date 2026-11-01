@@ -15,8 +15,8 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 请下载 AlgoArchive-2.2.1-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
-便携版：完整解压 ZIP 后双击 启动.bat。首次启动会自动创建桌面快捷方式；
-也可以运行 创建桌面快捷方式.bat 手动刷新。不要把 启动.bat、runtime 和 web
+便携版：完整解压 ZIP 后双击 start.bat。首次启动会自动创建桌面快捷方式；
+也可以运行 创建桌面快捷方式.bat 手动刷新。不要把 start.bat、runtime 和 web
 分开移动。
 
 安装版和便携版都包含 自检.bat。需要检查程序完整性时双击运行；自检只使用

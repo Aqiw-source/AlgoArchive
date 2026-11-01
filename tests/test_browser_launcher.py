@@ -11,22 +11,22 @@ import app
 class BrowserLauncherTests(unittest.TestCase):
     def test_windows_launchers_use_saved_config_instead_of_forced_data_dir(self):
         root = Path(__file__).resolve().parents[1]
-        launcher = root / "启动.bat"
+        launcher = root / "start.bat"
         content = launcher.read_text(encoding="utf-8")
         normalized = content.casefold().replace("/", "\\")
         self.assertNotIn("--data-dir", normalized)
         self.assertNotIn("algoarchive_data", normalized)
-        self.assertFalse((root / "start.bat").exists())
+        self.assertFalse((root / "启动.bat").exists())
 
     def test_windows_launchers_refresh_desktop_shortcut(self):
         root = Path(__file__).resolve().parents[1]
-        content = (root / "启动.bat").read_text(encoding="utf-8")
+        content = (root / "start.bat").read_text(encoding="utf-8")
         shortcut_script = (
             root / "scripts" / "create-desktop-shortcut.ps1"
         ).read_text(encoding="utf-8")
         self.assertIn("create-desktop-shortcut.ps1", content)
         self.assertIn("-ShortcutName", content)
-        self.assertIn("'启动.bat'", shortcut_script)
+        self.assertIn("'start.bat'", shortcut_script)
 
     def test_installer_skips_data_page_when_selection_cannot_apply(self):
         installer = (
@@ -177,7 +177,7 @@ class BrowserLauncherTests(unittest.TestCase):
             self.assertIn("自检.bat", manifest)
             self.assertIn("self_check.py", manifest)
         for manifest in (portable, installer):
-            self.assertNotIn("start.bat", manifest)
+            self.assertNotIn("启动.bat", manifest)
         self.assertIn("web/platform-icons/acwing.png", verifier)
         self.assertIn("web/nav-icons/home.png", verifier)
 

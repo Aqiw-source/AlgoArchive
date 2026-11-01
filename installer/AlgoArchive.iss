@@ -2,7 +2,7 @@
 #define MyAppEnglishName "AlgoArchive"
 #define MyAppVersion "2.2.1"
 #define MyAppPublisher "Aqiw"
-#define MyAppExeName "启动.bat"
+#define MyAppExeName "start.bat"
 
 [Setup]
 AppId={{66E6CC98-742D-4B90-9A18-4A5125AA4F21}
@@ -39,7 +39,7 @@ Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 [Files]
 Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\启动.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\创建桌面快捷方式.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\self_check.py"; DestDir: "{app}"; Flags: ignoreversion
