@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.2.3",
+    [string]$Version = "2.2.4",
     [string]$Compiler,
     [string]$ResourceCompiler,
     [string]$OutputPath
@@ -61,6 +61,9 @@ try {
         -std=c++17 `
         -Os `
         -s `
+        -static `
+        -static-libgcc `
+        -static-libstdc++ `
         -municode `
         -mwindows `
         (Join-Path $buildRoot "AlgoArchive.cpp") `
@@ -70,6 +73,36 @@ try {
         -o $OutputPath
     if ($LASTEXITCODE -ne 0) {
         throw "Launcher compilation failed with exit code $LASTEXITCODE"
+    }
+
+    $objdump = Join-Path (Split-Path -Parent $Compiler) "objdump.exe"
+    if (-not (Test-Path -LiteralPath $objdump -PathType Leaf)) {
+        $objdump = (Get-Command objdump.exe -ErrorAction Stop).Source
+    }
+    $importDump = & $objdump -p $OutputPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to inspect launcher imports with objdump"
+    }
+    $imports = @(
+        [regex]::Matches(
+            ($importDump -join "`n"),
+            "DLL Name:\s*([^\r\n]+)"
+        ) | ForEach-Object {
+            $_.Groups[1].Value.Trim().ToLowerInvariant()
+        }
+    )
+    $forbiddenImports = @(
+        $imports | Where-Object {
+            $_ -match "^libgcc_s_" -or
+            $_ -match "^libstdc\+\+-" -or
+            $_ -match "^libwinpthread-"
+        }
+    )
+    if ($forbiddenImports.Count -gt 0) {
+        throw (
+            "Launcher still depends on unbundled MinGW runtime DLLs: " +
+            ($forbiddenImports -join ", ")
+        )
     }
 } finally {
     if (Test-Path -LiteralPath $buildRoot) {

@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.2.3"
+#define MyAppVersion "2.2.4"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "AlgoArchive.exe"
 
@@ -42,6 +42,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\AlgoArchive.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -74,6 +75,17 @@ var
 function NormalizeDirectory(Value: String): String;
 begin
   Result := RemoveBackslashUnlessRoot(Trim(Value));
+end;
+
+function IsAbsoluteDirectory(Value: String): Boolean;
+begin
+  Result :=
+    (Copy(Value, 1, 2) = '\\') or
+    (
+      (Length(Value) >= 3) and
+      (Value[2] = ':') and
+      ((Value[3] = '\') or (Value[3] = '/'))
+    );
 end;
 
 function DirectoryContains(ParentDir, ChildDir: String): Boolean;
@@ -137,6 +149,12 @@ begin
     Result := False;
     Exit;
   end;
+  if not IsAbsoluteDirectory(DataDir) then
+  begin
+    MsgBox('数据目录必须是完整路径。', mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
   if DirectoryContains(AppDir, DataDir) or DirectoryContains(DataDir, AppDir) then
   begin
     MsgBox('程序目录与数据目录不能相同，也不能互相包含。', mbError, MB_OK);
@@ -157,11 +175,12 @@ begin
     Exit;
   end;
   DeleteFile(ProbeFile);
+  DataDirPage.Values[0] := DataDir;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  ConfigDir, ConfigPath: String;
+  ConfigDir, ConfigPath, DataDir: String;
   ConfigLines: TArrayOfString;
 begin
   if CurStep <> ssPostInstall then
@@ -173,16 +192,33 @@ begin
     Exit;
   ConfigDir := ExtractFileDir(ConfigPath);
   if not ForceDirectories(ConfigDir) then
+  begin
+    MsgBox(
+      '程序已安装，但无法创建用户配置目录。请检查当前账户权限后重新安装或手动创建配置。',
+      mbError,
+      MB_OK
+    );
+    Abort;
     Exit;
+  end;
+  DataDir := NormalizeDirectory(DataDirPage.Values[0]);
   SetArrayLength(ConfigLines, 9);
   ConfigLines[0] := '{';
   ConfigLines[1] := '  "format": 1,';
-  ConfigLines[2] := '  "data_dir": "' + JsonEscape(DataDirPage.Values[0]) + '",';
+  ConfigLines[2] := '  "data_dir": "' + JsonEscape(DataDir) + '",';
   ConfigLines[3] := '  "browser": {';
   ConfigLines[4] := '    "mode": "default",';
   ConfigLines[5] := '    "custom_path": "",';
   ConfigLines[6] := '    "window_mode": "tab"';
   ConfigLines[7] := '  }';
   ConfigLines[8] := '}';
-  SaveStringsToUTF8FileWithoutBOM(ConfigPath, ConfigLines, False);
+  if not SaveStringsToUTF8FileWithoutBOM(ConfigPath, ConfigLines, False) then
+  begin
+    MsgBox(
+      '程序已安装，但无法保存用户配置。请检查当前账户权限后重新安装或手动创建配置。',
+      mbError,
+      MB_OK
+    );
+    Abort;
+  end;
 end;

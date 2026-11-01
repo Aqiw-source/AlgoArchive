@@ -23,6 +23,7 @@ def main():
     required_files = (
         "app.py",
         "cph_runner.py",
+        "run.py",
         "AlgoArchive.exe",
         "web/index.html",
         "web/app.js",

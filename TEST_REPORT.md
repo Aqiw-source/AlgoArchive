@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.2.3
+版本：2.2.4
 
 验证日期：2026-11-01
 
@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：138 项通过。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
+结果：141 项全部通过，耗时 130.82 秒。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
 
 覆盖范围包括：
 
@@ -33,6 +33,8 @@ python -X utf8 -m unittest discover -s tests -v
 - stdout/stderr 截断标记；实际 g++ 验证正确前缀追加错误内容不再通过。
 - 单个及整套 CPH 用例 UTF-8 大小上限、无效备份清单对象校验。
 - 发布包嵌入式 Python 能直接导入 `app` 和 `cph_runner`，并校验 `.pth` 包含父程序目录。
+- `start.bat` 能在包含中文、空格、`&`、`%` 和括号的路径下透传数据目录、配置路径、端口和 `--no-browser`。
+- 原生启动器只导入 Windows 系统 DLL，不依赖未随包分发的 MinGW GCC、libstdc++ 或 pthread DLL。
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。
 - 全局题目、算法内题目、算法卡片和比赛卡片拖动排序、逆序和版本冲突。
 - CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。
@@ -119,8 +121,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.3
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.3-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.2.4
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.4-Windows-x64.zip
 ```
 
 结果：
@@ -128,12 +130,15 @@ node --check web/app.js
 - 便携 ZIP 构建成功，并生成同名 `.sha256` 校验文件。
 - 发布包隐私和文件清单检查通过。
 - 发布包包含 `cph_runner.py`、CPH 第三方声明和完整 GPL 许可证副本。
+- 启动器 PE 导入表检查通过，没有再引入 MinGW 运行库依赖。
 
 ## 安装包设计验证
 
 - 安装向导提供当前用户/所有用户权限选择。
 - 程序目录可在向导中自由选择。
 - 数据目录页只在当前用户安装且尚无配置时出现，所选目录会写入用户配置。
+- 数据目录必须是完整路径，保存前统一应用首尾空白和尾随反斜杠规范化。
+- 配置目录创建或 UTF-8 配置写入失败时会显示错误并终止安装，不再静默完成。
 - 程序目录与数据目录包含关系和写入权限在继续前检查。
 - 当前用户安装仅在配置文件不存在时写入初始数据路径。
 - 所有用户安装和已有配置场景不显示数据目录页，也不会忽略用户选择。

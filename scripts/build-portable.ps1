@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.2.3",
+    [string]$Version = "2.2.4",
     [string]$OutputRoot
 )
 
@@ -16,6 +16,7 @@ $archivePath = Join-Path $OutputRoot "$packageName.zip"
 $requiredFiles = @(
     "app.py",
     "cph_runner.py",
+    "run.py",
     "AlgoArchive.exe",
     "start.bat",
     "自检.bat",
@@ -41,6 +42,23 @@ foreach ($property in @("FileVersion", "ProductVersion")) {
     if ($actualVersion -ne $Version) {
         throw "AlgoArchive.exe 的 $property 是 '$actualVersion'，与发布版本 '$Version' 不一致；请先重新生成启动器。"
     }
+}
+$launcherVerifier = Join-Path $projectRoot "scripts\verify-launcher.py"
+if (-not (Test-Path -LiteralPath $launcherVerifier -PathType Leaf)) {
+    throw "缺少启动器依赖检查脚本: $launcherVerifier"
+}
+$python = (Get-Command python.exe -ErrorAction Stop).Source
+$launcherProbe = @(
+    & $python `
+        -X utf8 `
+        $launcherVerifier `
+        (Join-Path $projectRoot "AlgoArchive.exe") 2>&1
+)
+if ($LASTEXITCODE -ne 0) {
+    throw (
+        "原生启动器依赖检查失败；请重新生成静态链接启动器。" +
+        (($launcherProbe -join "`n").Trim())
+    )
 }
 foreach ($name in @("runtime", "web", "licenses")) {
     $path = Join-Path $projectRoot $name

@@ -34,6 +34,8 @@ jobs:
         run: python -X utf8 -m unittest discover -s tests -v
       - name: Frontend syntax
         run: node --check web/app.js
+      - name: Verify native launcher dependencies
+        run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Prepare bundled Python runtime
         shell: pwsh
         run: |

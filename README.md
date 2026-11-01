@@ -11,8 +11,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.2.3-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.2.3-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.2.4-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.2.4-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -91,7 +91,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.2.3-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.2.4-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -306,27 +306,27 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.3
+.\scripts\build-portable.ps1 -Version 2.2.4
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.2.3
+.\scripts\build-release.ps1 -Version 2.2.4
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
 用户代码、头像、`runtime.lock`、旧 `.lnk`、备份、缓存和测试目录。
 
-Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Python 运行时，
-然后构建便携包并检查发布包隐私。
+Windows CI 会执行后端测试、前端语法检查、启动器 PE 依赖检查，下载并校验
+官方 Python 运行时，然后构建便携包并检查发布包隐私。
 版本号、安装器元数据和 Release 标签应在发布时保持一致。
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.3 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.4 已验证：
 
-- 138 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、运行时限、输出超限和用例总大小限制。
+- 141 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、运行时限、输出超限和用例总大小限制。
 - `node --check web/app.js` 通过。
 - 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。
 - 小屏题库隐藏次要列，长题名正常换行且无横向溢出。
@@ -336,6 +336,8 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 - CPH 面板、多用例、`.prob` 导入导出、本地运行和编译器诊断在桌面及
   390px 移动视口正常，无控制台错误和横向溢出。
 - 便携 ZIP 成功生成并通过发布内容与隐私检查。
+- 原生启动器不再依赖 MinGW GCC 或 libstdc++ DLL，且 `start.bat` 能透传
+  端口、数据目录、配置路径和禁用浏览器参数。
 
 真实用户数据不会在自动化测试中使用。
 

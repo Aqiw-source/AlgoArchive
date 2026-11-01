@@ -16,6 +16,7 @@ try {
     $required = @(
         "app.py",
         "cph_runner.py",
+        "run.py",
         "LOCAL_FIXES.md",
         "AlgoArchive.exe",
         "start.bat",

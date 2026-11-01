@@ -2,10 +2,18 @@
 
 from pathlib import Path
 import os
+import re
+import socket
+import subprocess
+import sys
+import tempfile
+import time
 import unittest
 from unittest import mock
+import urllib.request
 
 import app
+import run
 
 
 class BrowserLauncherTests(unittest.TestCase):
@@ -23,17 +31,109 @@ class BrowserLauncherTests(unittest.TestCase):
     def test_windows_launcher_supports_explicit_desktop_shortcut(self):
         root = Path(__file__).resolve().parents[1]
         content = (root / "start.bat").read_text(encoding="utf-8")
+        runner = (root / "run.py").read_text(encoding="utf-8")
         shortcut_script = (
             root / "scripts" / "create-desktop-shortcut.ps1"
         ).read_text(encoding="utf-8")
-        self.assertIn("create-desktop-shortcut.ps1", content)
-        self.assertIn('if /I "%~1"=="--create-shortcut"', content)
-        self.assertIn("-IncludeStartMenu", content)
-        self.assertNotIn("-ShortcutName", content)
+        self.assertIn('"run.py" %*', content)
+        self.assertIn("--create-shortcut", runner)
+        self.assertIn("create_desktop_shortcut()", runner)
         self.assertIn("0x7B97, 0x6CD5, 0x6863, 0x6848", shortcut_script)
         self.assertIn("'AlgoArchive.exe'", shortcut_script)
         self.assertIn("$shortcut.Arguments = ''", shortcut_script)
         self.assertIn("Microsoft\\Windows\\Start Menu\\Programs", shortcut_script)
+
+    def test_runner_consumes_only_the_leading_shortcut_flag(self):
+        with mock.patch(
+            "run.app.create_desktop_shortcut",
+            return_value={"message": "shortcuts ready"},
+        ) as create:
+            with mock.patch("run.app.main", return_value=7) as start:
+                with mock.patch("builtins.print"):
+                    result = run.main(
+                        ["--create-shortcut", "--port", "18765", "--no-browser"]
+                    )
+        self.assertEqual(result, 7)
+        create.assert_called_once_with()
+        start.assert_called_once_with(["--port", "18765", "--no-browser"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows command-line passthrough")
+    def test_batch_forwards_paths_ports_and_flags_to_application(self):
+        root = Path(__file__).resolve().parents[1]
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        with tempfile.TemporaryDirectory(
+            prefix="algoarchive launcher 中文 "
+        ) as temp:
+            temp_path = Path(temp)
+            data = temp_path / "题库 & 100% 数据"
+            config = temp_path / "配置 (100%).json"
+            process = subprocess.Popen(
+                [
+                    "cmd.exe",
+                    "/d",
+                    "/c",
+                    "start.bat",
+                    "--data-dir",
+                    str(data),
+                    "--config-path",
+                    str(config),
+                    "--port",
+                    str(port),
+                    "--no-browser",
+                ],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            try:
+                deadline = time.monotonic() + 15
+                html = None
+                while time.monotonic() < deadline:
+                    if process.poll() is not None:
+                        break
+                    try:
+                        with urllib.request.urlopen(
+                            f"http://127.0.0.1:{port}/", timeout=0.5
+                        ) as response:
+                            html = response.read().decode("utf-8")
+                        break
+                    except OSError:
+                        time.sleep(0.05)
+                self.assertIsNotNone(
+                    html,
+                    process.stdout.read().decode("utf-8", errors="replace")
+                    if process.poll() is not None
+                    else "batch launcher did not forward --port",
+                )
+                self.assertTrue((data / "archive.sqlite3").is_file())
+                token = re.search(
+                    r'<meta\s+name=["\']csrf-token["\']\s+content=["\']([^"\']+)',
+                    html,
+                ).group(1)
+                request = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/shutdown",
+                    b"{}",
+                    {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Token": token,
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=5):
+                    pass
+                process.communicate(timeout=10)
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.communicate(timeout=5)
+                elif process.stdout and not process.stdout.closed:
+                    process.stdout.close()
 
     @unittest.skipUnless(os.name == "nt", "Windows desktop shortcut")
     @mock.patch("app.subprocess.run")
@@ -65,6 +165,44 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("请先重新生成启动器", portable)
         self.assertIn("AlgoArchive.exe", installer)
 
+    def test_native_launcher_has_no_bundled_toolchain_dependencies(self):
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                str(root / "scripts" / "verify-launcher.py"),
+                str(root / "AlgoArchive.exe"),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            (result.stdout + result.stderr).strip(),
+        )
+        build_script = (
+            root / "launcher" / "build-launcher.ps1"
+        ).read_text(encoding="utf-8")
+        portable = (
+            root / "scripts" / "build-portable.ps1"
+        ).read_text(encoding="utf-8")
+        for flag in ("-static", "-static-libgcc", "-static-libstdc++"):
+            self.assertIn(flag, build_script)
+        self.assertIn("verify-launcher.py", portable)
+        self.assertIn("$launcherProbe = @(", portable)
+        for workflow in ("windows.yml", "release.yml"):
+            content = (
+                root / ".github" / "workflows" / workflow
+            ).read_text(encoding="utf-8")
+            self.assertIn("verify-launcher.py", content)
+
     def test_installer_skips_data_page_when_selection_cannot_apply(self):
         installer = (
             Path(__file__).resolve().parents[1] / "installer" / "AlgoArchive.iss"
@@ -75,6 +213,9 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("if IsAdminInstallMode or (DataDirPage = nil)", installer)
         self.assertIn('Name: "{autodesktop}\\{#MyAppName}"', installer)
         self.assertIn("SaveStringsToUTF8FileWithoutBOM(ConfigPath", installer)
+        self.assertIn("if not SaveStringsToUTF8FileWithoutBOM(ConfigPath", installer)
+        self.assertIn("DataDirPage.Values[0] := DataDir;", installer)
+        self.assertIn("IsAbsoluteDirectory(DataDir)", installer)
         self.assertIn('Name: "desktopicon"', installer)
         self.assertIn("Flags: unchecked", installer)
         self.assertIn("Tasks: desktopicon", installer)
@@ -246,6 +387,7 @@ class BrowserLauncherTests(unittest.TestCase):
         for manifest in (portable, verifier, installer):
             self.assertIn("自检.bat", manifest)
             self.assertIn("self_check.py", manifest)
+            self.assertIn("run.py", manifest)
         for manifest in (portable, installer):
             self.assertNotIn("启动.bat", manifest)
             self.assertNotIn("创建桌面快捷方式.bat", manifest)
