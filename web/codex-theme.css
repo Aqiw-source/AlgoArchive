@@ -1227,6 +1227,15 @@ body.card-dragging * {
   z-index: 2;
 }
 
+#highlight-code {
+  display: block;
+  font: inherit;
+}
+
+#highlight-code .tok-comment {
+  font-style: normal;
+}
+
 .code-stage textarea {
   caret-color: #000;
   z-index: 3;

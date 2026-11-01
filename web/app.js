@@ -878,14 +878,19 @@
       return result+esc(code.slice(last))+'\n';
     }
   }
+  let editorResizeObserver=null,observedCodeInput=null;
   function highlightCode() {
     const area=$('#code-input');if(!area)return;const code=area.value,lang=$('#editor-language')?.value||state.editor?.entity?.language||'cpp';
+    if(observedCodeInput!==area){
+      editorResizeObserver?.disconnect();observedCodeInput=area;
+      editorResizeObserver=new ResizeObserver(syncScroll);editorResizeObserver.observe(area);
+    }
     $('#highlight-code').innerHTML=highlightSource(code,lang);
     $('#line-numbers').textContent=Array.from({length:code.split('\n').length},(_,i)=>i+1).join('\n'); syncScroll(); updateSaveState(); requestAnimationFrame(updateSelectionBands);
   }
-  function selectionRect(measure,node,start,end){
-    if(!node||start>=end)return null;
-    const range=document.createRange();range.setStart(node,start);range.setEnd(node,end);
+  function selectionRect(node,offset){
+    if(!node)return null;
+    const range=document.createRange();range.setStart(node,offset);range.collapse(true);
     const rect=Array.from(range.getClientRects()).find(item=>item.width>0||item.height>0);
     return rect||null;
   }
@@ -909,29 +914,40 @@
     if(text.textContent!==code)text.textContent=code;
     const textNode=text.firstChild;
     Object.assign(measure.style,{font:style.font,fontFamily:style.fontFamily,fontSize:style.fontSize,fontWeight:style.fontWeight,fontStyle:style.fontStyle,lineHeight:style.lineHeight,letterSpacing:style.letterSpacing,tabSize:style.tabSize,padding:style.padding,whiteSpace:'pre'});
-    const stageRect=stage.getBoundingClientRect(),contentLeft=area.offsetLeft+paddingLeft,contentRight=area.offsetLeft+area.clientWidth;
+    const stageRect=stage.getBoundingClientRect(),scaleX=stageRect.width/parseFloat(getComputedStyle(stage).width)||1;
+    const viewportLeft=area.offsetLeft,contentLeft=viewportLeft+paddingLeft-area.scrollLeft,contentRight=viewportLeft+area.clientWidth;
+    band.style.width=`${area.clientWidth}px`;band.style.height=`${area.clientHeight}px`;
+    const endsAfterNewline=code[end-1]==='\n';
     const lineTop=index=>area.offsetTop+paddingTop+index*lineHeight-area.scrollTop;
     const endpointX=offset=>{
       const probe=Math.min(code.length,Math.max(0,offset));
-      const rect=selectionRect(measure,textNode,probe,Math.min(code.length,probe+1))||selectionRect(measure,textNode,Math.max(0,probe-1),probe);
-      return rect?rect.left-stageRect.left-area.scrollLeft:contentLeft;
+      const rect=selectionRect(textNode,probe);
+      return rect?(rect.left-stageRect.left)/scaleX-area.scrollLeft:contentLeft;
     };
     const addBand=(top,left,right,height=lineHeight)=>{
+      const safeLeft=Math.max(viewportLeft,Math.min(contentRight,left)),safeRight=Math.max(safeLeft,Math.min(contentRight,right));
+      if(safeRight<=safeLeft)return;
       const block=document.createElement('div');block.className='code-selection-block';
-      const safeLeft=Math.max(contentLeft,Math.min(contentRight,left)),safeRight=Math.max(safeLeft,Math.min(contentRight,right));
-      block.style.top=`${top}px`;block.style.left=`${safeLeft}px`;block.style.width=`${Math.max(2,safeRight-safeLeft)}px`;block.style.height=`${height}px`;
+      block.style.top=`${top}px`;block.style.left=`${safeLeft}px`;block.style.width=`${safeRight-safeLeft}px`;block.style.height=`${height}px`;
       band.appendChild(block);return block;
     };
     if(startLine===endLine){
-      const left=Math.min(contentRight,endpointX(start)),right=Math.max(left,Math.min(contentRight,endpointX(end)));
+      const left=endpointX(start),right=endsAfterNewline?contentRight:endpointX(end);
       addBand(lineTop(startLine),left,right);
       return;
     }
     addBand(lineTop(startLine),endpointX(start),contentRight);
     if(endLine>startLine+1)addBand(lineTop(startLine+1),contentLeft,contentRight,(endLine-startLine-1)*lineHeight);
-    addBand(lineTop(endLine),contentLeft,endpointX(end));
+    addBand(lineTop(endLine),contentLeft,endsAfterNewline?contentRight:endpointX(end));
   }
-  function syncScroll(){const area=$('#code-input');if(!area)return;$('#highlight-pre').scrollTop=area.scrollTop;$('#highlight-pre').scrollLeft=area.scrollLeft;$('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;updateSelectionBands();}
+  function syncScroll(){
+    const area=$('#code-input');if(!area)return;
+    const pre=$('#highlight-pre');
+    pre.style.width=`${area.clientWidth}px`;pre.style.height=`${area.clientHeight}px`;
+    // Use the input's scroll offsets even when the highlight layer has a different scroll range.
+    $('#highlight-code').style.transform=`translate(${-area.scrollLeft}px, ${-area.scrollTop}px)`;
+    $('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;updateSelectionBands();
+  }
   function updateCursor(){const a=$('#code-input');if(!a)return;const before=a.value.slice(0,a.selectionStart).split('\n');$('#cursor-status').textContent=`第 ${before.length} 行，第 ${before[before.length-1].length+1} 列 · ${a.value.length.toLocaleString()} 字符`;}
   function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();const standalone=state.editor.entity?.standalone;status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(standalone?'✓ 草稿已保存':(state.editor.entity.id?'✓ 已保存到本地':'尚未保存'));}
   function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}

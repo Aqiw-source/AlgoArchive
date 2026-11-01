@@ -9,5 +9,5 @@ require compiler DLLs on the user's computer.
 Build with MinGW-w64:
 
 ```powershell
-.\launcher\build-launcher.ps1 -Version 2.2.4
+.\launcher\build-launcher.ps1 -Version 2.2.5
 ```

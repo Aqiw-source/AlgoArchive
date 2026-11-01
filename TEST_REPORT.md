@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.2.4
+版本：2.2.5
 
 验证日期：2026-11-01
 
@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：143 项全部通过，耗时 148.12 秒。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
+结果：143 项全部通过，耗时 193.876 秒。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
 
 覆盖范围包括：
 
@@ -78,8 +78,17 @@ node --check web/app.js
 
 结果：通过。
 
-本次使用全新合成题库验证五个固定平台及 DemoJudge 的比赛详情、平台比赛筛选、
-双页面保存冲突及单独保存用例后再保存代码；桌面 1440×1000、移动端 390×844。
+本次针对代码选区执行 148 项浏览器检查，全部通过：
+
+- 视口：1920×1080、1440×900、900×720、390×844。
+- 页面缩放：100%、125%、150%、200%，并模拟占位滚动条。
+- Ctrl+A 全选、键盘局部选择、鼠标拖选、横向滚动和窗口尺寸变化。
+- 文件末尾字符、尾部换行、空行、Tab、中文注释及取消选择。
+- 另验证代码试跑、题目编辑和模板编辑页，150% 显示密度、全屏切换及末行点击光标。
+- 上述共享编辑器检查未发现控制台错误。
+
+测试使用独立 Google Chrome 和 Playwright；当前会话没有 Browser 插件。
+本次未重新执行五平台比赛详情和双页面保存冲突的浏览器交互，相关后端回归已运行。
 
 以下为已有功能的累计隔离验收记录，未声明每项都在本次重复执行：
 
@@ -122,8 +131,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.4
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.4-Windows-x64.zip
+.\scripts\build-release.ps1 -Version 2.2.5
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.5-Windows-x64.zip
 ```
 
 结果：
@@ -132,6 +141,7 @@ node --check web/app.js
 - 发布包隐私和文件清单检查通过。
 - 发布包包含 `cph_runner.py`、CPH 第三方声明和完整 GPL 许可证副本。
 - 启动器 PE 导入表检查通过，没有再引入 MinGW 运行库依赖。
+- 2.2.5 原生启动器已重建，文件和产品版本一致，只导入 Windows 系统 DLL。
 
 ## 安装包设计验证
 

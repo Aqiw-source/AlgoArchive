@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.2.4",
+    [string]$Version = "2.2.5",
     [string]$Compiler,
     [string]$ResourceCompiler,
     [string]$OutputPath
