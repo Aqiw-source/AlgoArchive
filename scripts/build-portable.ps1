@@ -60,6 +60,18 @@ foreach ($name in @("runtime", "web", "licenses")) {
         Copy-Item -LiteralPath $source -Destination $staging -Recurse
     }
 }
+
+$utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+Get-ChildItem -LiteralPath $staging -Recurse -File |
+    Where-Object { $_.Extension -in @(".bat", ".ps1") } |
+    ForEach-Object {
+        $text = $utf8.GetString([System.IO.File]::ReadAllBytes($_.FullName))
+        $text = $text -replace "`r`n", "`n"
+        $text = $text -replace "`n", "`r`n"
+        [System.IO.File]::WriteAllText($_.FullName, $text, $utf8NoBom)
+    }
+
 $screenshots = Join-Path $projectRoot "docs\screenshots"
 if (Test-Path -LiteralPath $screenshots -PathType Container) {
     New-Item -ItemType Directory -Path (Join-Path $staging "docs") | Out-Null

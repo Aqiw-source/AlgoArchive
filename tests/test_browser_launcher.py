@@ -14,6 +14,7 @@ class BrowserLauncherTests(unittest.TestCase):
         launcher = root / "start.bat"
         content = launcher.read_text(encoding="utf-8")
         normalized = content.casefold().replace("/", "\\")
+        content.encode("ascii")
         self.assertNotIn("--data-dir", normalized)
         self.assertNotIn("algoarchive_data", normalized)
         self.assertFalse((root / "启动.bat").exists())
@@ -25,7 +26,8 @@ class BrowserLauncherTests(unittest.TestCase):
             root / "scripts" / "create-desktop-shortcut.ps1"
         ).read_text(encoding="utf-8")
         self.assertIn("create-desktop-shortcut.ps1", content)
-        self.assertIn("-ShortcutName", content)
+        self.assertNotIn("-ShortcutName", content)
+        self.assertIn("0x7B97, 0x6CD5, 0x6863, 0x6848", shortcut_script)
         self.assertIn("'start.bat'", shortcut_script)
 
     def test_installer_skips_data_page_when_selection_cannot_apply(self):

@@ -10,7 +10,7 @@ if not exist "runtime\python.exe" (
     exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\create-desktop-shortcut.ps1" -ShortcutName "算法档案.lnk"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\create-desktop-shortcut.ps1"
 if errorlevel 1 (
     echo.
     echo 桌面快捷方式创建失败。也可以直接双击“start.bat”运行程序。

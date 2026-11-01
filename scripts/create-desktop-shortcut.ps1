@@ -1,6 +1,6 @@
 param(
     [string]$ShortcutPath,
-    [string]$ShortcutName = 'AlgoArchive.lnk'
+    [string]$ShortcutName
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +21,9 @@ if ([string]::IsNullOrWhiteSpace($ShortcutPath)) {
         throw 'Unable to locate the current user desktop folder.'
     }
     if ([string]::IsNullOrWhiteSpace($ShortcutName)) {
-        throw 'Shortcut name cannot be empty.'
+        $ShortcutName = (
+            -join (0x7B97, 0x6CD5, 0x6863, 0x6848 | ForEach-Object { [char]$_ })
+        ) + '.lnk'
     }
     $ShortcutPath = Join-Path $desktopPath $ShortcutName
 }
