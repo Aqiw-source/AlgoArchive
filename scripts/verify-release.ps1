@@ -17,6 +17,7 @@ try {
         "app.py",
         "cph_runner.py",
         "LOCAL_FIXES.md",
+        "AlgoArchive.exe",
         "start.bat",
         "自检.bat",
         "self_check.py",

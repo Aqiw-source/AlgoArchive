@@ -399,6 +399,20 @@ class StorageMigrationTests(unittest.TestCase):
         finally:
             repo.close()
 
+    def test_backup_import_rejects_non_object_manifest(self):
+        repo = Repository(self.root / "data")
+        try:
+            archive = self.root / "invalid-manifest.zip"
+            with zipfile.ZipFile(archive, "w") as zipped:
+                zipped.writestr("manifest.json", "[]")
+            with self.assertRaises(app_module.AppError) as error:
+                repo.import_backup_file(archive, archive.name)
+            self.assertEqual(error.exception.status, 400)
+            self.assertEqual(error.exception.code, "backup_invalid")
+            self.assertIn("JSON 对象", str(error.exception))
+        finally:
+            repo.close()
+
     def test_restoring_schema7_backup_upgrades_it_to_schema9(self):
         source = self.root / "schema7-source"
         seed = Repository(source)

@@ -26,6 +26,7 @@ DEFAULT_VSCODE_GXX = Path(
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_TEST_COUNT = 100
 MAX_TEST_TEXT_BYTES = 1024 * 1024
+MAX_TEST_SUITE_BYTES = 2 * 1024 * 1024
 MAX_CAPTURE_BYTES = 1024 * 1024
 COMPILE_TIMEOUT_SECONDS = 20
 _WINDOWS_ERROR_MODE_LOCK = threading.Lock()
@@ -98,6 +99,7 @@ def validate_test_cases(cases):
     if len(cases) > MAX_TEST_COUNT:
         raise ValueError(f"单道题目最多保存 {MAX_TEST_COUNT} 个测试用例")
     normalized = []
+    total_bytes = 0
     for index, item in enumerate(cases):
         if not isinstance(item, dict):
             raise ValueError(f"第 {index + 1} 个测试用例格式不正确")
@@ -113,8 +115,13 @@ def validate_test_cases(cases):
                 raise ValueError(
                     f"第 {index + 1} 个测试用例的{label}不能超过 1 MiB"
                 )
+            total_bytes += len(encoded)
             if "\x00" in value:
                 raise ValueError(f"第 {index + 1} 个测试用例的{label}不能包含空字符")
+        if total_bytes > MAX_TEST_SUITE_BYTES:
+            raise ValueError(
+                "所有测试用例的输入和期望输出合计不能超过 2 MiB"
+            )
         normalized.append(
             {"input": item.get("input", ""), "output": item.get("output", "")}
         )

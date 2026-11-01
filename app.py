@@ -44,7 +44,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.2.3"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 9
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
@@ -107,7 +107,8 @@ FILE_LIKE_DOMAIN_SUFFIXES = frozenset(
 )
 MAX_CODE_BYTES = 2 * 1024 * 1024
 MAX_AVATAR_BYTES = 512 * 1024
-MAX_BODY_BYTES = 4 * 1024 * 1024
+# Leave room for a 2 MiB source file plus a 2 MiB CPH suite after JSON escaping.
+MAX_BODY_BYTES = 10 * 1024 * 1024
 MAX_BACKUP_UPLOAD_BYTES = 512 * 1024 * 1024
 MAX_BACKUP_MEMBERS = 100000
 MAX_BACKUP_EXPANDED_BYTES = 2 * 1024 * 1024 * 1024
@@ -614,6 +615,61 @@ def launch_browser(url, settings=None):
 def open_browser(url, settings=None):
     """Backward-compatible boolean wrapper around launch_browser."""
     return launch_browser(url, settings)["ok"]
+
+
+def create_desktop_shortcut():
+    """Create or repair the current user's desktop and Start Menu shortcuts."""
+    if os.name != "nt":
+        raise AppError(
+            "创建快捷方式仅支持 Windows。",
+            400,
+            "unsupported_platform",
+        )
+    script = ROOT / "scripts" / "create-desktop-shortcut.ps1"
+    launcher = ROOT / "AlgoArchive.exe"
+    if not script.is_file() or not launcher.is_file():
+        raise AppError(
+            "发布包缺少创建快捷方式所需的文件。",
+            500,
+            "shortcut_support_missing",
+        )
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-IncludeStartMenu",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise AppError(
+            "创建快捷方式失败，请稍后重试。",
+            503,
+            "shortcut_failed",
+        ) from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        message = "创建快捷方式失败。"
+        if detail:
+            message += f" {detail[-500:]}"
+        raise AppError(message, 503, "shortcut_failed")
+    return {
+        "ok": True,
+        "message": "桌面和开始菜单快捷方式已创建或刷新。",
+    }
 
 
 def _verify_migrated_data(path):
@@ -1263,6 +1319,8 @@ class Repository:
                 manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
             except (OSError, UnicodeError, ValueError) as exc:
                 raise AppError("备份清单格式不正确", 400, "backup_invalid") from exc
+            if not isinstance(manifest_data, dict):
+                raise AppError("备份清单必须是 JSON 对象", 400, "backup_invalid")
             if manifest_data.get("format") != 1:
                 raise AppError("备份格式不受支持", 400, "backup_incompatible")
             if inspect_data_directory(staging)["state"] != "valid":
@@ -1360,6 +1418,8 @@ class Repository:
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             except (OSError, UnicodeError, ValueError) as exc:
                 raise AppError("备份清单格式不正确", 400, "backup_invalid") from exc
+            if not isinstance(manifest, dict):
+                raise AppError("备份清单必须是 JSON 对象", 400, "backup_invalid")
             if manifest.get("format") != 1:
                 raise AppError("备份格式不受支持", 400, "backup_incompatible")
             # Migrate the restored staging copy before swapping it into the live
@@ -3253,6 +3313,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             return self._json(
                 {"diagnostic": self.server.test_compiler_capabilities(body)}
             )
+        if self.command == "POST" and path == "/api/settings/desktop-shortcut":
+            return self._json(create_desktop_shortcut())
         if self.command == "POST" and path == "/api/backups/create":
             return self._json({"backup": repo.create_backup()}, 201)
         if self.command == "POST" and path == "/api/backups/restore":

@@ -36,6 +36,8 @@
     return candidate;
   };
   const PLAYGROUND_DRAFT_KEY = 'algoarchive.compiler-playground.v1';
+  const MAX_CPH_CASE_BYTES = 1024 * 1024;
+  const MAX_CPH_SUITE_BYTES = 2 * 1024 * 1024;
   const PLAYGROUND_DEFAULT_CODE = '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n';
   const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, contestOrderVersion: 1, algorithmOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, running: false, runId: ''}};
   let navigating = false;
@@ -191,7 +193,8 @@
   function allowLeave() { return !isDirty() || window.confirm('当前有尚未保存的代码或测试用例。确定放弃修改并离开吗？'); }
   async function go(route, {force=false}={}) {
     if (state.busy) { toast('正在保存，请稍候。'); return; }
-    if (!force && route !== state.route && !allowLeave()) return;
+    if (!force && route === state.route) return;
+    if (!force && !allowLeave()) return;
     state.editor = null; state.route = route; navigating = true; location.hash = route;
     setTimeout(() => { navigating = false; }, 0); await renderRoute(route);
   }
@@ -484,6 +487,27 @@
     if(!Array.isArray(tests)||!tests.length)return [{input:'',output:''}];
     return tests.map(item=>({input:String(item?.input??''),output:String(item?.output??'')}));
   }
+  function cphUtf8Bytes(value) {
+    return new TextEncoder().encode(String(value??'')).length;
+  }
+  function validateCphTestSizes(tests) {
+    let total=0;
+    for(const [index,item] of (tests||[]).entries()){
+      for(const [field,label] of [['input','输入'],['output','期望输出']]){
+        const bytes=cphUtf8Bytes(item?.[field]);
+        if(bytes>MAX_CPH_CASE_BYTES){
+          toast(`第 ${index+1} 个测试用例的${label}不能超过 1 MiB。`,true);
+          return false;
+        }
+        total+=bytes;
+      }
+    }
+    if(total>MAX_CPH_SUITE_BYTES){
+      toast('所有测试用例的输入和期望输出合计不能超过 2 MiB。',true);
+      return false;
+    }
+    return true;
+  }
   function currentCphTest() {
     if(state.editor?.kind!=='problem')return null;
     const tests=state.editor.tests;
@@ -590,11 +614,15 @@
   }
   async function runCphTests(allCases=false) {
     if(state.busy||state.cph.running||state.editor?.kind!=='problem')return;
+    const runEditor=state.editor;
+    const runCph=state.cph;
     const problem=state.editor.entity;
     if(!problem.id&&!problem.standalone){toast('请先保存题目，再运行测试。',true);return;}
     commitCphFields();
     const tests=allCases?state.editor.tests:[currentCphTest()];
     if(!tests.length||tests.some(test=>!test)){toast('请先填写测试用例。',true);return;}
+    if(!validateCphTestSizes(tests))return;
+    const activeAtStart=state.cph.active;
     const timeLimit=Math.max(50,Math.min(30000,Number($('#cph-time-limit')?.value)||3000));
     state.cph.timeLimit=timeLimit;
     const runId=newCphRunId();
@@ -607,23 +635,27 @@
     try{
       const endpoint=problem.standalone?'/api/compiler/run':`/api/problems/${encodeURIComponent(problem.id)}/run`;
       const result=await api(endpoint,'POST',{run_id:runId,code:$('#code-input').value,tests,time_limit_ms:timeLimit});
+      if(state.editor!==runEditor||state.cph!==runCph||state.cph.runId!==runId)return;
       state.cph.compile=result.compile;
       state.cph.totalMs=result.elapsed_ms;
       result.cases.forEach(item=>{
-        const index=allCases?item.ordinal-1:state.cph.active;
+        const index=allCases?item.ordinal-1:activeAtStart;
         state.cph.results[index]=item;
       });
       if(result.cancelled)toast('测试运行已停止。');
-      else if(result.ok)toast(allCases?'全部测试通过。':`测试 ${state.cph.active+1} 通过。`);
+      else if(result.ok)toast(allCases?'全部测试通过。':`测试 ${activeAtStart+1} 通过。`);
       else if(result.compile?.status!=='success')toast('编译失败，请查看测试面板。',true);
       else toast('测试未通过，请查看测试面板。',true);
     }catch(error){
+      if(state.editor!==runEditor||state.cph!==runCph||state.cph.runId!==runId)return;
       state.cph.compile={status:'runner_error',elapsed_ms:0,stderr:error.message,stdout:''};
       toast(error.message,true);
     }finally{
-      setCphRunning(false);
-      renderCphCaseTabs();
-      renderCphResults();
+      if(state.editor===runEditor&&state.cph===runCph&&state.cph.runId===runId){
+        setCphRunning(false);
+        renderCphCaseTabs();
+        renderCphResults();
+      }
     }
   }
   async function stopCphTests() {
@@ -640,6 +672,7 @@
     commitCphFields();
     const editor=state.editor;
     const tests=editor.tests.map(item=>({input:item.input,output:item.output}));
+    if(!validateCphTestSizes(tests))return false;
     state.busy=true;
     try{
       const result=await api(`/api/problems/${encodeURIComponent(problem.id)}/tests`,'PUT',{tests,version:problem.version});
@@ -722,6 +755,7 @@
     commitCphFields();
     const code=$('#code-input')?.value??'';
     const timeLimit=Math.max(50,Math.min(30000,Number($('#cph-time-limit')?.value)||3000));
+    if(!validateCphTestSizes(state.editor.tests))return false;
     const draft={format:1,code,tests:state.editor.tests.map(item=>({input:item.input,output:item.output})),timeLimit,savedAt:new Date().toISOString()};
     try{localStorage.setItem(PLAYGROUND_DRAFT_KEY,JSON.stringify(draft));}
     catch(_){toast('草稿无法写入浏览器本地存储，请先复制代码保留。',true);return false;}
@@ -903,6 +937,7 @@
   function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
   async function saveProblem(event){event?.preventDefault();if(state.busy||!state.editor)return;const form=$('#problem-form');if(!validateRequiredFields(form))return;const data=readProblemForm();
     commitCphFields();const testsToSave=state.editor.tests.map(item=>({input:item.input,output:item.output}));
+    if(!validateCphTestSizes(testsToSave))return;
     const caseControls=Array.from(main.querySelectorAll('.cph-runner input,.cph-runner textarea,.cph-runner button:not([data-stop-cph])'));
     const caseDisabled=caseControls.map(el=>el.disabled);caseControls.forEach(el=>{el.disabled=true;});
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
@@ -918,7 +953,11 @@
     try{
       const old=state.editor.entity;
       const saved=await api(old.id?`/api/algorithm-snippets/${encodeURIComponent(old.id)}`:`/api/algorithms/${encodeURIComponent(old.algorithm_id)}/snippets`,old.id?'PUT':'POST',{...data,...(old.id?{version:old.version}:{})});
-      await loadState();state.editor=null;state.route=`snippet/${saved.snippet.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);snippetEditor(saved.snippet);toast('代码模板已保存到本地。');
+      state.editor.entity={...saved.snippet};
+      let refreshError=null;
+      try{await loadState();}catch(error){refreshError=error;}
+      state.editor=null;state.route=`snippet/${saved.snippet.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);snippetEditor(saved.snippet);
+      toast(refreshError?`代码模板已保存；列表刷新失败：${refreshError.message}`:'代码模板已保存到本地。',!!refreshError);
     }catch(e){showEditorError(e);}
     finally{state.busy=false;$('#snippet-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-snippet')){$('#save-snippet').disabled=false;$('#save-snippet').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
@@ -1060,11 +1099,15 @@
     const cph=settings.cph||{};
     return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>应用作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div></div><div class="settings-section"><div class="settings-section-head"><div><h3>CPH 第三方声明</h3><p>测试用例格式与本地评测行为兼容 CPH；运行器由算法档案独立实现。</p></div></div><dl class="settings-diagnostics"><dt>原作者</dt><dd>${esc(cph.author||'Divyanshu Agrawal')}</dd><dt>上游仓库</dt><dd><a href="${esc(cph.repository||'https://github.com/agrawal-d/cph')}" target="_blank" rel="noopener noreferrer">${esc(cph.repository||'https://github.com/agrawal-d/cph')}</a></dd><dt>许可证</dt><dd>${esc(cph.license||'GPL-3.0-or-later')}</dd><dt>参考提交</dt><dd><code>${esc(cph.reference_commit||'')}</code></dd></dl><div class="settings-note">程序目录中的 THIRD_PARTY.txt 与 licenses/CPH-GPL-3.0.txt 保留完整来源和许可证说明。</div></div><div class="settings-section"><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
   }
+  function shortcutSettingsHTML(){
+    return `<div class="settings-section"><div class="settings-section-head"><div><h3>快捷方式</h3><p>普通启动不会创建或恢复快捷方式。需要时可在这里明确创建桌面和开始菜单入口。</p></div><button type="button" class="btn" id="create-desktop-shortcut">创建快捷方式</button></div><div id="shortcut-settings-status" class="settings-hint" aria-live="polite">创建后可从桌面或开始菜单直接启动当前程序；固定到开始屏幕需在系统中手动完成。</div></div>`;
+  }
   function showSettingsTab(tab='profile'){
     const safeTab=['profile','browser','compiler','data','about'].includes(tab)?tab:'profile';
     modal.querySelectorAll('[data-settings-tab]').forEach(button=>button.classList.toggle('active',button.dataset.settingsTab===safeTab));
     const content=$('#settings-content');
     content.innerHTML=safeTab==='profile'?settingsProfileHTML():safeTab==='browser'?settingsBrowserHTML():safeTab==='compiler'?settingsCompilerHTML():safeTab==='data'?settingsDataHTML():settingsAboutHTML();
+    if(safeTab==='about')content.insertAdjacentHTML('beforeend',shortcutSettingsHTML());
     if(safeTab==='profile')bindProfileSettings();
     else if(safeTab==='browser')bindBrowserSettings();
     else if(safeTab==='compiler')bindCompilerSettings();
@@ -1144,6 +1187,24 @@
       event.preventDefault();if(state.busy)return;setModalBusy(true);
       try{const result=await api('/api/settings/browser','PUT',readBrowserSettingsForm());state.settings.browser=result.browser;setModalBusy(false);toast('浏览器设置已保存。');}
       catch(error){setModalBusy(false);const target=$('#settings-error');if(target)target.textContent=error.message;}
+    });
+  }
+  function bindShortcutSettings(){
+    $('#create-desktop-shortcut')?.addEventListener('click',async()=>{
+      if(state.busy)return;
+      const target=$('#shortcut-settings-status');
+      setModalBusy(true);
+      if(target)target.textContent='正在创建快捷方式…';
+      try{
+        const result=await api('/api/settings/desktop-shortcut','POST',{});
+        setModalBusy(false);
+        if(target)target.textContent=result.message||'快捷方式已创建。';
+        toast(result.message||'快捷方式已创建。');
+      }catch(error){
+        setModalBusy(false);
+        if(target)target.textContent=error.message;
+        toast(error.message,true);
+      }
     });
   }
   function readCompilerSettingsForm(){
@@ -1240,6 +1301,7 @@
       try{await api('/api/shutdown','POST',{});setModalBusy(false);$('#settings-content').innerHTML='<div class="settings-complete"><h3>程序已退出</h3><p>可以关闭这个页面，需要时重新打开算法档案。</p></div>';}
       catch(error){toast(error.message,true);}
     });
+    bindShortcutSettings();
   }
   function openContestForm(id='', platform=''){
     const c=state.contests.find(c=>c.id===id)||{platform:platform||'codeforces',title:'',url:''};

@@ -22,6 +22,7 @@ def main():
     required_files = (
         "app.py",
         "cph_runner.py",
+        "AlgoArchive.exe",
         "web/index.html",
         "web/app.js",
         "licenses/CPH-GPL-3.0.txt",

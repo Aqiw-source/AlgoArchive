@@ -1,6 +1,6 @@
 # 交付验证记录
 
-版本：2.2.2
+版本：2.2.3
 
 验证日期：2026-11-01
 
@@ -22,7 +22,7 @@
 python -X utf8 -m unittest discover -s tests -v
 ```
 
-结果：131 项通过，其中新增 18 项可靠性回归。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
+结果：137 项通过。详细范围见 [LOCAL_FIXES.md](LOCAL_FIXES.md)。
 
 覆盖范围包括：
 
@@ -31,6 +31,7 @@ python -X utf8 -m unittest discover -s tests -v
 - 9,999 题与 10,001 个 ZIP 成员的备份恢复、成员及大小上限契约。
 - 大输入不读或慢读、停止并发、父进程退出后的子进程与管道回收。
 - stdout/stderr 截断标记；实际 g++ 验证正确前缀追加错误内容不再通过。
+- 单个及整套 CPH 用例 UTF-8 大小上限、无效备份清单对象校验。
 - 比赛、统一题目、算法、多链接、多代码、删除与关联策略。
 - 全局题目、算法内题目、算法卡片和比赛卡片拖动排序、逆序和版本冲突。
 - CPH 多测试用例持久化、重启存活、题目删除级联和数据库备份边界。
@@ -117,8 +118,8 @@ node --check web/app.js
 ### 发行构建
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.2
-.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.2-Windows-x64.zip
+.\scripts\build-portable.ps1 -Version 2.2.3
+.\scripts\verify-release.ps1 -ArchivePath .\dist\AlgoArchive-2.2.3-Windows-x64.zip
 ```
 
 结果：
@@ -135,7 +136,9 @@ node --check web/app.js
 - 程序目录与数据目录包含关系和写入权限在继续前检查。
 - 当前用户安装仅在配置文件不存在时写入初始数据路径。
 - 所有用户安装和已有配置场景不显示数据目录页，也不会忽略用户选择。
-- 安装版自动创建桌面快捷方式；便携版首次启动也会自动创建。
+- 安装版桌面快捷方式改为可选任务并默认不勾选；普通启动不再读写快捷方式。
+- 显式创建操作同时刷新桌面和开始菜单入口，目标均为 `AlgoArchive.exe`。
+- 原生 `AlgoArchive.exe` 启动器完成图标、版本资源、工作目录和参数转发检查。
 - 卸载默认保留外部用户数据和配置。
 - 发布包不包含真实数据库、用户代码、头像、运行锁、旧 `.lnk`、测试或备份。
 - 安装器第一次静默执行暴露并修复了无效 `{userprofile}` 常量，修复后重新编译成功。

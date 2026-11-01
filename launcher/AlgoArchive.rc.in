@@ -1,0 +1,37 @@
+#include <windows.h>
+
+#define IDI_APP_ICON 101
+
+IDI_APP_ICON ICON "app.ico"
+
+1 VERSIONINFO
+FILEVERSION __FILE_VERSION__
+PRODUCTVERSION __PRODUCT_VERSION__
+FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Aqiw\0"
+            VALUE "FileDescription", "AlgoArchive Windows launcher\0"
+            VALUE "FileVersion", "__VERSION__\0"
+            VALUE "InternalName", "AlgoArchive\0"
+            VALUE "OriginalFilename", "AlgoArchive.exe\0"
+            VALUE "ProductName", "AlgoArchive\0"
+            VALUE "ProductVersion", "__VERSION__\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

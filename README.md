@@ -11,8 +11,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.2.2-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.2.2-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.2.3-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.2.3-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -91,11 +91,11 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.2.2-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.2.3-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
-5. 完成安装，桌面快捷方式会自动创建。
+5. 安装器会创建开始菜单入口；桌面快捷方式可勾选，默认不勾选。
 
 “所有用户安装”不会显示数据目录页，也不会把安装者的个人数据绑定给其他
 账户；各账户首次正常启动时使用自己的默认目录。检测到已有
@@ -108,8 +108,9 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 ### 便携 ZIP
 
 1. 完整解压 ZIP，不要在压缩包内直接运行。
-2. 双击 `start.bat`。
-3. 每次启动都会自动刷新桌面快捷方式。
+2. 双击 `AlgoArchive.exe`。
+3. 普通启动不会创建或恢复快捷方式；如有需要，可在“设置 → 关于与诊断”中创建
+   桌面和开始菜单入口，或运行 `AlgoArchive.exe --create-shortcut`。
 4. 需要检查发布包时，双击 `自检.bat`；自检使用独立临时目录，不访问用户数据。
 
 便携包包含 Windows x64 Python 运行环境，不需要安装 Python、Node、
@@ -267,6 +268,7 @@ data/
 ```text
 AlgoArchive/
 ├─ app.py
+├─ AlgoArchive.exe
 ├─ start.bat
 ├─ web/
 │  ├─ index.html
@@ -304,13 +306,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.2
+.\scripts\build-portable.ps1 -Version 2.2.3
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.2.2
+.\scripts\build-release.ps1 -Version 2.2.3
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -322,9 +324,9 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.2 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.3 已验证：
 
-- 131 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、运行时限和输出超限。
+- 137 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、运行时限、输出超限和用例总大小限制。
 - `node --check web/app.js` 通过。
 - 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。
 - 小屏题库隐藏次要列，长题名正常换行且无横向溢出。
@@ -345,8 +347,9 @@ Windows CI 会执行后端测试、前端语法检查，下载并校验官方 Py
 - 在线提交、在线判题或远程评测。
 - Python、Java 等 CPH 非 C++ 运行器；当前本地评测聚焦 C++。
 - 代码版本历史、账号系统或云端同步。
-- 移动程序文件夹后自动更新所有快捷方式。便携版移动后，请在新目录运行
-  `start.bat` 重建桌面快捷方式；开始菜单和任务栏的旧固定项需要重新固定。
+- 移动程序文件夹后自动更新快捷方式。便携版移动后，请在新目录运行
+  `AlgoArchive.exe --create-shortcut` 或使用设置页重建桌面和开始菜单快捷方式。
+  Windows 不允许便携程序可靠地自动固定“开始屏幕”，已有磁贴和任务栏固定项需要在系统中重新固定。
 
 ## 许可证
 

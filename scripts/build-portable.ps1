@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.2.2",
+    [string]$Version = "2.2.3",
     [string]$OutputRoot
 )
 
@@ -16,6 +16,7 @@ $archivePath = Join-Path $OutputRoot "$packageName.zip"
 $requiredFiles = @(
     "app.py",
     "cph_runner.py",
+    "AlgoArchive.exe",
     "start.bat",
     "自检.bat",
     "self_check.py",
@@ -32,6 +33,13 @@ foreach ($name in $requiredFiles) {
     $path = Join-Path $projectRoot $name
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "缺少发布文件: $path"
+    }
+}
+$launcherVersionInfo = (Get-Item -LiteralPath (Join-Path $projectRoot "AlgoArchive.exe")).VersionInfo
+foreach ($property in @("FileVersion", "ProductVersion")) {
+    $actualVersion = ([string]$launcherVersionInfo.$property).Trim()
+    if ($actualVersion -ne $Version) {
+        throw "AlgoArchive.exe 的 $property 是 '$actualVersion'，与发布版本 '$Version' 不一致；请先重新生成启动器。"
     }
 }
 foreach ($name in @("runtime", "web", "licenses")) {

@@ -20,27 +20,64 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertFalse((root / "启动.bat").exists())
         self.assertFalse((root / "创建桌面快捷方式.bat").exists())
 
-    def test_windows_launchers_refresh_desktop_shortcut(self):
+    def test_windows_launcher_supports_explicit_desktop_shortcut(self):
         root = Path(__file__).resolve().parents[1]
         content = (root / "start.bat").read_text(encoding="utf-8")
         shortcut_script = (
             root / "scripts" / "create-desktop-shortcut.ps1"
         ).read_text(encoding="utf-8")
         self.assertIn("create-desktop-shortcut.ps1", content)
+        self.assertIn('if /I "%~1"=="--create-shortcut"', content)
+        self.assertIn("-IncludeStartMenu", content)
         self.assertNotIn("-ShortcutName", content)
         self.assertIn("0x7B97, 0x6CD5, 0x6863, 0x6848", shortcut_script)
-        self.assertIn("'start.bat'", shortcut_script)
+        self.assertIn("'AlgoArchive.exe'", shortcut_script)
+        self.assertIn("$shortcut.Arguments = ''", shortcut_script)
+        self.assertIn("Microsoft\\Windows\\Start Menu\\Programs", shortcut_script)
+
+    @unittest.skipUnless(os.name == "nt", "Windows desktop shortcut")
+    @mock.patch("app.subprocess.run")
+    def test_create_desktop_shortcut_uses_packaged_script(self, run):
+        run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+
+        result = app.create_desktop_shortcut()
+
+        self.assertTrue(result["ok"])
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "powershell.exe")
+        self.assertIn("create-desktop-shortcut.ps1", command[-2])
+        self.assertIn("-IncludeStartMenu", command)
+        self.assertEqual(run.call_args.kwargs["timeout"], 20)
+
+    def test_native_launcher_is_packaged(self):
+        root = Path(__file__).resolve().parents[1]
+        launcher = root / "AlgoArchive.exe"
+        self.assertTrue(launcher.is_file())
+        self.assertGreater(launcher.stat().st_size, 50_000)
+        portable = (root / "scripts" / "build-portable.ps1").read_text(
+            encoding="utf-8"
+        )
+        installer = (root / "installer" / "AlgoArchive.iss").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"AlgoArchive.exe"', portable)
+        self.assertIn('"FileVersion", "ProductVersion"', portable)
+        self.assertIn("请先重新生成启动器", portable)
+        self.assertIn("AlgoArchive.exe", installer)
 
     def test_installer_skips_data_page_when_selection_cannot_apply(self):
         installer = (
             Path(__file__).resolve().parents[1] / "installer" / "AlgoArchive.iss"
         ).read_text(encoding="utf-8")
         self.assertIn("function ShouldSkipPage", installer)
+        self.assertIn('#define MyAppExeName "AlgoArchive.exe"', installer)
         self.assertIn("IsAdminInstallMode or FileExists(UserConfigPath())", installer)
         self.assertIn("if IsAdminInstallMode or (DataDirPage = nil)", installer)
         self.assertIn('Name: "{autodesktop}\\{#MyAppName}"', installer)
         self.assertIn("SaveStringsToUTF8FileWithoutBOM(ConfigPath", installer)
-        self.assertNotIn("desktopicon", installer)
+        self.assertIn('Name: "desktopicon"', installer)
+        self.assertIn("Flags: unchecked", installer)
+        self.assertIn("Tasks: desktopicon", installer)
 
     def test_readme_warns_against_source_code_archive(self):
         readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
@@ -60,6 +97,36 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertGreater(license_file.stat().st_size, 30_000)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64-Setup.exe", readme)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64.zip", readme)
+
+    def test_settings_exposes_explicit_desktop_shortcut_action(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("create-desktop-shortcut", script)
+        self.assertIn("/api/settings/desktop-shortcut", script)
+        self.assertIn("普通启动不会创建或恢复快捷方式", script)
+        self.assertIn("固定到开始屏幕需在系统中手动完成", script)
+        browser_start = script.index("function settingsBrowserHTML")
+        compiler_start = script.index("function settingsCompilerHTML")
+        about_start = script.index("function settingsAboutHTML")
+        self.assertNotIn("<h3>快捷方式</h3>", script[browser_start:compiler_start])
+        self.assertGreater(script.index("<h3>快捷方式</h3>", about_start), about_start)
+        self.assertIn(
+            "bindShortcutSettings();",
+            script[script.index("function bindAboutSettings"):],
+        )
+
+    def test_frontend_preserves_edits_and_binds_async_results(self):
+        script = (
+            Path(__file__).resolve().parents[1] / "web" / "app.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("if (!force && route === state.route) return;", script)
+        self.assertIn("const activeAtStart=state.cph.active;", script)
+        self.assertIn("state.cph!==runCph", script)
+        self.assertIn("const index=allCases?item.ordinal-1:activeAtStart;", script)
+        self.assertIn("MAX_CPH_SUITE_BYTES", script)
+        persist_index = script.index("state.editor.entity={...saved.snippet};")
+        refresh_index = script.index("try{await loadState();}", persist_index)
+        self.assertLess(persist_index, refresh_index)
 
     def test_problem_table_exposes_copy_link_action(self):
         app_js = (

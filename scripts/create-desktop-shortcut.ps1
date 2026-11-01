@@ -1,15 +1,18 @@
 param(
     [string]$ShortcutPath,
-    [string]$ShortcutName
+    [string]$ShortcutName,
+    [switch]$IncludeStartMenu
 )
 
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$targetPath = Join-Path $projectRoot 'start.bat'
-$iconPath = Join-Path $projectRoot 'ACM-ICPC-Windows.ico'
+$targetPath = Join-Path $projectRoot 'AlgoArchive.exe'
+$defaultShortcutName = (
+    -join (0x7B97, 0x6CD5, 0x6863, 0x6848 | ForEach-Object { [char]$_ })
+) + '.lnk'
 
-foreach ($requiredPath in @($targetPath, $iconPath, (Join-Path $projectRoot 'runtime\python.exe'))) {
+foreach ($requiredPath in @($targetPath, (Join-Path $projectRoot 'runtime\python.exe'))) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required file is missing: $requiredPath"
     }
@@ -21,29 +24,46 @@ if ([string]::IsNullOrWhiteSpace($ShortcutPath)) {
         throw 'Unable to locate the current user desktop folder.'
     }
     if ([string]::IsNullOrWhiteSpace($ShortcutName)) {
-        $ShortcutName = (
-            -join (0x7B97, 0x6CD5, 0x6863, 0x6848 | ForEach-Object { [char]$_ })
-        ) + '.lnk'
+        $ShortcutName = $defaultShortcutName
     }
     $ShortcutPath = Join-Path $desktopPath $ShortcutName
 }
 
-$shortcutDirectory = Split-Path -Parent $ShortcutPath
-if (-not [string]::IsNullOrWhiteSpace($shortcutDirectory) -and -not (Test-Path -LiteralPath $shortcutDirectory)) {
-    throw "Shortcut directory does not exist: $shortcutDirectory"
+function Save-LauncherShortcut {
+    param([string]$Path)
+
+    $shortcutDirectory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($shortcutDirectory) -and -not (Test-Path -LiteralPath $shortcutDirectory)) {
+        throw "Shortcut directory does not exist: $shortcutDirectory"
+    }
+
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($Path)
+    $shortcut.TargetPath = $targetPath
+    $shortcut.Arguments = ''
+    $shortcut.WorkingDirectory = $projectRoot
+    $shortcut.IconLocation = "$targetPath,0"
+    $shortcut.Description = 'AlgoArchive local contest archive'
+    $shortcut.WindowStyle = 1
+    $shortcut.Save()
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "Shortcut file was not created: $Path"
+    }
+    Write-Output "Shortcut created: $Path"
 }
 
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($ShortcutPath)
-$shortcut.TargetPath = $targetPath
-$shortcut.WorkingDirectory = $projectRoot
-$shortcut.IconLocation = "$iconPath,0"
-$shortcut.Description = 'AlgoArchive local contest archive'
-$shortcut.WindowStyle = 1
-$shortcut.Save()
+Save-LauncherShortcut -Path $ShortcutPath
 
-if (-not (Test-Path -LiteralPath $ShortcutPath)) {
-    throw 'Shortcut file was not created.'
+if ($IncludeStartMenu) {
+    if ([string]::IsNullOrWhiteSpace($ShortcutName)) {
+        $ShortcutName = $defaultShortcutName
+    }
+    $programsPath = Join-Path (
+        [Environment]::GetFolderPath('ApplicationData')
+    ) 'Microsoft\Windows\Start Menu\Programs'
+    if (-not (Test-Path -LiteralPath $programsPath -PathType Container)) {
+        New-Item -ItemType Directory -Path $programsPath | Out-Null
+    }
+    Save-LauncherShortcut -Path (Join-Path $programsPath $ShortcutName)
 }
-
-Write-Output "Shortcut created: $ShortcutPath"

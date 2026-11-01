@@ -241,9 +241,9 @@ class ReviewRunnerTests(unittest.TestCase):
     @unittest.skipUnless(available_compiler(), "g++ is required")
     def test_real_compiler_output_limit_never_passes_truncated_output(self):
         runner = cph_runner.CppTestRunner(available_compiler(), temp_root=self.root)
-        code = '#include <iostream>\n#include <string>\nint main(){int n;std::cin>>n; std::cout<<std::string(1048576, char(120)); if(n)std::cout<<char(33);}'
-        result = runner.run(code, [dict(input="0", output="x" * 1048576),
-                                   dict(input="1", output="x" * 1048576)])
+        code = '#include <iostream>\n#include <string>\nint main(){int n;std::cin>>n; std::cout<<std::string(1048570+n*6, char(120)); if(n)std::cout<<char(33);}'
+        result = runner.run(code, [dict(input="0", output="x" * 1048570),
+                                   dict(input="1", output="x" * 1048570)])
         self.assertEqual([case["status"] for case in result["cases"]], ["passed", "output_limit"])
         self.assertFalse(result["ok"])
         self.assertTrue(result["cases"][1]["stdout_truncated"])

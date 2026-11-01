@@ -1,8 +1,8 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.2.2"
+#define MyAppVersion "2.2.3"
 #define MyAppPublisher "Aqiw"
-#define MyAppExeName "start.bat"
+#define MyAppExeName "AlgoArchive.exe"
 
 [Setup]
 AppId={{66E6CC98-742D-4B90-9A18-4A5125AA4F21}
@@ -25,7 +25,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist
 OutputBaseFilename=AlgoArchive-{#MyAppVersion}-Windows-x64-Setup
 SetupIconFile=..\ACM-ICPC-Windows.ico
-UninstallDisplayIcon={app}\ACM-ICPC-Windows.ico
+UninstallDisplayIcon={app}\AlgoArchive.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -36,9 +36,13 @@ AllowNoIcons=yes
 [Languages]
 Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
 [Files]
 Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\AlgoArchive.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\self_check.py"; DestDir: "{app}"; Flags: ignoreversion
@@ -57,8 +61,8 @@ Source: "..\scripts\create-desktop-shortcut.ps1"; DestDir: "{app}\scripts"; Flag
 Source: "..\docs\screenshots\*"; DestDir: "{app}\docs\screenshots"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ACM-ICPC-Windows.ico"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ACM-ICPC-Windows.ico"
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\AlgoArchive.exe"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\AlgoArchive.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "启动 {#MyAppName}"; Flags: postinstall nowait skipifsilent

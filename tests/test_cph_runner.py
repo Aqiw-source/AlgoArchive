@@ -33,6 +33,15 @@ class CphRunnerTests(unittest.TestCase):
         self.assertFalse(runner.outputs_match("1\n2\n", "1\n2\n3\n"))
         self.assertFalse(runner.outputs_match("1 2\n", "1  2\n"))
 
+    def test_test_cases_enforce_aggregate_size_limit(self):
+        cases = [
+            {"input": "a" * 700_000, "output": ""},
+            {"input": "b" * 700_000, "output": ""},
+            {"input": "c" * 700_000, "output": ""},
+        ]
+        with self.assertRaisesRegex(ValueError, "合计不能超过 2 MiB"):
+            app_module.validate_test_cases(cases)
+
     def test_repository_persists_cph_test_cases_in_the_database(self):
         tmp = PROJECT / ".test-tmp" / f"cph-store-{secrets.token_hex(6)}"
         tmp.mkdir(parents=True)
