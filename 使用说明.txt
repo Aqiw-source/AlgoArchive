@@ -16,8 +16,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 start.bat。首次启动会自动创建桌面快捷方式；
-也可以运行 创建桌面快捷方式.bat 手动刷新。不要把 start.bat、runtime 和 web
-分开移动。
+每次启动也会自动刷新桌面快捷方式。不要把 start.bat、runtime 和 web 分开移动。
 
 安装版和便携版都包含 自检.bat。需要检查程序完整性时双击运行；自检只使用
 独立临时目录，不读取或修改用户数据。C++ 编译器未安装时仍可通过题库自检，
@@ -142,7 +141,7 @@ CPH 原作者：Divyanshu Agrawal
 备份和配置。
 
 便携版整体移动目录后，桌面快捷方式可能失效；请在新的完整目录中重新运行
-创建桌面快捷方式.bat。数据目录不受程序目录移动影响。
+start.bat。数据目录不受程序目录移动影响。
 
 九、开发与发布
 

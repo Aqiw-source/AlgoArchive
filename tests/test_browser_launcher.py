@@ -18,6 +18,7 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertNotIn("--data-dir", normalized)
         self.assertNotIn("algoarchive_data", normalized)
         self.assertFalse((root / "启动.bat").exists())
+        self.assertFalse((root / "创建桌面快捷方式.bat").exists())
 
     def test_windows_launchers_refresh_desktop_shortcut(self):
         root = Path(__file__).resolve().parents[1]
@@ -180,6 +181,7 @@ class BrowserLauncherTests(unittest.TestCase):
             self.assertIn("self_check.py", manifest)
         for manifest in (portable, installer):
             self.assertNotIn("启动.bat", manifest)
+            self.assertNotIn("创建桌面快捷方式.bat", manifest)
         self.assertIn("web/platform-icons/acwing.png", verifier)
         self.assertIn("web/nav-icons/home.png", verifier)
 

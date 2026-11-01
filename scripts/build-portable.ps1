@@ -17,7 +17,6 @@ $requiredFiles = @(
     "app.py",
     "cph_runner.py",
     "start.bat",
-    "创建桌面快捷方式.bat",
     "自检.bat",
     "self_check.py",
     "README.md",

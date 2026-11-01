@@ -40,7 +40,6 @@ Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\创建桌面快捷方式.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\self_check.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
