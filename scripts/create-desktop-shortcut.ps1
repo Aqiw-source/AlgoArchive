@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$targetPath = Join-Path $projectRoot 'start.bat'
+$targetPath = Join-Path $projectRoot '启动.bat'
 $iconPath = Join-Path $projectRoot 'ACM-ICPC-Windows.ico'
 
 foreach ($requiredPath in @($targetPath, $iconPath, (Join-Path $projectRoot 'runtime\python.exe'))) {

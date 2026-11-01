@@ -267,7 +267,7 @@ data/
 ```text
 AlgoArchive/
 ├─ app.py
-├─ 启动.bat / start.bat
+├─ 启动.bat
 ├─ 创建桌面快捷方式.bat
 ├─ web/
 │  ├─ index.html
