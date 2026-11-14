@@ -276,6 +276,9 @@ class CppTestRunner:
                 + os.pathsep
                 + environment.get("PATH", "")
             )
+            if str(arguments[0]) == str(self.compiler_path):
+                # MinGW helpers may use ANSI paths even with a Unicode cwd.
+                environment.update(TMP=".", TEMP=".", TMPDIR=".")
         # File-backed input cannot block waiting for a child to read a full stdin pipe.
         input_file = tempfile.TemporaryFile(dir=str(cwd))
         try:
@@ -442,8 +445,8 @@ class CppTestRunner:
                         "-DCPH",
                         "-DDEBUG",
                         "-o",
-                        str(executable),
-                        str(source),
+                        executable.name,
+                        source.name,
                     ],
                     workdir,
                     timeout_seconds=COMPILE_TIMEOUT_SECONDS,
