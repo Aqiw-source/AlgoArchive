@@ -1,0 +1,22 @@
+body { padding-top: var(--demo-notice-height, 46px); }
+.demo-notice { position: fixed; inset: 0 0 auto; z-index: 50; min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 24px; border-bottom: 1px solid #cfdae8; background: #edf4fb; color: #34485c; font-size: 12px; line-height: 1.5; }
+.demo-notice p { margin: 0; }
+.demo-notice strong { color: #1e4268; margin-right: 10px; }
+.demo-notice nav { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.demo-notice a { color: #3854ad; text-decoration: none; }
+.demo-reset { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 5px; background: transparent; border: 1px solid #c5d3e1; border-radius: 4px; color: #34485c; cursor: pointer; }
+.demo-reset svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.app-shell, .workspace { min-height: calc(100dvh - var(--demo-notice-height, 46px)); }
+.sidebar { top: var(--demo-notice-height, 46px); }
+.workspace-sidebar { height: calc(100dvh - var(--demo-notice-height, 46px)); }
+.workspace-topbar { top: var(--demo-notice-height, 46px); }
+@media (max-width: 720px) {
+  .sidebar { top: auto; }
+  .workspace-sidebar { height: auto; }
+}
+@media (max-width: 600px) {
+  .demo-notice { padding: 8px 12px; align-items: flex-start; gap: 8px; }
+  .demo-notice p { max-width: 230px; }
+  .demo-notice strong { display: block; }
+  .demo-notice nav { gap: 8px; }
+}

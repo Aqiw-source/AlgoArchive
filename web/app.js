@@ -6,21 +6,25 @@
   const csrf = $('meta[name="csrf-token"]').content;
   const userName = ($('meta[name="user-name"]')?.content || '本地用户').trim();
   const platforms = {codeforces: 'Codeforces', atcoder: 'AtCoder', acwing: 'AcWing', luogu: '洛谷', niuke: '牛客'};
-  const knownPlatform = value => Object.prototype.hasOwnProperty.call(platforms, value);
+  const platformIdentities = {...platforms,lanqiao:'蓝桥杯',hdu:'HDU',matiji:'码蹄集'};
+  const knownPlatform = value => Object.prototype.hasOwnProperty.call(platformIdentities, value);
   const platformKey = value => {
     const key=String(value || '').trim().toLocaleLowerCase();
     if(key==='acwing')return 'acwing';
     if(key==='洛谷')return 'luogu';
     if(key==='牛客'||key==='nowcoder')return 'niuke';
+    if(['蓝桥杯','蓝桥','lanqiaobei'].includes(key))return 'lanqiao';
+    if(['hduoj','杭电','杭州电子科技大学'].includes(key))return 'hdu';
+    if(['码蹄集','码蹄'].includes(key))return 'matiji';
     return key;
   };
   const platformLabel = value => {
     const key=platformKey(value);
-    return knownPlatform(key) ? platforms[key] : value || '';
+    return knownPlatform(key) ? platformIdentities[key] : value || '';
   };
   const canonicalPlatformValue = value => {
     const key=platformKey(value);
-    return knownPlatform(key) ? platforms[key] : String(value||'').trim();
+    return knownPlatform(key) ? platformIdentities[key] : String(value||'').trim();
   };
   const languages = {cpp: 'C++', python: 'Python', java: 'Java', other: '其他'};
   const extensions = {cpp: '.cpp', python: '.py', java: '.java', other: '.txt'};
@@ -63,7 +67,7 @@
   const time = v => { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.valueOf()) ? '—' : dateTimeFormatter.format(d); };
   const copyableURL = v => { const candidate=normalizeURLInput(v); try { const u = new URL(candidate); return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
   const safeURL = v => { const href=copyableURL(v); return href ? esc(href) : '#'; };
-  const platformLogoFiles = {codeforces:'codeforces.png',atcoder:'atcoder.png',acwing:'acwing.png',luogu:'luogu.png',niuke:'niuke.png'};
+  const platformLogoFiles = {codeforces:'codeforces.png',atcoder:'atcoder.png',acwing:'acwing.png',luogu:'luogu.png',niuke:'niuke.png',lanqiao:'lanqiao.png',hdu:'hdu.png',matiji:'matiji.png'};
   const platformLogo = value => {
     const file=platformLogoFiles[platformKey(value)];
     return file?`<img class="platform-logo" src="/platform-icons/${file}?v=20261030-platform-icons" alt="" loading="eager" decoding="async">`:'';
@@ -135,7 +139,7 @@
   const sortedContests = items => [...items].sort((a,b) => (Number(a.sort_order)||0)-(Number(b.sort_order)||0)||(b.updated_at||'').localeCompare(a.updated_at||''));
   const sortedAlgorithms = items => [...items].sort((a,b) => (Number(a.sort_order)||0)-(Number(b.sort_order)||0)||(b.updated_at||'').localeCompare(a.updated_at||''));
   function problemPlatformOptions() {
-    const entries = Object.entries(platforms), seen = new Set(Object.keys(platforms));
+    const entries = Object.entries(platformIdentities), seen = new Set(Object.keys(platformIdentities));
     state.problems.forEach(problem => {
       const value = String(problem.platform || '').trim();
       const key = platformKey(value);
@@ -144,7 +148,7 @@
     return entries;
   }
   function contestPlatformOptions() {
-    const entries = Object.entries(platforms), seen = new Set(Object.keys(platforms));
+    const entries = Object.entries(platformIdentities), seen = new Set(Object.keys(platformIdentities));
     state.contests.forEach(contest => {
       const value = String(contest.platform || '').trim();
       const key = platformKey(value);
@@ -152,7 +156,47 @@
     });
     return entries;
   }
-  const editorShortcutHints = () => '<span class="editor-tab-hint">Tab 缩进</span><span class="editor-shortcut" aria-label="保存快捷键：Ctrl 或 Command 加 S"><kbd>Ctrl</kbd><span>/</span><kbd>⌘</kbd><span>+</span><kbd>S</kbd><b>保存</b></span>';
+  const editorShortcutHints = () => `<label class="code-lock-toggle" title="锁定后仍可选择、复制和试跑"><input type="checkbox" role="switch" id="code-lock-toggle" aria-label="锁定代码"><span class="code-lock-track" aria-hidden="true"></span><span id="code-lock-label">锁定代码</span></label><button type="button" class="btn small icon-button" data-select-code title="全选代码" aria-label="全选代码">${icon('document')}</button>`;
+
+  function applyEditorLock(){
+    const area=$('#code-input');if(!area||!state.editor)return;
+    const locked=state.editor.entity?.code_locked===true;
+    area.readOnly=locked;
+    area.closest('.code-editor').classList.toggle('is-code-locked',locked);
+    const toggle=$('#code-lock-toggle'),label=$('#code-lock-label'),language=$('#editor-language');
+    if(toggle)toggle.checked=locked;
+    if(label)label.textContent=locked?'代码已锁定':'锁定代码';
+    if(language)language.disabled=locked||state.busy;
+  }
+  async function changeEditorLock(locked){
+    const editor=state.editor;if(!editor)return;
+    const toggle=$('#code-lock-toggle');
+    if(editor.entity.id){
+      state.busy=true;toggle.disabled=true;
+      $('#code-input').readOnly=true;
+      try{
+        const kind=editor.kind==='snippet'?'snippet':'problem';
+        const resource=kind==='snippet'?'algorithm-snippets':'problems';
+        const saved=await api(`/api/${resource}/${encodeURIComponent(editor.entity.id)}/code-lock`,'PUT',{version:editor.entity.version,code_locked:locked});
+        if(state.editor===editor){
+          editor.entity={...editor.entity,version:saved[kind].version,code_locked:saved[kind].code_locked};
+          const initial=JSON.parse(editor.initial);initial.code_locked=saved[kind].code_locked;editor.initial=JSON.stringify(initial);
+        }
+      }catch(error){toast(error.message,true);}
+      finally{state.busy=false;toggle.disabled=false;}
+    }else{
+      editor.entity.code_locked=locked;
+      if(editor.entity.standalone){
+        try{localStorage.setItem('algoarchive.playground-code-lock',String(locked));}
+        catch(_){toast('无法保存锁定状态，当前页面仍可锁定代码。',true);}
+      }
+    }
+    applyEditorLock();updateSaveState();
+  }
+  function selectEditorCode(){
+    const area=$('#code-input');if(!area)return;
+    area.focus();area.select();updateSelectionBands();updateCursor();
+  }
 
   async function api(path, method='GET', payload) {
     const config = {method, headers: {'Accept':'application/json'}, cache:'no-store'};
@@ -770,6 +814,7 @@
   function resetPlayground() {
     if(!window.confirm('确定清空代码试跑草稿吗？此操作不会影响题库中的代码。'))return;
     try{localStorage.removeItem(PLAYGROUND_DRAFT_KEY);}catch(_){}
+    try{localStorage.removeItem('algoarchive.playground-code-lock');}catch(_){}
     compilerWorkspace();
     toast('代码试跑草稿已清空。');
   }
@@ -793,6 +838,7 @@
     let hasSavedDraft=false;
     try{hasSavedDraft=!!localStorage.getItem(PLAYGROUND_DRAFT_KEY);}catch(_){}
     const p={standalone:true,id:null,number:'',name:'代码试跑',url:'',language:'cpp',code:draft.code,tests:draft.tests,code_path:'main.cpp'};
+    try{p.code_locked=localStorage.getItem('algoarchive.playground-code-lock')==='true';}catch(_){}
     state.context={};
     state.cph={active:0,results:{},compile:null,running:false,runId:'',totalMs:0,timeLimit:draft.timeLimit};
     state.editor={kind:'problem',entity:{...p},tests:normalizeCphTests(draft.tests),initial:'',initialTests:JSON.stringify(normalizeCphTests(draft.tests)),initialTimeLimit:draft.timeLimit};
@@ -823,7 +869,7 @@
   }
   function readProblemForm() {
     const form=$('#problem-form'); if(!form)return null;
-    const data=new FormData(form);return {platform:data.get('platform'),number:state.editor?.entity?.number||'',name:data.get('name'),url:data.get('url'),language:data.get('language'),contest_id:data.get('contest_id')||null,algorithm_id:data.get('algorithm_id')||null,code:data.get('code')};
+    const data=new FormData(form);return {platform:data.get('platform'),number:state.editor?.entity?.number||'',name:data.get('name'),url:data.get('url'),language:$('#editor-language').value,contest_id:data.get('contest_id')||null,algorithm_id:data.get('algorithm_id')||null,code:data.get('code'),code_locked:state.editor?.entity?.code_locked===true};
   }
   function snippetEditor(p) {
     state.context={};
@@ -837,7 +883,7 @@
   }
   function readSnippetForm() {
     const form=$('#snippet-form');if(!form)return null;
-    const data=new FormData(form);return {title:data.get('title'),language:data.get('language'),code:data.get('code')};
+    const data=new FormData(form);return {title:data.get('title'),language:$('#editor-language').value,code:data.get('code'),code_locked:state.editor?.entity?.code_locked===true};
   }
   function clearFieldError(element) {
     const field=element.closest('.field');if(!field)return;
@@ -881,6 +927,7 @@
   let editorResizeObserver=null,observedCodeInput=null;
   function highlightCode() {
     const area=$('#code-input');if(!area)return;const code=area.value,lang=$('#editor-language')?.value||state.editor?.entity?.language||'cpp';
+    applyEditorLock();
     if(observedCodeInput!==area){
       editorResizeObserver?.disconnect();observedCodeInput=area;
       editorResizeObserver=new ResizeObserver(syncScroll);editorResizeObserver.observe(area);
@@ -958,7 +1005,7 @@
     const caseDisabled=caseControls.map(el=>el.disabled);caseControls.forEach(el=>{el.disabled=true;});
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
     try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;await loadState().catch(error=>toast('已保存；刷新列表失败：'+error.message,true));state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');}
-    catch(e){showEditorError(e);}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
+    catch(e){showEditorError(e);}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   async function saveSnippet(event){
     event?.preventDefault();if(state.busy||!state.editor||state.editor.kind!=='snippet')return;
@@ -975,7 +1022,7 @@
       state.editor=null;state.route=`snippet/${saved.snippet.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);snippetEditor(saved.snippet);
       toast(refreshError?`代码模板已保存；列表刷新失败：${refreshError.message}`:'代码模板已保存到本地。',!!refreshError);
     }catch(e){showEditorError(e);}
-    finally{state.busy=false;$('#snippet-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});if($('#save-snippet')){$('#save-snippet').disabled=false;$('#save-snippet').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
+    finally{state.busy=false;$('#snippet-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-snippet')){$('#save-snippet').disabled=false;$('#save-snippet').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   function saveCurrentEditor(event){if(state.editor?.kind==='snippet')return saveSnippet(event);if(state.editor?.entity?.standalone){event?.preventDefault();return savePlaygroundDraft();}return saveProblem(event);}
   async function copyCode(){const area=$('#code-input');try{await navigator.clipboard.writeText(area.value);toast('代码已复制。');}catch(_){const start=area.selectionStart,end=area.selectionEnd;area.focus();area.select();const ok=document.execCommand('copy');if(ok)area.setSelectionRange(start,end);toast(ok?'代码已复制。':'请按 Ctrl + C 复制选中的代码。',!ok);}}
@@ -990,7 +1037,7 @@
       toast(ok?'原题链接已复制。':'无法写入剪贴板，请手动复制原题链接。',!ok);
     }
   }
-  function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';}
+  function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';state.preview=null;}
   function setModalBusy(busy){state.busy=busy;modal.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=busy;});}
   function dialogHeader(title){return `<div class="modal-header"><h2 id="dialog-title">${esc(title)}</h2><button type="button" class="modal-close" data-close-modal aria-label="关闭">×</button></div>`;}
   function downloadProblemImportSample(){
@@ -1078,11 +1125,24 @@
       const originAction=origin==='#'
         ? '<button type="button" class="btn" data-problem-origin-unavailable>原题链接不可用</button>'
         : `<a class="btn" href="${origin}" target="_blank" rel="noopener noreferrer">打开原题 ↗</a>`;
-      modal.innerHTML=`${dialogHeader(problemName(problem))}<div class="modal-body problem-code-preview"><div class="preview-meta">${badge(problem.platform)}<span>${esc(languages[problem.language]||problem.language)}</span><span>最近修改 ${time(problem.updated_at)}</span></div><pre class="preview-code"><code>${highlightSource(problem.code||'',problem.language)}</code></pre></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>关闭</button>${originAction}</div>`;
+      state.preview={code:problem.code||''};
+      modal.innerHTML=`${dialogHeader(problemName(problem))}<div class="modal-body problem-code-preview"><div class="preview-toolbar"><div class="preview-meta">${badge(problem.platform)}<span>${esc(languages[problem.language]||problem.language)}</span><span>最近修改 ${time(problem.updated_at)}</span>${problem.code_locked?'<span class="code-lock-status">代码已锁定</span>':''}</div><div class="preview-actions"><button type="button" class="btn small" data-select-preview-code>${icon('document')}全选</button><button type="button" class="btn small" data-copy-preview-code>${icon('copy')}复制代码</button></div></div><pre class="preview-code" tabindex="0" aria-label="代码预览"><code>${highlightSource(problem.code||'',problem.language).replace(/\n$/,'')}</code></pre></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>关闭</button>${originAction}</div>`;
       modal.showModal();
+      $('.preview-code',modal).focus({preventScroll:true});
     }catch(error){
       toast(error.message,true);
     }
+  }
+  function selectPreviewCode(){
+    const code=$('.preview-code code',modal);if(!code)return;
+    $('.preview-code',modal).focus({preventScroll:true});
+    const range=document.createRange();range.selectNodeContents(code);
+    const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+  }
+  async function copyPreviewCode(){
+    if(!state.preview)return;
+    try{await navigator.clipboard.writeText(state.preview.code);toast('代码已复制。');}
+    catch(_){selectPreviewCode();const ok=document.execCommand('copy');toast(ok?'代码已复制。':'代码已全选，请按 Ctrl+C 复制。',!ok);}
   }
   const formatBytes = value => {
     const bytes = Number(value) || 0;
@@ -1394,6 +1454,7 @@
   }
   function codeKeydown(e){
     const a=e.target;if(a.id!=='code-input'||e.isComposing||e.keyCode===229||state.busy)return;
+    if(a.readOnly)return;
     if(e.key==='Tab'){
       e.preventDefault();const start=a.selectionStart,end=a.selectionEnd,text=a.value;
       if(e.shiftKey||text.slice(start,end).includes('\n')){const blockStart=text.lastIndexOf('\n',start-1)+1;let blockEnd=end;const block=text.slice(blockStart,blockEnd);let firstRemoved=0,total=0;const replacement=block.split('\n').map((line,i)=>{if(e.shiftKey){const n=(line.match(/^(?: {1,4}|\t)/)||[''])[0].length;if(i===0)firstRemoved=n;total+=n;return line.slice(n);}total+=4;return '    '+line;}).join('\n');a.setRangeText(replacement,blockStart,blockEnd,'preserve');a.setSelectionRange(e.shiftKey?Math.max(blockStart,start-firstRemoved):start+4,e.shiftKey?Math.max(blockStart,end-total):end+total);}
@@ -1498,6 +1559,14 @@
     if(t.hasAttribute('data-problem-origin-unavailable')){e.preventDefault();toast('题目保存的链接不是可打开的网址。',true);}
     else if(t.hasAttribute('data-nav')){e.preventDefault();await go(t.dataset.nav);}
     else if(t.hasAttribute('data-open-problem')){e.preventDefault();await go(`problem/${t.dataset.openProblem}`);}
+    else if(t.hasAttribute('data-select-code'))selectEditorCode();
+    else if(t.hasAttribute('data-select-preview-code'))selectPreviewCode();
+    else if(t.hasAttribute('data-copy-preview-code'))await copyPreviewCode();
+    else if(t.hasAttribute('data-open-sidebar-art')){
+      state.preview=null;
+      modal.innerHTML=dialogHeader('插画')+'<div class="sidebar-art-preview"><img src="/sidebar-art.webp?v=20261114" alt="紫色人物插画" width="941" height="1672"></div>';
+      modal.showModal();
+    }
     else if(t.hasAttribute('data-open-contest')){e.preventDefault();await go(`contest/${t.dataset.openContest}`);}
     else if(t.hasAttribute('data-open-algorithm')){e.preventDefault();await go(`algorithm/${t.dataset.openAlgorithm}`);}
     else if(t.hasAttribute('data-open-snippet')){e.preventDefault();await go(`snippet/${t.dataset.openSnippet}`);}
@@ -1557,6 +1626,7 @@
   });
   document.addEventListener('change',e=>{
     if(e.target.closest('.field'))clearFieldError(e.target);
+    if(e.target.id==='code-lock-toggle'){changeEditorLock(e.target.checked);return;}
     if(e.target.id.startsWith('filter-')&&e.target.id!=='filter-query'){
       const key=e.target.id.replace('filter-','');state.filter[key]=e.target.value;
       if(key==='platform') {state.filter.contest='';const sel=$('#filter-contest');if(sel)sel.innerHTML=option('','全部比赛','')+option('none','未关联比赛','')+state.contests.filter(c=>!state.filter.platform||platformKey(c.platform)===platformKey(state.filter.platform)).map(c=>option(c.id,c.title,'')).join('');}updateTable();
@@ -1569,6 +1639,9 @@
     else if(e.target.closest('#snippet-form'))updateSaveState();
   });
   document.addEventListener('keydown',e=>{
+    if(modal.open&&state.preview&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){
+      e.preventDefault();selectPreviewCode();return;
+    }
     const previewRow=e.target.closest?.('.problem-row-preview');
     if(previewRow&&e.target===previewRow&&(e.key==='Enter'||e.key===' ')){
       e.preventDefault();

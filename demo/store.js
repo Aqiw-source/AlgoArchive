@@ -1,0 +1,163 @@
+"use strict";
+
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory();
+  else root.AlgoArchiveDemo = factory();
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const copy = value => JSON.parse(JSON.stringify(value));
+  const bytes = value => new TextEncoder().encode(value).length;
+  const aliases = { lanqiao: "蓝桥杯", "蓝桥": "蓝桥杯", lanqiaobei: "蓝桥杯", hdu: "HDU", hduoj: "HDU", matiji: "码蹄集", codeforces: "Codeforces", atcoder: "AtCoder", acwing: "AcWing", luogu: "洛谷", niuke: "牛客", nowcoder: "牛客" };
+  const platform = v => aliases[String(v || "").trim().toLowerCase()] || String(v || "").trim();
+  const fail = (message, status = 400) => { const e = new Error(message); e.status = status; throw e; };
+
+  function createStore(fixture, options = {}) {
+    const data = copy(fixture);
+    let serial = 0;
+    const snippets = data.algorithms.flatMap(a => a.snippets || []);
+    const find = (items, id) => items.find(x => x.id === id) || fail("记录不存在或已被删除。", 404);
+    const version = (record, payload) => {
+      if (record.version !== payload.version) fail("记录已发生变化，请刷新页面后重新操作。", 409);
+    };
+    const touch = record => { record.version++; record.updated_at = new Date().toISOString(); };
+    const base = () => ({ id: `demo-${Date.now()}-${++serial}`, version: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+    const tests = items => {
+      if (!Array.isArray(items) || items.length > 100) fail("用例必须是数组且最多 100 个。");
+      let total = 0;
+      const result = items.map((t, i) => {
+        if (!t || typeof t.input !== "string" || typeof t.output !== "string") fail("测试用例的 input 和 output 必须是文本。");
+        const size = bytes(t.input) + bytes(t.output);
+        if (size > 1024 * 1024) fail("单个测试用例不能超过 1 MiB。");
+        total += size;
+        return { ordinal: i, input: t.input, output: t.output };
+      });
+      if (total > 2 * 1024 * 1024) fail("全部测试用例合计不能超过 2 MiB。");
+      return result;
+    };
+    const getProblem = p => ({ ...p, contest_title: data.contests.find(c => c.id === p.contest_id)?.title || null, algorithm_name: data.algorithms.find(a => a.id === p.algorithm_id)?.name || null });
+    const getAlgorithm = a => ({ ...a, snippets: snippets.filter(s => s.algorithm_id === a.id), problem_count: data.problems.filter(p => p.algorithm_id === a.id).length });
+    const getContest = c => ({ ...c, problem_count: data.problems.filter(p => p.contest_id === c.id).length });
+    const state = () => ({ ...data, problems: data.problems.map(getProblem), contests: data.contests.map(getContest), algorithms: data.algorithms.map(getAlgorithm) });
+    const validate = (kind, payload, old = null) => {
+      const p = copy(payload);
+      delete p.version; delete p.id; delete p.created_at; delete p.updated_at;
+      if (kind === "problem" || kind === "snippet") {
+        if (old?.code_locked && ((p.code !== undefined && p.code !== old.code) || (p.language !== undefined && p.language !== old.language))) fail("代码已锁定，请先解锁后再修改代码或语言。", 409);
+        if (old && p.code_locked !== undefined && p.code_locked !== old.code_locked) fail("请使用代码锁定开关。", 409);
+        if (p.code !== undefined && (typeof p.code !== "string" || bytes(p.code) > 2 * 1024 * 1024)) fail("代码必须是文本且不能超过 2 MiB。");
+        if (p.code_locked !== undefined && typeof p.code_locked !== "boolean") fail("锁定状态必须是布尔值。");
+      }
+      if (p.platform !== undefined) p.platform = platform(p.platform);
+      if (p.tests !== undefined) p.tests = tests(p.tests);
+      if (p.contest_id) {
+        const c = find(data.contests, p.contest_id);
+        if (p.platform && p.platform !== c.platform) fail("题目平台必须与比赛一致。");
+        p.platform = c.platform;
+      }
+      if (p.algorithm_id) find(data.algorithms, p.algorithm_id);
+      const key = kind === "contest" || kind === "snippet" ? "title" : "name";
+      if (p[key] !== undefined && (typeof p[key] !== "string" || !p[key].trim())) fail("名称不能为空。");
+      if (!old && !p[key]) fail("名称不能为空。");
+      return p;
+    };
+    const insertProblem = p => {
+      const item = { ...base(), platform: "", number: "", name: "", language: "cpp", code: "", code_locked: false, url: "", tests: [], contest_id: null, algorithm_id: null,
+        global_order: data.problems.length, algorithm_order: data.problems.length, ...p };
+      data.problems.push(item);
+      return getProblem(item);
+    };
+    function dispatch(method, route, payload) {
+      if (method === "GET" && route === "/api/state") return state();
+      if (method === "GET" && route === "/api/settings") return { settings: {
+        version: options.version || "2.2.6", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
+        data_dir: "当前页面内存（刷新重置）", config_path: "不适用（在线演示）", log_path: "不适用（在线演示）", backup_dir: "不适用（在线演示）",
+        browser: { mode: "default", window_mode: "tab" },
+        compiler: { available: false, standard: "gnu++14", standards: ["gnu++11", "gnu++14", "gnu++17"], version: "在线演示不执行 C++，请使用本地版。", configured_path: "", path: "" },
+      } };
+      if (method === "GET" && route === "/api/backups") return { backups: [] };
+      if (method === "PUT" && route === "/api/profile") {
+        if (typeof payload.name !== "string" || !payload.name.trim() || payload.name.length > 50) fail("用户名必须为 1-50 字符。");
+        data.profile = { name: payload.name.trim(), avatar: typeof payload.avatar === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(payload.avatar) ? payload.avatar : "" };
+        return { profile: data.profile };
+      }
+      const orderMatch = route.match(/^\/api\/(contests|algorithms|problems)\/order$/);
+      if (method === "PUT" && orderMatch) {
+        const collection = orderMatch[1], key = `${collection.slice(0, -1)}_order_version`;
+        const ids = collection === "problems" ? payload.problem_ids : payload.ordered_ids;
+        if (payload.version !== data[key]) fail("排序已改变，请刷新。", 409);
+        if (!Array.isArray(ids) || ids.length !== data[collection].length || new Set(ids).size !== ids.length || ids.some(id => !data[collection].some(x => x.id === id))) fail("排序记录不完整。");
+        ids.forEach((id, i) => { find(data[collection], id)[collection === "problems" ? "global_order" : "sort_order"] = i; });
+        data[key]++;
+        return { ok: true, version: data[key] };
+      }
+      if (method === "POST" && route === "/api/problems/import") {
+        if (!Array.isArray(payload.problems) || payload.problems.length < 1 || payload.problems.length > 200) fail("单次导入 1-200 道题目。");
+        const prepared = payload.problems.map(p => validate("problem", p));
+        const imported = prepared.map(insertProblem);
+        return { count: imported.length, imported: imported.length, problems: imported, warnings: [] };
+      }
+      const algorithmOrder = route.match(/^\/api\/algorithms\/([^/]+)\/problems\/order$/);
+      if (method === "PUT" && algorithmOrder) {
+        const a = find(data.algorithms, algorithmOrder[1]); version(a, payload);
+        const items = data.problems.filter(p => p.algorithm_id === a.id), ids = payload.problem_ids;
+        if (!Array.isArray(ids) || ids.length !== items.length || new Set(ids).size !== ids.length || ids.some(id => !items.some(p => p.id === id))) fail("排序记录不完整。");
+        ids.forEach((id, i) => { find(items, id).algorithm_order = i; }); touch(a);
+        return { ok: true, version: a.version };
+      }
+      const snippetPost = route.match(/^\/api\/algorithms\/([^/]+)\/snippets$/);
+      if (method === "POST" && snippetPost) {
+        const a = find(data.algorithms, snippetPost[1]);
+        const p = validate("snippet", { ...payload, algorithm_id: a.id });
+        const item = { ...base(), code: "", language: "cpp", code_locked: false, ...p, algorithm_name: a.name };
+        snippets.push(item); touch(a); return { snippet: item };
+      }
+      const lock = route.match(/^\/api\/(problems|algorithm-snippets)\/([^/]+)\/code-lock$/);
+      if (method === "PUT" && lock) {
+        const item = find(lock[1] === "problems" ? data.problems : snippets, lock[2]); version(item, payload);
+        if (typeof payload.code_locked !== "boolean") fail("锁定状态必须是布尔值。");
+        if (item.code_locked !== payload.code_locked) { item.code_locked = payload.code_locked; touch(item); }
+        return { [lock[1] === "problems" ? "problem" : "snippet"]: item };
+      }
+      const testRoute = route.match(/^\/api\/problems\/([^/]+)\/tests$/);
+      if (method === "PUT" && testRoute) {
+        const item = find(data.problems, testRoute[1]); version(item, payload);
+        const validated = tests(payload.tests); item.tests = validated; touch(item);
+        return { tests: item.tests, version: item.version };
+      }
+      const resource = route.match(/^\/api\/(problems|contests|algorithms|algorithm-snippets)(?:\/([^/]+))?$/);
+      if (resource) {
+        const kind = { problems: "problem", contests: "contest", algorithms: "algorithm", "algorithm-snippets": "snippet" }[resource[1]];
+        const items = kind === "snippet" ? snippets : data[resource[1]];
+        const shape = item => kind === "problem" ? getProblem(item) : kind === "contest" ? getContest(item) : kind === "algorithm" ? getAlgorithm(item) : item;
+        if (method === "GET" && resource[2]) return { [kind]: shape(find(items, resource[2])) };
+        if (method === "POST" && !resource[2] && kind !== "snippet") {
+          const p = validate(kind, payload);
+          if (kind === "problem") return { problem: insertProblem(p) };
+          const item = { ...base(), sort_order: items.length, ...(kind === "algorithm" ? { links: [], snippets: [], category: "", description: "" } : { url: "", platform: "" }), ...p };
+          items.push(item); return { [kind]: shape(item) };
+        }
+        if ((method === "PUT" || method === "DELETE") && resource[2]) {
+          const item = find(items, resource[2]); version(item, payload);
+          if (method === "PUT") {
+            const p = validate(kind, payload, item); Object.assign(item, p); touch(item);
+            return { [kind]: shape(item) };
+          }
+          if (kind === "contest") {
+            if (payload.keep_problems) data.problems.filter(p => p.contest_id === item.id).forEach(p => { p.contest_id = null; touch(p); });
+            else data.problems = data.problems.filter(p => p.contest_id !== item.id);
+          }
+          if (kind === "algorithm") {
+            for (let i = snippets.length - 1; i >= 0; i--) if (snippets[i].algorithm_id === item.id) snippets.splice(i, 1);
+            data.problems.filter(p => p.algorithm_id === item.id).forEach(p => { p.algorithm_id = null; touch(p); });
+          }
+          items.splice(items.indexOf(item), 1); return { ok: true };
+        }
+      }
+      fail("在线演示不执行此操作，请下载本地版使用。", 501);
+    }
+    return { request(method, route, payload = {}) {
+      try { return { status: 200, body: copy(dispatch(method.toUpperCase(), route.split("?")[0], copy(payload))) }; }
+      catch (error) { return { status: error.status || 400, body: { error: error.message, code: "demo_error" } }; }
+    } };
+  }
+  return { createStore };
+});

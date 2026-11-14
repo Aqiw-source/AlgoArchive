@@ -44,7 +44,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.5"
+APP_VERSION = "2.2.6"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 9
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
@@ -57,6 +57,17 @@ PROBLEM_PLATFORM_ALIASES = {
     "niuke": "牛客",
     "洛谷": "洛谷",
     "牛客": "牛客",
+    "蓝桥杯": "蓝桥杯",
+    "蓝桥": "蓝桥杯",
+    "lanqiao": "蓝桥杯",
+    "lanqiaobei": "蓝桥杯",
+    "hdu": "HDU",
+    "hduoj": "HDU",
+    "杭电": "HDU",
+    "杭州电子科技大学": "HDU",
+    "码蹄集": "码蹄集",
+    "码蹄": "码蹄集",
+    "matiji": "码蹄集",
 }
 EXTENSIONS = {"cpp": ".cpp", "python": ".py", "java": ".java", "other": ".txt"}
 SCHEMELESS_URL_PATTERN = re.compile(
@@ -1851,6 +1862,7 @@ class Repository:
 
     def _problem(self, identifier, with_code=True):
         row = self._row("problems", identifier)
+        row["code_locked"] = self._code_locked("problem", identifier)
         contest = self.db.execute("SELECT title FROM contests WHERE id=?", (row["contest_id"],)).fetchone()
         row["contest_title"] = contest[0] if contest else None
         algorithm = self.db.execute(
@@ -1945,6 +1957,7 @@ class Repository:
 
     def _snippet(self, identifier, with_code=True):
         row = self._row("algorithm_snippets", identifier)
+        row["code_locked"] = self._code_locked("snippet", identifier)
         algorithm = self.db.execute(
             "SELECT name FROM algorithms WHERE id=?", (row["algorithm_id"],)
         ).fetchone()
@@ -1959,6 +1972,51 @@ class Repository:
                     "code_unavailable",
                 ) from exc
         return row
+
+    def _code_locked(self, kind, identifier):
+        return self.db.execute(
+            "SELECT 1 FROM settings WHERE key=? AND value='true'",
+            (f"code_lock:{kind}:{identifier}",),
+        ).fetchone() is not None
+
+    @staticmethod
+    def _validated_code_lock(payload):
+        locked = payload.get("code_locked", False)
+        if type(locked) is not bool:
+            raise AppError("代码锁定状态必须为布尔值")
+        return locked
+
+    def _write_code_lock(self, kind, identifier, locked):
+        key = f"code_lock:{kind}:{identifier}"
+        if locked:
+            self.db.execute("INSERT OR REPLACE INTO settings(key,value) VALUES (?, 'true')", (key,))
+        else:
+            self.db.execute("DELETE FROM settings WHERE key=?", (key,))
+
+    @staticmethod
+    def _guard_code_lock(old, payload):
+        if old["code_locked"] and any(
+            key in payload and payload[key] != old[key] for key in ("code", "language")
+        ):
+            raise AppError("代码已锁定，请先解锁后再修改代码或语言。", 409, "code_locked")
+        if "code_locked" in payload and payload["code_locked"] is not old["code_locked"]:
+            raise AppError("请使用代码锁定开关更改锁定状态。", 409, "code_locked")
+
+    def set_code_lock(self, kind, identifier, payload):
+        table, read = {"problem": ("problems", self._problem),
+                       "snippet": ("algorithm_snippets", self._snippet)}[kind]
+        if "code_locked" not in payload:
+            raise AppError("请提供代码锁定状态")
+        locked = self._validated_code_lock(payload)
+        with self.lock:
+            self._ready()
+            old = read(identifier)
+            self._version(old, payload)
+            if old["code_locked"] != locked:
+                with self.db:
+                    self._write_code_lock(kind, identifier, locked)
+                    self.db.execute(f"UPDATE {table} SET version=version+1 WHERE id=?", (identifier,))
+            return read(identifier)
 
     def _touch_contests(self, ids, timestamp):
         for identifier in set(ids) - {None}:
@@ -2255,6 +2313,7 @@ class Repository:
         with self.lock:
             self._ready()
             values, encoded = self._validate_problem(payload)
+            code_locked = self._validated_code_lock(payload)
             tests = self._validated_tests(payload) if "tests" in payload else []
             self._duplicate(values)
             identifier, timestamp = uuid.uuid4().hex, now()
@@ -2269,6 +2328,7 @@ class Repository:
                     values["algorithm_id"], algorithm_order, global_order, path, timestamp, timestamp))
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (path, encoded))
                 self._write_problem_tests(identifier, tests, timestamp)
+                self._write_code_lock("problem", identifier, code_locked)
                 self._touch_contests([values["contest_id"]], timestamp)
                 self._touch_algorithm(values["algorithm_id"], timestamp)
             self._flush_pending()
@@ -2279,6 +2339,7 @@ class Repository:
             self._ready()
             old = self._problem(identifier)
             self._version(old, payload)
+            self._guard_code_lock(old, payload)
             values, encoded = self._validate_problem({**old, **payload})
             tests = self._validated_tests(payload) if "tests" in payload else None
             self._duplicate(values, identifier)
@@ -2502,6 +2563,7 @@ class Repository:
                     "contest_id",
                     "algorithm_id",
                     "tests",
+                    "code_locked",
                 }
                 ignored_fields = sorted(set(item) - known_fields)
                 if ignored_fields:
@@ -2594,6 +2656,7 @@ class Repository:
                         "values": values,
                         "encoded": encoded,
                         "tests": tests,
+                        "code_locked": self._validated_code_lock(item),
                         "algorithm_order": algorithm_order,
                     }
                 )
@@ -2648,6 +2711,7 @@ class Repository:
                         prepared_item["tests"],
                         timestamp,
                     )
+                    self._write_code_lock("problem", identifier, prepared_item["code_locked"])
                 contest_ids = {
                     item["values"]["contest_id"] for item in prepared
                 } - {None}
@@ -2679,6 +2743,7 @@ class Repository:
                 raise AppError("删除题目会同时删除代码文件，请再次确认", 400, "confirmation_required")
             with self.db:
                 self.db.execute("DELETE FROM problems WHERE id=?", (identifier,))
+                self._write_code_lock("problem", identifier, False)
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", (old["code_path"],))
                 self._touch_contests([old["contest_id"]], now())
                 self._touch_algorithm(old["algorithm_id"], now())
@@ -2701,6 +2766,10 @@ class Repository:
                         (identifier,),
                     ).fetchall()
                     self.db.executemany("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", [(r[0],) for r in rows])
+                    self.db.execute(
+                        "DELETE FROM settings WHERE key IN (SELECT 'code_lock:problem:' || id FROM problems WHERE contest_id=?)",
+                        (identifier,),
+                    )
                     self.db.execute("DELETE FROM problems WHERE contest_id=?", (identifier,))
                     timestamp = now()
                     for algorithm_id in {r[1] for r in rows} - {None}:
@@ -2778,12 +2847,15 @@ class Repository:
                     [(item["code_path"],) for item in snippets],
                 )
                 self.db.execute("DELETE FROM algorithms WHERE id=?", (identifier,))
+                for snippet in snippets:
+                    self._write_code_lock("snippet", snippet["id"], False)
             self._flush_pending()
             return {"ok": True, "deleted_snippets": len(snippets)}
 
     def create_snippet(self, algorithm_id, payload):
         with self.lock:
             self._ready()
+            code_locked = self._validated_code_lock(payload)
             algorithm = self._row("algorithms", algorithm_id)
             count = self.db.execute(
                 "SELECT COUNT(*) FROM algorithm_snippets WHERE algorithm_id=?",
@@ -2814,6 +2886,7 @@ class Repository:
                     (path, encoded),
                 )
                 self._touch_algorithm(algorithm_id, timestamp)
+                self._write_code_lock("snippet", identifier, code_locked)
             self._flush_pending()
             return self._snippet(identifier)
 
@@ -2822,6 +2895,7 @@ class Repository:
             self._ready()
             old = self._snippet(identifier)
             self._version(old, payload)
+            self._guard_code_lock(old, payload)
             values, encoded, _ = self._validate_snippet({**old, **payload})
             path = f"codes/{identifier}{EXTENSIONS[values['language']]}"
             timestamp = now()
@@ -2868,6 +2942,7 @@ class Repository:
                 self.db.execute(
                     "DELETE FROM algorithm_snippets WHERE id=?", (identifier,)
                 )
+                self._write_code_lock("snippet", identifier, False)
                 self.db.execute(
                     "INSERT INTO pending_files(action,path,content) "
                     "VALUES ('delete',?,NULL)",
@@ -3418,6 +3493,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             return self._json({"problem": repo.create_problem(body)}, 201)
         if self.command == "POST" and path == "/api/problems/import":
             return self._json(repo.import_problems(body), 201)
+        match = re.fullmatch(r"/api/(problems|algorithm-snippets)/([a-f0-9]{32})/code-lock", path)
+        if self.command == "PUT" and match:
+            kind = "problem" if match[1] == "problems" else "snippet"
+            return self._json({kind: repo.set_code_lock(kind, match[2], body)})
         match = re.fullmatch(
             r"/api/problems/([a-f0-9]{32})/tests", path
         )

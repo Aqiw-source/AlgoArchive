@@ -5,14 +5,23 @@
 作者：**Aqiw** · [GitHub 仓库](https://github.com/Aqiw-source/AlgoArchive) ·
 [下载 Windows x64 版本](https://github.com/Aqiw-source/AlgoArchive/releases/latest)
 
+**[在线体验](https://aqiw-source.github.io/AlgoArchive/)** ·
+[浏览演示比赛](https://aqiw-source.github.io/AlgoArchive/#contests) ·
+[体验算法模板](https://aqiw-source.github.io/AlgoArchive/#algorithms)
+
+在线演示使用独立数据：13 场比赛或练习选编、104 道题、12 类算法、21 份 C++ 模板，
+另有 7 道题目包含完整示例程序和测试。可以在当前页面编辑、保存和锁定代码，刷新后重置。
+编译运行、备份和系统操作需下载本地版；不会连接或修改你的本地题库。
+数据来源见 [演示数据说明](https://github.com/Aqiw-source/AlgoArchive/blob/main/demo/SOURCES.md)。
+
 AlgoArchive 使用本地 Python 标准库服务和原生 HTML/CSS/JavaScript 界面。
 比赛、题目、算法模板、多份代码、参考链接、头像和设置均保存在当前
 Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测试只会在本机
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.2.5-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.2.5-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.2.6-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.2.6-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -23,25 +32,46 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 
 ### 本地工作空间
 
-![算法档案首页](docs/screenshots/dashboard.png)
+[![算法档案首页](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)
 
 ### 比赛归档
 
 Codeforces、AtCoder、AcWing、洛谷和牛客提供固定工作空间；平台仍可自由输入，比赛链接也不受限制。
+蓝桥杯、HDU、码蹄集在题目和比赛的平台标识中显示官网图标，不增加侧栏工作空间。
 
-![AcWing 工作区](docs/screenshots/acwing-workspace.png)
+演示中 ICPC 2025 横滨区域赛收录在 Codeforces；蓝桥杯 2023-2025 省赛、国赛选编收录在蓝桥杯。
+
+[![比赛归档](docs/screenshots/contests.png)](docs/screenshots/contests.png)
+
+<details>
+<summary>展开 Codeforces 与蓝桥杯比赛预览</summary>
+
+[![Codeforces ICPC 工作区](docs/screenshots/codeforces-workspace.png)](docs/screenshots/codeforces-workspace.png)
+
+[![蓝桥杯国赛选编](docs/screenshots/lanqiao-contest.png)](docs/screenshots/lanqiao-contest.png)
+
+</details>
 
 ### 算法模板
 
 每个算法都可以管理多道题目、多份代码和多个参考链接。
 
-![树状数组算法详情](docs/screenshots/algorithm.png)
+[![算法模板分类](docs/screenshots/templates.png)](docs/screenshots/templates.png)
+
+<details>
+<summary>展开树状数组模板与代码预览</summary>
+
+[![树状数组算法详情](docs/screenshots/algorithm.png)](docs/screenshots/algorithm.png)
+
+[![代码预览与全选复制](docs/screenshots/preview.png)](docs/screenshots/preview.png)
+
+</details>
 
 ### 代码工作台
 
 VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地源文件备份。
 
-![题目代码编辑器](docs/screenshots/editor.png)
+[![题目代码编辑器](docs/screenshots/editor.png)](docs/screenshots/editor.png)
 
 ### CPH 兼容测试
 
@@ -63,7 +93,15 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 浏览器与窗口打开方式可在本地设置中选择，不修改 Windows 全局默认应用。
 
-![设置与诊断](docs/screenshots/settings.png)
+[![设置与诊断](docs/screenshots/settings.png)](docs/screenshots/settings.png)
+
+<details>
+<summary>展开移动端预览</summary>
+
+<img src="docs/screenshots/mobile.png" alt="移动端首页" width="390">
+<img src="docs/screenshots/mobile-contests.png" alt="移动端比赛" width="390">
+
+</details>
 
 ## 功能
 
@@ -75,6 +113,8 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
 | 排序与导入 | 全局题目和算法内题目独立排序，支持逆序和 JSON 批量导入 |
 | 代码工作台 | VS Code 风格配色、语法高亮、行号、自动缩进和 `Ctrl+S` 保存 |
+| 代码锁定 | 每道题目和每份模板独立设置，默认关闭；锁定后仍可选择、复制和试跑，解锁后编辑 |
+| 代码预览 | 弹窗内可全选和复制源码，`Ctrl+A` 只选择代码 |
 | 本地评测 | CPH 兼容测试用例、`.prob` 导入导出、单例/全部运行、停止和编译诊断 |
 | 代码试跑 | 独立 C++ 草稿、多用例编译运行和浏览器本地保存，不写入题库 |
 | 个人资料 | 自定义头像和用户名，头像保存在数据目录 |
@@ -91,7 +131,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.2.5-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.2.6-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -330,13 +370,13 @@ node --check web/app.js
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.5
+.\scripts\build-portable.ps1 -Version 2.2.6
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.2.5
+.\scripts\build-release.ps1 -Version 2.2.6
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -348,14 +388,14 @@ Windows CI 会执行后端测试、前端语法检查、启动器 PE 依赖检�
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.5 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.6 已验证：
 
-- 143 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、运行时限、输出超限和用例总大小限制。
+- 151 项隔离后端测试通过，覆盖原子保存、迁移写入屏障、9,999 题备份恢复、代码锁定、运行时限、输出超限和用例总大小限制。
 - `node --check web/app.js` 通过。
 - 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。
 - 小屏题库隐藏次要列，长题名正常换行且无横向溢出。
 - 编辑器选区在全屏、小窗口、页面缩放和横向滚动后与文字对齐，末行准确覆盖到最后一个字符。
-- AcWing、Codeforces、AtCoder、洛谷和牛客使用本地打包的官网图标，标签宽度
+- AcWing、Codeforces、AtCoder、洛谷、牛客、蓝桥杯、HDU 和码蹄集使用本地打包的官网图标，标签宽度
   统一；工作区、首页统计和比赛关联均支持大小写与常见别名规范化。
 - CPH 面板、多用例、`.prob` 导入导出、本地运行和编译器诊断在桌面及
   390px 移动视口正常，无控制台错误和横向溢出。

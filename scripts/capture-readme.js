@@ -1,281 +1,103 @@
 "use strict";
-
+const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const http = require("node:http");
+const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
-
-const baseUrl = process.env.QA_URL || "http://127.0.0.1:8879/";
-const screenshots = path.resolve(__dirname, "..", "docs", "screenshots");
+const { buildDemo } = require("./build-demo.cjs");
+const { createFixture } = require("../demo/fixture.cjs");
 
 async function main() {
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  const site = fs.mkdtempSync(path.join(os.tmpdir(), "algo-readme-demo-"));
+  buildDemo(site);
+  const screenshots = path.resolve(__dirname, "..", "docs", "screenshots");
+  const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".ico": "image/x-icon" };
+  const server = http.createServer((req, res) => {
+    const pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+    const target = path.resolve(site, pathname.replace(/^\/AlgoArchive\//, "") || "index.html");
+    if (!pathname.startsWith("/AlgoArchive/") || !target.startsWith(site + path.sep) || !fs.existsSync(target) || !fs.statSync(target).isFile()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": types[path.extname(target)] || "application/octet-stream" });
+    fs.createReadStream(target).pipe(res);
   });
-  const page = await browser.newPage({
-    viewport: { width: 1440, height: 1000 },
-    deviceScaleFactor: 1,
-  });
-
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}/AlgoArchive/`;
+  let browser;
+  const errors = [], files = [], requests = [];
   try {
-    await page.goto(baseUrl, { waitUntil: "networkidle" });
-    const initial = await page.evaluate(() => fetch("/api/state").then(response => response.json()));
-
-    async function request(route, method, payload) {
-      return page.evaluate(async ({ route, method, payload }) => {
-        const token = document.querySelector('meta[name="csrf-token"]').content;
-        const response = await fetch(route, {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": token,
-          },
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(`${method} ${route}: ${data.error || response.status}`);
-        }
-        return data;
-      }, { route, method, payload });
-    }
-
-    let algorithm;
-    let featureProblem;
-    let acwingContest;
-    if (!initial.algorithms.length && !initial.contests.length && !initial.problems.length) {
-      await request("/api/profile", "PUT", { name: "Aqiw", avatar: "" });
-      algorithm = (await request("/api/algorithms", "POST", {
-        name: "树状数组",
-        category: "数据结构",
-        description: "用二进制最低位维护前缀信息，支持单点修改和区间查询。",
-        links: [
-          { title: "OI Wiki · 树状数组", url: "https://oi-wiki.org/ds/fenwick/" },
-          { title: "cp-algorithms · Fenwick Tree", url: "https://cp-algorithms.com/data_structures/fenwick.html" },
-        ],
-      })).algorithm;
-      await request(`/api/algorithms/${algorithm.id}/snippets`, "POST", {
-        title: "单点修改 + 区间查询",
-        language: "cpp",
-        code: [
-          "#include <bits/stdc++.h>",
-          "using namespace std;",
-          "",
-          "struct Fenwick {",
-          "    int n;",
-          "    vector<long long> tree;",
-          "    Fenwick(int n) : n(n), tree(n + 1) {}",
-          "    void add(int x, long long value) {",
-          "        for (; x <= n; x += x & -x) tree[x] += value;",
-          "    }",
-          "    long long sum(int x) const {",
-          "        long long result = 0;",
-          "        for (; x > 0; x -= x & -x) result += tree[x];",
-          "        return result;",
-          "    }",
-          "};",
-          "",
-          "int main() {",
-          "    ios::sync_with_stdio(false);",
-          "    cin.tie(nullptr);",
-          "    return 0;",
-          "}",
-          "",
-        ].join("\n"),
-      });
-
-      const contest = (await request("/api/contests", "POST", {
-        platform: "codeforces",
-        title: "Codeforces Round 1000 (Div. 2)",
-        url: "https://codeforces.com/contest/2062",
-      })).contest;
-      const baseProblem = {
-        platform: "codeforces",
-        url: "https://codeforces.com/contest/2062/problem/A",
-        language: "cpp",
-        contest_id: contest.id,
-      };
-      await request("/api/problems", "POST", {
-        ...baseProblem,
-        number: "A",
-        name: "Minimal Coprime",
-        code: [
-          "#include <bits/stdc++.h>",
-          "using namespace std;",
-          "",
-          "int main() {",
-          "    ios::sync_with_stdio(false);",
-          "    cin.tie(nullptr);",
-          "    int T;",
-          "    cin >> T;",
-          "    while (T--) {",
-          "        int l, r;",
-          "        cin >> l >> r;",
-          "        cout << (l == 1 && r == 1 ? 1 : r - l + 1) << '\\n';",
-          "    }",
-          "    return 0;",
-          "}",
-          "",
-        ].join("\n"),
-      });
-      await request("/api/problems", "POST", {
-        ...baseProblem,
-        url: "https://codeforces.com/contest/2062/problem/B",
-        number: "B",
-        name: "Subsequence Update",
-        code: [
-          "#include <bits/stdc++.h>",
-          "using namespace std;",
-          "",
-          "int main() {",
-          "    ios::sync_with_stdio(false);",
-          "    cin.tie(nullptr);",
-          "    int T;",
-          "    cin >> T;",
-          "    while (T--) {",
-          "        int n, l, r;",
-          "        cin >> n >> l >> r;",
-          "        vector<long long> a(n);",
-          "        for (long long &value : a) cin >> value;",
-          "        cout << accumulate(a.begin(), a.end(), 0LL) << '\\n';",
-          "    }",
-          "}",
-          "",
-        ].join("\n"),
-      });
-      featureProblem = (await request("/api/problems", "POST", {
-        ...baseProblem,
-        url: "https://codeforces.com/contest/2062/problem/C",
-        number: "C",
-        name: "Remove Exactly Two",
-        algorithm_id: algorithm.id,
-        code: [
-          "#include <bits/stdc++.h>",
-          "using namespace std;",
-          "",
-          "struct Fenwick {",
-          "    int n;",
-          "    vector<long long> tree;",
-          "    explicit Fenwick(int size) : n(size), tree(n + 1) {}",
-          "    void add(int index, long long value) {",
-          "        for (; index <= n; index += index & -index)",
-          "            tree[index] += value;",
-          "    }",
-          "    long long prefix(int index) const {",
-          "        long long result = 0;",
-          "        for (; index > 0; index -= index & -index)",
-          "            result += tree[index];",
-          "        return result;",
-          "    }",
-          "};",
-          "",
-          "int main() {",
-          "    ios::sync_with_stdio(false);",
-          "    cin.tie(nullptr);",
-          "    int n, q;",
-          "    cin >> n >> q;",
-          "    Fenwick bit(n);",
-          "    while (q--) {",
-          "        int type, x;",
-          "        cin >> type >> x;",
-          "        if (type == 1) bit.add(x, 1);",
-          "        else cout << bit.prefix(x) << '\\n';",
-          "    }",
-          "}",
-          "",
-        ].join("\n"),
-      })).problem;
-      acwingContest = (await request("/api/contests", "POST", {
-        platform: "AcWing",
-        title: "AcWing · 算法基础示例赛",
-        url: "https://www.acwing.com/activity/content/1/",
-      })).contest;
-      const acwingCode = [
-        "#include <bits/stdc++.h>",
-        "using namespace std;",
-        "",
-        "int main() {",
-        "    ios::sync_with_stdio(false);",
-        "    cin.tie(nullptr);",
-        "    int n, q;",
-        "    cin >> n >> q;",
-        "    vector<long long> sum(n + 1);",
-        "    for (int i = 1; i <= n; ++i) {",
-        "        cin >> sum[i];",
-        "        sum[i] += sum[i - 1];",
-        "    }",
-        "    while (q--) {",
-        "        int l, r;",
-        "        cin >> l >> r;",
-        "        cout << sum[r] - sum[l - 1] << '\\n';",
-        "    }",
-        "}",
-        "",
-      ].join("\n");
-      const acwingProblems = [
-        ["1", "示例：区间求和"],
-        ["2", "示例：静态矩阵"],
-        ["3", "示例：栈与队列"],
-        ["4", "示例：状态搜索"],
-      ];
-      for (const [number, name] of acwingProblems) {
-        await request("/api/problems", "POST", {
-          platform: "AcWing",
-          contest_id: acwingContest.id,
-          url: `https://www.acwing.com/problem/content/${number}/`,
-          number,
-          name,
-          language: "cpp",
-          code: acwingCode,
-        });
-      }
-    } else {
-      throw new Error("README 截图必须使用全新的空数据目录，拒绝从未脱敏题库生成截图。");
-    }
-
-    if (!algorithm || !featureProblem) {
-      throw new Error("演示数据不完整，请使用新的空数据目录运行截图脚本。");
-    }
-
-    await page.reload({ waitUntil: "networkidle" });
-    await page.goto(`${baseUrl}#home`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".stats-grid");
-    await page.screenshot({ path: path.join(screenshots, "dashboard.png") });
-
-    await page.goto(`${baseUrl}#platform/acwing`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".platform-page");
-    await page.screenshot({ path: path.join(screenshots, "acwing-workspace.png") });
-
-    await page.goto(`${baseUrl}#algorithm/${algorithm.id}`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".algorithm-info");
-    await page.screenshot({ path: path.join(screenshots, "algorithm.png") });
-
-    await page.goto(`${baseUrl}#problem/${featureProblem.id}`, { waitUntil: "networkidle" });
-    await page.waitForSelector("#code-input");
-    await page.screenshot({ path: path.join(screenshots, "editor.png") });
-
-    await page.click("#open-profile-settings");
-    await page.click('[data-settings-tab="browser"]');
-    await page.waitForSelector("#browser-settings-form");
-    await page.screenshot({ path: path.join(screenshots, "settings.png") });
-
-    console.log(JSON.stringify({
-      algorithm_id: algorithm.id,
-      problem_id: featureProblem.id,
-      acwing_contest_id: acwingContest.id,
-      screenshots: [
-        "dashboard.png",
-        "acwing-workspace.png",
-        "algorithm.png",
-        "editor.png",
-        "settings.png",
-      ],
-    }, null, 2));
+    browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe" });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, permissions: ["clipboard-read", "clipboard-write"] });
+    const page = await context.newPage();
+    page.on("pageerror", e => errors.push(e.message));
+    page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+    page.on("response", r => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
+    page.on("request", r => requests.push(r.url()));
+    await page.goto(base, { waitUntil: "networkidle" });
+    // Never seed or capture a user's running local service.
+    await page.locator(".demo-notice").waitFor();
+    assert.equal(await page.locator('meta[name="csrf-token"]').getAttribute("content"), "isolated-online-demo");
+    const fixture = createFixture();
+    const feature = fixture.problems.find(p => p.number === "P3374");
+    const capture = async (route, selector, filename) => {
+      await page.goto(base + "#" + route);
+      await page.locator(selector).first().waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForFunction(() => Array.from(document.images).every(img => img.complete && img.naturalWidth));
+      await page.screenshot({ path: path.join(screenshots, filename) }); files.push(filename);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow: ${route}`);
+      assert.ok(await page.evaluate(() => document.querySelector('.sidebar-identity').getBoundingClientRect().top >= document.querySelector('.demo-notice').getBoundingClientRect().bottom - 1), `Notice overlaps sidebar: ${route}`);
+    };
+    await capture("home", ".stats-grid", "dashboard.png");
+    assert.equal(await page.locator('.workspace-nav a[data-nav^="platform/"]').count(), 5);
+    assert.equal(await page.locator("#nav-problems").textContent(), String(fixture.problems.length));
+    await capture("contests", ".contest-card", "contests.png");
+    await capture("platform/codeforces", ".platform-page", "codeforces-workspace.png");
+    await capture("contest/lanqiao-2024-national", ".problem-table", "lanqiao-contest.png");
+    assert.ok((await page.locator("#main").textContent()).includes("国赛"));
+    await capture("algorithm/a-fenwick", ".algorithm-info", "algorithm.png");
+    await capture("algorithms", ".algorithm-card", "templates.png");
+    await capture(`problem/${feature.id}`, "#code-input", "editor.png");
+    const area = page.locator("#code-input");
+    const original = await area.inputValue();
+    const draft = original + "\n// session edit";
+    await area.fill(draft);
+    await page.locator("#save-problem").click();
+    await page.getByText("题目、代码与测试用例已保存，所有页面已同步。", { exact: true }).waitFor();
+    await page.locator("#code-lock-toggle").check();
+    await page.waitForFunction(() => document.querySelector("#code-input").readOnly);
+    await page.locator("[data-select-code]").click();
+    assert.ok(await area.evaluate(e => e.selectionEnd === e.value.length));
+    await page.locator("[data-copy-code]").click();
+    assert.equal((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n"), draft);
+    await page.reload(); await area.waitFor();
+    assert.equal(await area.inputValue(), original);
+    assert.equal(await page.locator("#code-lock-toggle").isChecked(), false);
+    await page.goto(base + "#problems");
+    await page.locator(`[data-problem-preview="${feature.id}"]`).click({ position: { x: 10, y: 10 } });
+    await page.locator(".preview-code").waitFor();
+    await page.locator("[data-select-preview-code]").click();
+    assert.equal(await page.evaluate(() => getSelection().toString()), original.replace(/\n$/, ""));
+    await page.screenshot({ path: path.join(screenshots, "preview.png") }); files.push("preview.png");
+    await page.locator("[data-close-modal]").first().click();
+    await page.locator("#open-profile-settings").click();
+    await page.locator('[data-settings-tab="about"]').click();
+    await page.locator("#create-desktop-shortcut").click();
+    await page.getByText("在线演示不执行此操作，请下载本地版使用。", { exact: true }).last().waitFor();
+    await page.screenshot({ path: path.join(screenshots, "settings.png") }); files.push("settings.png");
+    await page.locator("[data-close-modal]").first().click();
+    await page.locator(".toast").last().waitFor({ state: "detached" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await capture("home", ".stats-grid", "mobile.png");
+    await capture("contests", ".contest-card", "mobile-contests.png");
+    await page.goto(base + `#problem/${feature.id}`); await area.waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.ok(requests.every(url => url.startsWith(base)), `Unexpected network: ${requests.filter(url => !url.startsWith(base))}`);
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ base, problems: fixture.problems.length, contests: fixture.contests.length, algorithms: fixture.algorithms.length, templates: fixture.algorithms.reduce((n, a) => n + a.snippets.length, 0), files, assertions: "session edit/save/lock/copy/reset, preview selection, blocked system API, project-subpath assets, mobile overflow, no API network" }, null, 2));
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(site, { recursive: true, force: true });
   }
 }
-
-main().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main().catch(e => { console.error(e); process.exitCode = 1; });

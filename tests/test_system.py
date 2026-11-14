@@ -105,6 +105,30 @@ class SystemTests(unittest.TestCase):
             "platform": platform, "title": title, "url": url,
         }, expected=(200, 201))["contest"]
 
+    def test_code_lock_endpoint_protects_problem_and_template(self):
+        problem = self.request("POST", "/api/problems", {
+            "platform": "蓝桥杯", "name": "Locked", "url": "lanqiao.example/1",
+            "language": "cpp", "code": "// original"
+        }, expected=201)["problem"]
+        algorithm = self.request("POST", "/api/algorithms", {
+            "name": "Lock API", "category": "", "description": ""
+        }, expected=201)["algorithm"]
+        snippet = self.request("POST", "/api/algorithms/" + algorithm["id"] + "/snippets", {
+            "title": "Main", "language": "cpp", "code": "// template"
+        }, expected=201)["snippet"]
+        for resource, kind, entity in (("problems", "problem", problem),
+                                       ("algorithm-snippets", "snippet", snippet)):
+            path = "/api/" + resource + "/" + entity["id"]
+            locked = self.request("PUT", path + "/code-lock",
+                                  dict(version=1, code_locked=True))[kind]
+            self.assertTrue(locked["code_locked"])
+            error = self.request("PUT", path, dict(version=locked["version"], code="// changed"), expected=409)
+            self.assertEqual(error["code"], "code_locked")
+            unlocked = self.request("PUT", path + "/code-lock",
+                                    dict(version=locked["version"], code_locked=False))[kind]
+            saved = self.request("PUT", path, dict(version=unlocked["version"], code="// edited"))[kind]
+            self.assertEqual(saved["code"], "// edited")
+
     def problem(self, **overrides):
         payload = {"platform": "codeforces", "number": "A", "name": "中文题目 <script>",
                    "url": "https://codeforces.com/contest/2000/problem/A",
