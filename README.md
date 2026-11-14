@@ -5,7 +5,8 @@
 作者：**Aqiw** · [GitHub 仓库](https://github.com/Aqiw-source/AlgoArchive) ·
 [下载 Windows x64 版本](https://github.com/Aqiw-source/AlgoArchive/releases/latest)
 
-**[在线体验](https://aqiw-source.github.io/AlgoArchive/)** ·
+<a href="https://aqiw-source.github.io/AlgoArchive/"><img src="docs/screenshots/online-demo-button.svg" width="320" height="76" alt="在线体验 AlgoArchive：无需安装，点击进入"></a>
+
 [浏览演示比赛](https://aqiw-source.github.io/AlgoArchive/#contests) ·
 [体验算法模板](https://aqiw-source.github.io/AlgoArchive/#algorithms)
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="76" viewBox="0 0 320 76" role="img" aria-labelledby="title desc">
+  <title id="title">在线体验 AlgoArchive</title>
+  <desc id="desc">无需安装，点击进入独立演示</desc>
+  <rect width="320" height="76" rx="8" fill="#5263e9"/>
+  <g fill="#ffffff" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" letter-spacing="0">
+    <text x="24" y="33" font-size="24" font-weight="700">在线体验</text>
+    <text x="24" y="58" font-size="14">无需安装，点击进入</text>
+    <text x="270" y="47" font-size="30" aria-hidden="true">→</text>
+  </g>
+</svg>
