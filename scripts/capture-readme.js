@@ -41,6 +41,7 @@ async function main() {
     const capture = async (route, selector, filename) => {
       await page.goto(base + "#" + route);
       await page.locator(selector).first().waitFor();
+      assert.equal(await page.title(), "AlgoArchive · 在线演示");
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => Array.from(document.images).every(img => img.complete && img.naturalWidth));
       await page.screenshot({ path: path.join(screenshots, filename) }); files.push(filename);

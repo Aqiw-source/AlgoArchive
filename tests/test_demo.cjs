@@ -84,6 +84,7 @@ test("static build supports project subpaths without shipping local data", () =>
     const files = fs.readdirSync(out, { recursive: true }).map(String);
     assert.ok(files.every(p => !/\.py$|sqlite|config\.json$|runtime[\\/]|codes[\\/]/i.test(p)));
     assert.ok(!fs.readFileSync(path.join(out, "app.js"), "utf8").includes('src="/platform-icons/'));
+    assert.ok(fs.readFileSync(path.join(out, "app.js"), "utf8").includes("document.title='AlgoArchive · 在线演示';"));
     assert.ok(!fs.readFileSync(path.join(__dirname, "../web/index.html"), "utf8").includes("demo.js"));
   } finally { fs.rmSync(out, { recursive: true, force: true }); }
 });

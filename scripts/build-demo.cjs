@@ -19,7 +19,9 @@ function buildDemo(output, base = "/AlgoArchive/") {
     .replace(`<script src="${base}app.js`, scripts + `<script src="${base}app.js`);
   html = html.replace('<body>', `<body>\n<div class="demo-notice" role="note"><p><strong>在线演示</strong>改动仅在当前页面生效，刷新重置；编译运行需使用本地版。</p><nav aria-label="演示操作"><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a><button type="button" class="demo-reset" data-demo-reset aria-label="重置演示" title="重置演示"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.5 6.2M3 4v7h7"/></svg></button></nav></div>`);
   fs.writeFileSync(path.join(out, "index.html"), html);
-  fs.writeFileSync(path.join(out, "app.js"), fs.readFileSync(path.join(out, "app.js"), "utf8").replaceAll('src="/', `src="${base}`).replaceAll('href="/', `href="${base}`));
+  fs.writeFileSync(path.join(out, "app.js"), fs.readFileSync(path.join(out, "app.js"), "utf8")
+    .replaceAll('src="/', `src="${base}`).replaceAll('href="/', `href="${base}`)
+    .replace("document.title='算法档案';", "document.title='AlgoArchive · 在线演示';"));
   for (const [src, name] of [["store.js", "demo-store.js"], ["browser.js", "demo.js"], ["demo.css", "demo.css"]]) fs.copyFileSync(path.join(root, "demo", src), path.join(out, name));
   fs.writeFileSync(path.join(out, "demo-data.js"), `"use strict";\nwindow.__DEMO_VERSION__=${JSON.stringify(version)};\nwindow.__DEMO_FIXTURE__=${JSON.stringify(createFixture()).replaceAll("<", "\\u003c")};\n`);
   fs.copyFileSync(path.join(root, "demo", "SOURCES.md"), path.join(out, "DEMO-SOURCES.md"));
