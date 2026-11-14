@@ -441,7 +441,7 @@ class CppTestRunner:
                         str(self.compiler_path),
                         f"-std={self.standard}",
                         "-O2",
-                        "-pipe",
+                        "-save-temps=obj" if os.name == "nt" else "-pipe",
                         "-DCPH",
                         "-DDEBUG",
                         "-o",
