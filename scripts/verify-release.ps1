@@ -28,7 +28,7 @@ try {
         "web/codex-theme.css",
         "web/mobile.css",
         "web/workspace-updates.css",
-        "web/sidebar-art.webp",
+        "web/sidebar-art.png",
         "web/sidebar-art-blended.webp",
         "web/nav-icons/home.png",
         "web/nav-icons/SOURCES.md",

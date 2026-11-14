@@ -1564,7 +1564,7 @@
     else if(t.hasAttribute('data-copy-preview-code'))await copyPreviewCode();
     else if(t.hasAttribute('data-open-sidebar-art')){
       state.preview=null;
-      modal.innerHTML=dialogHeader('插画')+'<div class="sidebar-art-preview"><img src="/sidebar-art.webp?v=20261114" alt="紫色人物插画" width="941" height="1672"></div>';
+      modal.innerHTML=dialogHeader('庆祝插画')+'<div class="sidebar-art-preview"><img src="/sidebar-art.png?v=20261114-celebration" alt="C++ 通过后的庆祝插画" width="938" height="1670"></div>';
       modal.showModal();
     }
     else if(t.hasAttribute('data-open-contest')){e.preventDefault();await go(`contest/${t.dataset.openContest}`);}

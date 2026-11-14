@@ -81,6 +81,14 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.ok(html.includes('/AlgoArchive/demo.js'));
     assert.ok(html.indexOf("demo.js") < html.indexOf("/AlgoArchive/app.js"));
     assert.ok(!html.includes("__CSRF_TOKEN__"));
+    const sourceImage = fs.readFileSync(path.join(out, "sidebar-art.png"));
+    assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    assert.equal(sourceImage.readUInt32BE(16), 938);
+    assert.equal(sourceImage.readUInt32BE(20), 1670);
+    assert.ok(html.includes('src="/AlgoArchive/sidebar-art-blended.webp?v=20261114-celebration-blend"'));
+    assert.ok(fs.existsSync(path.join(out, "sidebar-art-blended.webp")));
+    const appJs = fs.readFileSync(path.join(out, "app.js"), "utf8");
+    assert.ok(appJs.includes("/AlgoArchive/sidebar-art.png?v=20261114-celebration"));
     const files = fs.readdirSync(out, { recursive: true }).map(String);
     assert.ok(files.every(p => !/\.py$|sqlite|config\.json$|runtime[\\/]|codes[\\/]/i.test(p)));
     assert.ok(!fs.readFileSync(path.join(out, "app.js"), "utf8").includes('src="/platform-icons/'));

@@ -36,6 +36,13 @@ async function main() {
     // Never seed or capture a user's running local service.
     await page.locator(".demo-notice").waitFor();
     assert.equal(await page.locator('meta[name="csrf-token"]').getAttribute("content"), "isolated-online-demo");
+    const art = page.locator(".sidebar-art img");
+    assert.deepEqual(await art.evaluate(img => ({width: img.naturalWidth, height: img.naturalHeight})), {width: 938, height: 1670});
+    await page.locator("[data-open-sidebar-art]").click();
+    const fullArt = page.locator(".sidebar-art-preview img");
+    await page.waitForFunction(() => { const image = document.querySelector(".sidebar-art-preview img"); return image?.complete && image.naturalWidth === 938 && image.naturalHeight === 1670; });
+    assert.deepEqual(await fullArt.evaluate(img => ({width: img.naturalWidth, height: img.naturalHeight})), {width: 938, height: 1670});
+    await page.locator("[data-close-modal]").first().click();
     const fixture = createFixture();
     const feature = fixture.problems.find(p => p.number === "P3374");
     const capture = async (route, selector, filename) => {
