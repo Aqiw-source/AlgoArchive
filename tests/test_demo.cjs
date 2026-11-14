@@ -47,6 +47,34 @@ test("code lock enforces versions and protects code, not metadata", () => {
   assert.equal(store.request("PUT", `/api/problems/${p.id}`, { ...current, name: "metadata" }).status, 200);
 });
 
+test("contest problem ordering is scoped to one contest", () => {
+  const store = createStore(createFixture());
+  const state = store.request("GET", "/api/state").body;
+  const contest = state.contests.find(item => state.problems.filter(p => p.contest_id === item.id).length >= 2);
+  const problems = state.problems.filter(item => item.contest_id === contest.id);
+  const ids = problems.map(item => item.id);
+  const globalOrder = Object.fromEntries(problems.map(item => [item.id, item.global_order]));
+  const result = store.request("PUT", `/api/contests/${contest.id}/problems/order`, {
+    version: contest.version,
+    problem_ids: ids.slice().reverse(),
+  });
+  assert.equal(result.status, 200);
+  const ordered = store.request("GET", "/api/state").body.problems
+    .filter(item => item.contest_id === contest.id)
+    .sort((a, b) => a.contest_order - b.contest_order);
+  assert.deepEqual(ordered.map(item => item.id), ids.slice().reverse());
+  assert.deepEqual(
+    Object.fromEntries(ordered.filter(item => ids.includes(item.id)).map(item => [item.id, item.global_order])),
+    globalOrder,
+  );
+  assert.equal(store.request("PUT", `/api/contests/${contest.id}/problems/order`, {
+    version: contest.version, problem_ids: ids,
+  }).status, 409);
+  assert.equal(store.request("PUT", `/api/contests/${contest.id}/problems/order`, {
+    version: result.body.contest.version, problem_ids: ids.slice(1),
+  }).status, 409);
+});
+
 test("CRUD, templates, tests, ordering, import and deletion use API-shaped contracts", () => {
   const s = createStore(createFixture());
   const c = s.request("POST", "/api/contests", { platform: "蓝桥", title: "演示比赛", url: "https://www.lanqiao.cn/" }).body.contest;
@@ -60,7 +88,8 @@ test("CRUD, templates, tests, ordering, import and deletion use API-shaped contr
   assert.equal(state.algorithms.find(x => x.id === a.id).snippets.length, 1);
   assert.equal(s.request("PUT", "/api/contests/order", { version: state.contest_order_version, ordered_ids: state.contests.map(x => x.id).reverse() }).status, 200);
   assert.equal(s.request("POST", "/api/problems/import", { problems: [{ platform: "HDU", name: "import", tests: [{ input: "i", output: "o" }] }] }).body.imported, 1);
-  assert.equal(s.request("DELETE", `/api/contests/${c.id}`, { version: c.version, keep_problems: true }).status, 200);
+  const current = s.request("GET", `/api/contests/${c.id}`).body.contest;
+  assert.equal(s.request("DELETE", `/api/contests/${c.id}`, { version: current.version, keep_problems: true }).status, 200);
   assert.equal(s.request("GET", `/api/problems/${p.id}`).body.problem.contest_id, null);
 });
 
@@ -81,6 +110,10 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.ok(html.includes('/AlgoArchive/demo.js'));
     assert.ok(html.indexOf("demo.js") < html.indexOf("/AlgoArchive/app.js"));
     assert.ok(!html.includes("__CSRF_TOKEN__"));
+    assert.ok(!html.includes("demo-notice"));
+    assert.ok(html.includes('data-demo-download'));
+    assert.ok(html.includes('data-demo-reset'));
+    assert.ok(html.indexOf('class="topbar-status"') < html.indexOf('data-demo-download'));
     const sourceImage = fs.readFileSync(path.join(out, "sidebar-art.png"));
     assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
     assert.equal(sourceImage.readUInt32BE(16), 938);

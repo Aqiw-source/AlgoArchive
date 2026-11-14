@@ -26,12 +26,8 @@
   Storage.prototype.setItem = function (key, value) { if (draftKeys.has(key)) demoStorage.set(key, String(value)); else set.call(this, key, value); };
   Storage.prototype.removeItem = function (key) { if (draftKeys.has(key)) demoStorage.delete(key); else remove.call(this, key); };
   document.addEventListener("DOMContentLoaded", () => {
-    new ResizeObserver(entries => {
-      document.documentElement.style.setProperty("--demo-notice-height", `${entries[0].target.getBoundingClientRect().height}px`);
-    }).observe(document.querySelector(".demo-notice"));
     document.title = "AlgoArchive · 在线演示";
     document.querySelector(".identity-copy small").textContent = "算法档案 · 演示工作空间";
-    document.querySelector(".topbar-status").textContent = "在线演示";
     document.querySelector("[data-demo-reset]").addEventListener("click", () => {
       if (window.confirm("重置所有演示改动？不会影响本地程序。")) location.reload();
     });

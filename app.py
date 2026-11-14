@@ -46,8 +46,8 @@ from cph_runner import (
 
 APP_VERSION = "2.2.6"
 ROOT = Path(__file__).resolve().parent
-DATABASE_SCHEMA_VERSION = 9
-SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+DATABASE_SCHEMA_VERSION = 10
+SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 PROBLEM_PLATFORM_ALIASES = {
     "codeforces": "Codeforces",
     "atcoder": "AtCoder",
@@ -939,7 +939,7 @@ def database_needs_upgrade(database):
             columns = {
                 item[1] for item in db.execute("PRAGMA table_info(problems)")
             }
-            return "algorithm_order" not in columns or "global_order" not in columns
+            return not {"algorithm_order", "global_order", "contest_order"} <= columns
     except (sqlite3.Error, TypeError, ValueError):
         return False
 
@@ -996,7 +996,7 @@ class Repository:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            INSERT OR IGNORE INTO settings VALUES ('schema_version', '9');
+            INSERT OR IGNORE INTO settings VALUES ('schema_version', '10');
             INSERT OR IGNORE INTO settings VALUES ('problem_order_version', '1');
             INSERT OR IGNORE INTO settings VALUES ('contest_order_version', '1');
             INSERT OR IGNORE INTO settings VALUES ('algorithm_order_version', '1');
@@ -1018,6 +1018,7 @@ class Repository:
                 algorithm_id TEXT REFERENCES algorithms(id) ON DELETE SET NULL,
                 algorithm_order INTEGER NOT NULL DEFAULT 0,
                 global_order INTEGER NOT NULL DEFAULT 0,
+                contest_order INTEGER NOT NULL DEFAULT 0,
                 code_path TEXT NOT NULL UNIQUE,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                 version INTEGER NOT NULL DEFAULT 1,
@@ -1101,7 +1102,7 @@ class Repository:
         schema_version = self.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        if schema_version not in {"1", "2", "3", "4", "5", "6", "7", "8", "9"}:
+        if int(schema_version) not in SUPPORTED_DATABASE_VERSIONS:
             raise AppError("数据库版本不兼容，请使用较新版本程序", 500, "schema_version")
         problem_sql = self.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='problems'"
@@ -1113,6 +1114,15 @@ class Repository:
         ).fetchone()[0]
         if "CHECK(platform IN ('codeforces','atcoder'))" in contest_sql:
             self._rebuild_contests_for_custom_platforms()
+        contest_problem_order_added = "contest_order" not in {
+            row["name"] for row in self.db.execute("PRAGMA table_info(problems)")
+        }
+        if contest_problem_order_added:
+            with self.db:
+                self.db.execute(
+                    "ALTER TABLE problems ADD COLUMN contest_order "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
         contest_columns = {
             row["name"] for row in self.db.execute("PRAGMA table_info(contests)")
         }
@@ -1141,13 +1151,17 @@ class Repository:
             self._initialize_entity_orders("contests")
         if int(schema_version) < 9 or algorithm_order_added:
             self._initialize_entity_orders("algorithms")
-        if schema_version != "9":
+        if int(schema_version) < 10 or contest_problem_order_added:
+            self._initialize_contest_problem_orders()
+        if schema_version != "10":
             with self.db:
                 self.db.execute(
-                    "UPDATE settings SET value='9' WHERE key='schema_version'"
+                    "UPDATE settings SET value='10' WHERE key='schema_version'"
                 )
         self.db.executescript("""
             CREATE INDEX IF NOT EXISTS problems_contest ON problems(contest_id);
+            CREATE INDEX IF NOT EXISTS problems_contest_order
+                ON problems(contest_id, contest_order, updated_at DESC);
             CREATE INDEX IF NOT EXISTS problems_algorithm ON problems(algorithm_id);
             CREATE INDEX IF NOT EXISTS problems_algorithm_order
                 ON problems(algorithm_id, algorithm_order, updated_at DESC);
@@ -1620,6 +1634,22 @@ class Repository:
                 updates,
             )
 
+    def _initialize_contest_problem_orders(self):
+        rows = self.db.execute(
+            "SELECT id,contest_id FROM problems WHERE contest_id IS NOT NULL "
+            "ORDER BY contest_id,updated_at DESC,id"
+        ).fetchall()
+        counters = {}
+        updates = []
+        for row in rows:
+            order = counters.get(row["contest_id"], 0)
+            updates.append((order, row["id"]))
+            counters[row["contest_id"]] = order + 1
+        with self.db:
+            self.db.executemany(
+                "UPDATE problems SET contest_order=? WHERE id=?", updates
+            )
+
     def _initialize_problem_global_orders(self):
         rows = self.db.execute(
             "SELECT id FROM problems ORDER BY updated_at DESC,id"
@@ -2037,6 +2067,15 @@ class Repository:
         ).fetchone()
         return int(row[0])
 
+    def _next_contest_order(self, identifier):
+        if identifier is None:
+            return 0
+        row = self.db.execute(
+            "SELECT COALESCE(MAX(contest_order),-1)+1 "
+            "FROM problems WHERE contest_id=?", (identifier,)
+        ).fetchone()
+        return int(row[0])
+
     def _next_problem_global_order(self):
         row = self.db.execute(
             "SELECT COALESCE(MAX(global_order),-1)+1 FROM problems"
@@ -2318,14 +2357,15 @@ class Repository:
             self._duplicate(values)
             identifier, timestamp = uuid.uuid4().hex, now()
             algorithm_order = self._next_algorithm_order(values["algorithm_id"])
+            contest_order = self._next_contest_order(values["contest_id"])
             global_order = self._next_problem_global_order()
             path = f"codes/{identifier}{EXTENSIONS[values['language']]}"
             with self.db:
                 self.db.execute("""INSERT INTO problems
-                    (id,platform,number,name,url,normalized_url,language,contest_id,algorithm_id,algorithm_order,global_order,code_path,created_at,updated_at,version)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""", (identifier, values["platform"], values["number"], values["name"],
+                    (id,platform,number,name,url,normalized_url,language,contest_id,algorithm_id,algorithm_order,global_order,contest_order,code_path,created_at,updated_at,version)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""", (identifier, values["platform"], values["number"], values["name"],
                     values["url"], values["normalized_url"], values["language"], values["contest_id"],
-                    values["algorithm_id"], algorithm_order, global_order, path, timestamp, timestamp))
+                    values["algorithm_id"], algorithm_order, global_order, contest_order, path, timestamp, timestamp))
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (path, encoded))
                 self._write_problem_tests(identifier, tests, timestamp)
                 self._write_code_lock("problem", identifier, code_locked)
@@ -2348,14 +2388,19 @@ class Repository:
                 if values["algorithm_id"] == old["algorithm_id"]
                 else self._next_algorithm_order(values["algorithm_id"])
             )
+            contest_order = (
+                old["contest_order"]
+                if values["contest_id"] == old["contest_id"]
+                else self._next_contest_order(values["contest_id"])
+            )
             path = f"codes/{identifier}{EXTENSIONS[values['language']]}"
             timestamp = now()
             with self.db:
                 self.db.execute("""UPDATE problems SET platform=?,number=?,name=?,url=?,normalized_url=?,language=?,
-                    contest_id=?,algorithm_id=?,algorithm_order=?,code_path=?,updated_at=?,version=version+1 WHERE id=?""",
+                    contest_id=?,algorithm_id=?,algorithm_order=?,contest_order=?,code_path=?,updated_at=?,version=version+1 WHERE id=?""",
                     (values["platform"], values["number"], values["name"], values["url"], values["normalized_url"],
                      values["language"], values["contest_id"], values["algorithm_id"], algorithm_order,
-                     path, timestamp, identifier))
+                     contest_order, path, timestamp, identifier))
                 if tests is not None:
                     self._write_problem_tests(identifier, tests, timestamp)
                 if encoded != old["code"].encode("utf-8") or path != old["code_path"]:
@@ -2409,6 +2454,37 @@ class Repository:
                     (timestamp, identifier),
                 )
             return self._algorithm(identifier)
+
+    def reorder_contest_problems(self, identifier, payload):
+        with self.lock:
+            self._ready()
+            old = self._contest(identifier)
+            self._version(old, payload)
+            problem_ids = payload.get("problem_ids")
+            if not isinstance(problem_ids, list) or not all(
+                isinstance(item, str) for item in problem_ids
+            ):
+                raise AppError("题目顺序格式不正确")
+            if len(problem_ids) != len(set(problem_ids)):
+                raise AppError("题目顺序中不能包含重复题目")
+            current_ids = {
+                row[0] for row in self.db.execute(
+                    "SELECT id FROM problems WHERE contest_id=?", (identifier,)
+                )
+            }
+            if set(problem_ids) != current_ids:
+                raise AppError(
+                    "题目列表已发生变化，请刷新页面后重新调整顺序。",
+                    409, "problem_set_changed",
+                )
+            with self.db:
+                self.db.executemany(
+                    "UPDATE problems SET contest_order=? WHERE id=? AND contest_id=?",
+                    [(order, problem_id, identifier)
+                     for order, problem_id in enumerate(problem_ids)],
+                )
+                self._touch_contests([identifier], now())
+            return self._contest(identifier)
 
     def _reorder_entities(self, table, order_setting, payload, label):
         if table not in {"contests", "algorithms"}:
@@ -2543,6 +2619,7 @@ class Repository:
             prepared = []
             seen = set()
             algorithm_counters = {}
+            contest_counters = {}
             warnings = []
             global_start = self._next_problem_global_order()
             for index, raw_item in enumerate(items):
@@ -2651,6 +2728,13 @@ class Repository:
                         )
                     algorithm_order = algorithm_counters[algorithm_id]
                     algorithm_counters[algorithm_id] += 1
+                contest_id = values["contest_id"]
+                contest_order = 0
+                if contest_id is not None:
+                    if contest_id not in contest_counters:
+                        contest_counters[contest_id] = self._next_contest_order(contest_id)
+                    contest_order = contest_counters[contest_id]
+                    contest_counters[contest_id] += 1
                 prepared.append(
                     {
                         "values": values,
@@ -2658,6 +2742,7 @@ class Repository:
                         "tests": tests,
                         "code_locked": self._validated_code_lock(item),
                         "algorithm_order": algorithm_order,
+                        "contest_order": contest_order,
                     }
                 )
 
@@ -2681,9 +2766,9 @@ class Repository:
                     self.db.execute(
                         "INSERT INTO problems "
                         "(id,platform,number,name,url,normalized_url,language,"
-                        "contest_id,algorithm_id,algorithm_order,global_order,"
+                        "contest_id,algorithm_id,algorithm_order,global_order,contest_order,"
                         "code_path,created_at,updated_at,version) "
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
                         (
                             identifier,
                             values["platform"],
@@ -2696,6 +2781,7 @@ class Repository:
                             values["algorithm_id"],
                             prepared_item["algorithm_order"],
                             global_start + offset,
+                            prepared_item["contest_order"],
                             path,
                             timestamp,
                             timestamp,
@@ -3377,6 +3463,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
             if target.suffix == ".js":
                 ctype = "application/javascript"
+            elif target.suffix == ".webp":
+                ctype = "image/webp"
             if ctype.startswith("text/") or ctype in {"application/javascript", "application/json"}:
                 ctype += "; charset=utf-8"
             self._headers(200, ctype, len(data))
@@ -3529,6 +3617,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             return self._json(repo.reorder_contests(body))
         if self.command == "PUT" and path == "/api/algorithms/order":
             return self._json(repo.reorder_algorithms(body))
+        match = re.fullmatch(
+            r"/api/contests/([a-f0-9]{32})/problems/order", path
+        )
+        if self.command == "PUT" and match:
+            return self._json({
+                "contest": repo.reorder_contest_problems(match[1], body)
+            })
         match = re.fullmatch(
             r"/api/algorithms/([a-f0-9]{32})/problems/order", path
         )

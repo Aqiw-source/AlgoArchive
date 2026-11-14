@@ -413,7 +413,7 @@ class StorageMigrationTests(unittest.TestCase):
         finally:
             repo.close()
 
-    def test_restoring_schema7_backup_upgrades_it_to_schema9(self):
+    def test_restoring_schema7_backup_upgrades_it_to_current_schema(self):
         source = self.root / "schema7-source"
         seed = Repository(source)
         try:
@@ -461,7 +461,7 @@ class StorageMigrationTests(unittest.TestCase):
             schema = repo.db.execute(
                 "SELECT value FROM settings WHERE key='schema_version'"
             ).fetchone()[0]
-            self.assertEqual(schema, "9")
+            self.assertEqual(schema, "10")
             restored = repo.get_problem(problem["id"])
             self.assertEqual(restored["name"], "旧版备份")
             self.assertEqual(restored["tests"], [])
@@ -517,7 +517,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "9")
+        self.assertEqual(version, "10")
         self.assertEqual(repo.state()["contests"][0]["title"], "保留比赛")
         self.assertEqual(repo.state()["problems"][0]["name"], "保留题目")
         self.assertEqual(
@@ -545,6 +545,7 @@ class StorageMigrationTests(unittest.TestCase):
         self.assertIn("algorithm_id", problem_columns)
         self.assertIn("algorithm_order", problem_columns)
         self.assertIn("global_order", problem_columns)
+        self.assertIn("contest_order", problem_columns)
         contest_columns = {
             row[1] for row in repo.db.execute("PRAGMA table_info(contests)")
         }
@@ -570,7 +571,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "9")
+        self.assertEqual(version, "10")
         problem = repo.create_problem({
             "platform": "洛谷",
             "number": "P3374",
@@ -597,7 +598,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "9")
+        self.assertEqual(version, "10")
         contest_sql = repo.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='contests'"
         ).fetchone()[0]
@@ -636,7 +637,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "9")
+        self.assertEqual(version, "10")
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["algorithm_order"],
@@ -666,7 +667,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "9")
+        self.assertEqual(version, "10")
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["global_order"],
@@ -682,6 +683,40 @@ class StorageMigrationTests(unittest.TestCase):
             [item["global_order"] for item in problems],
             [0, 1],
         )
+
+    def test_v9_upgrade_preserves_existing_records_and_contest_display_order(self):
+        data = make_v5_data(self.root / "upgrade-v9")
+        repo = Repository(data)
+        before = repo.state()
+        repo.close()
+        database = data / "archive.sqlite3"
+        with closing(sqlite3.connect(database)) as db:
+            db.execute("DROP INDEX problems_contest_order")
+            db.execute("ALTER TABLE problems DROP COLUMN contest_order")
+            db.execute("UPDATE settings SET value='9' WHERE key='schema_version'")
+            db.commit()
+        code_before = {p.name: p.read_bytes() for p in (data / "codes").iterdir()}
+
+        repo = Repository(data)
+        after = repo.state()
+        repo.close()
+        for problem in before["problems"]:
+            problem.pop("contest_order", None)
+        existing_fields = [{k: v for k, v in p.items() if k != "contest_order"} for p in after["problems"]]
+        self.assertEqual(existing_fields, before["problems"])
+        self.assertEqual(after["contests"], before["contests"])
+        self.assertEqual(code_before, {p.name: p.read_bytes() for p in (data / "codes").iterdir()})
+        for contest in after["contests"]:
+            expected = [p["id"] for p in before["problems"] if p["contest_id"] == contest["id"]]
+            ordered = sorted((p for p in after["problems"] if p["contest_id"] == contest["id"]),
+                             key=lambda p: p["contest_order"])
+            self.assertEqual([p["id"] for p in ordered], expected)
+        backups = list((data.parent / "backups").glob("before-schema-upgrade-*/archive.sqlite3"))
+        versions = []
+        for backup in backups:
+            with closing(sqlite3.connect(backup)) as db:
+                versions.append(db.execute("SELECT value FROM settings WHERE key='schema_version'").fetchone()[0])
+        self.assertIn("9", versions)
 
 
 if __name__ == "__main__":

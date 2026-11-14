@@ -46,6 +46,9 @@
         if (p.code !== undefined && (typeof p.code !== "string" || bytes(p.code) > 2 * 1024 * 1024)) fail("代码必须是文本且不能超过 2 MiB。");
         if (p.code_locked !== undefined && typeof p.code_locked !== "boolean") fail("锁定状态必须是布尔值。");
       }
+      if (kind === "problem") {
+        delete p.contest_order; delete p.global_order; delete p.algorithm_order;
+      }
       if (p.platform !== undefined) p.platform = platform(p.platform);
       if (p.tests !== undefined) p.tests = tests(p.tests);
       if (p.contest_id) {
@@ -59,10 +62,13 @@
       if (!old && !p[key]) fail("名称不能为空。");
       return p;
     };
+    const nextContestOrder = id => id ? Math.max(-1, ...data.problems.filter(p => p.contest_id === id).map(p => p.contest_order)) + 1 : 0;
+    const touchContests = ids => new Set(ids.filter(Boolean)).forEach(id => touch(find(data.contests, id)));
     const insertProblem = p => {
       const item = { ...base(), platform: "", number: "", name: "", language: "cpp", code: "", code_locked: false, url: "", tests: [], contest_id: null, algorithm_id: null,
-        global_order: data.problems.length, algorithm_order: data.problems.length, ...p };
+        global_order: data.problems.length, algorithm_order: data.problems.length, ...p, contest_order: nextContestOrder(p.contest_id) };
       data.problems.push(item);
+      touchContests([item.contest_id]);
       return getProblem(item);
     };
     function dispatch(method, route, payload) {
@@ -103,6 +109,15 @@
         ids.forEach((id, i) => { find(items, id).algorithm_order = i; }); touch(a);
         return { ok: true, version: a.version };
       }
+      const contestOrder = route.match(/^\/api\/contests\/([^/]+)\/problems\/order$/);
+      if (method === "PUT" && contestOrder) {
+        const c = find(data.contests, contestOrder[1]); version(c, payload);
+        const items = data.problems.filter(p => p.contest_id === c.id), ids = payload.problem_ids;
+        if (!Array.isArray(ids) || ids.some(id => typeof id !== "string") || new Set(ids).size !== ids.length) fail("题目顺序格式不正确。");
+        if (ids.length !== items.length || ids.some(id => !items.some(p => p.id === id))) fail("题目列表已发生变化，请刷新页面后重新调整顺序。", 409);
+        ids.forEach((id, i) => { find(items, id).contest_order = i; }); touch(c);
+        return { contest: getContest(c) };
+      }
       const snippetPost = route.match(/^\/api\/algorithms\/([^/]+)\/snippets$/);
       if (method === "POST" && snippetPost) {
         const a = find(data.algorithms, snippetPost[1]);
@@ -138,7 +153,13 @@
         if ((method === "PUT" || method === "DELETE") && resource[2]) {
           const item = find(items, resource[2]); version(item, payload);
           if (method === "PUT") {
-            const p = validate(kind, payload, item); Object.assign(item, p); touch(item);
+            const p = validate(kind, payload, item);
+            if (kind === "problem") {
+              const nextContest = p.contest_id === undefined ? item.contest_id : p.contest_id;
+              if (nextContest !== item.contest_id) p.contest_order = nextContestOrder(nextContest);
+              touchContests([item.contest_id, nextContest]);
+            }
+            Object.assign(item, p); touch(item);
             return { [kind]: shape(item) };
           }
           if (kind === "contest") {
@@ -149,7 +170,9 @@
             for (let i = snippets.length - 1; i >= 0; i--) if (snippets[i].algorithm_id === item.id) snippets.splice(i, 1);
             data.problems.filter(p => p.algorithm_id === item.id).forEach(p => { p.algorithm_id = null; touch(p); });
           }
-          items.splice(items.indexOf(item), 1); return { ok: true };
+          items.splice(items.indexOf(item), 1);
+          if (kind === "problem") touchContests([item.contest_id]);
+          return { ok: true };
         }
       }
       fail("在线演示不执行此操作，请下载本地版使用。", 501);

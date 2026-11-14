@@ -34,7 +34,8 @@ async function main() {
     page.on("request", r => requests.push(r.url()));
     await page.goto(base, { waitUntil: "networkidle" });
     // Never seed or capture a user's running local service.
-    await page.locator(".demo-notice").waitFor();
+    await page.locator(".topbar-meta [data-demo-download]").waitFor();
+    assert.equal(await page.locator(".demo-notice").count(), 0);
     assert.equal(await page.locator('meta[name="csrf-token"]').getAttribute("content"), "isolated-online-demo");
     const art = page.locator(".sidebar-art img");
     assert.deepEqual(await art.evaluate(img => ({width: img.naturalWidth, height: img.naturalHeight})), {width: 938, height: 1670});
@@ -53,7 +54,7 @@ async function main() {
       await page.waitForFunction(() => Array.from(document.images).every(img => img.complete && img.naturalWidth));
       await page.screenshot({ path: path.join(screenshots, filename) }); files.push(filename);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow: ${route}`);
-      assert.ok(await page.evaluate(() => document.querySelector('.sidebar-identity').getBoundingClientRect().top >= document.querySelector('.demo-notice').getBoundingClientRect().bottom - 1), `Notice overlaps sidebar: ${route}`);
+      assert.equal(await page.evaluate(() => getComputedStyle(document.body).paddingTop), "0px");
     };
     await capture("home", ".stats-grid", "dashboard.png");
     assert.equal(await page.locator('.workspace-nav a[data-nav^="platform/"]').count(), 5);
@@ -62,6 +63,13 @@ async function main() {
     await capture("platform/codeforces", ".platform-page", "codeforces-workspace.png");
     await capture("contest/lanqiao-2024-national", ".problem-table", "lanqiao-contest.png");
     assert.ok((await page.locator("#main").textContent()).includes("国赛"));
+    const first = page.locator("#problem-table [data-drag-algorithm-problem]").first();
+    const firstId = await first.getAttribute("data-drag-algorithm-problem");
+    await first.focus();
+    await first.press("Alt+ArrowDown");
+    await page.waitForFunction(id => document.querySelectorAll("#problem-table [data-drag-algorithm-problem]")[1]?.dataset.dragAlgorithmProblem === id, firstId);
+    await page.reload(); await page.locator(".problem-table").waitFor();
+    assert.equal(await page.locator("#problem-table [data-drag-algorithm-problem]").first().getAttribute("data-drag-algorithm-problem"), firstId);
     await capture("algorithm/a-fenwick", ".algorithm-info", "algorithm.png");
     await capture("algorithms", ".algorithm-card", "templates.png");
     await capture(`problem/${feature.id}`, "#code-input", "editor.png");

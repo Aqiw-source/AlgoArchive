@@ -135,6 +135,7 @@
   };
   const sortedProblems = items => [...items].sort((a,b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
   const sortedAlgorithmProblems = items => [...items].sort((a,b) => (Number(a.algorithm_order) || 0) - (Number(b.algorithm_order) || 0));
+  const sortedContestProblems = items => [...items].sort((a,b) => (Number(a.contest_order) || 0) - (Number(b.contest_order) || 0));
   const sortedGlobalProblems = items => [...items].sort((a,b) => (Number(a.global_order) || 0) - (Number(b.global_order) || 0));
   const sortedContests = items => [...items].sort((a,b) => (Number(a.sort_order)||0)-(Number(b.sort_order)||0)||(b.updated_at||'').localeCompare(a.updated_at||''));
   const sortedAlgorithms = items => [...items].sort((a,b) => (Number(a.sort_order)||0)-(Number(b.sort_order)||0)||(b.updated_at||'').localeCompare(a.updated_at||''));
@@ -307,6 +308,7 @@
     const f=state.filter, ctx=state.context, q=f.q.trim().toLocaleLowerCase();
     const items=state.problems.filter(p=>(!ctx.platform||platformKey(p.platform)===platformKey(ctx.platform))&&(!ctx.contest||p.contest_id===ctx.contest)&&(!ctx.algorithm||p.algorithm_id===ctx.algorithm)&&(!f.platform||platformKey(p.platform)===platformKey(f.platform))&&(!f.language||p.language===f.language)&&(!f.contest||(f.contest==='none'?!p.contest_id:p.contest_id===f.contest))&&(!q||[p.number,p.name,p.url,p.contest_title,p.algorithm_name,platformLabel(p.platform)].join(' ').toLocaleLowerCase().includes(q)));
     if(ctx.algorithm)return sortedAlgorithmProblems(items);
+    if(ctx.contest)return sortedContestProblems(items);
     if(state.route==='problems'&&!ctx.platform)return sortedGlobalProblems(items);
     return sortedProblems(items);
   }
@@ -317,6 +319,8 @@
     prepareAlgorithmProblemDragging();
   }
   function algorithmProblemIds(){
+    const contestId=state.context.contest;
+    if(contestId)return sortedContestProblems(state.problems.filter(problem=>problem.contest_id===contestId)).map(problem=>problem.id);
     const algorithmId=state.context.algorithm;
     if(algorithmId)return sortedAlgorithmProblems(state.problems.filter(problem=>problem.algorithm_id===algorithmId)).map(problem=>problem.id);
     if(state.route==='problems'&&!state.context.platform)return sortedGlobalProblems(state.problems).map(problem=>problem.id);
@@ -358,32 +362,29 @@
     if(state.busy)return;
     const algorithmId=state.context.algorithm;
     const algorithm=algorithmId?state.algorithms.find(item=>item.id===algorithmId):null;
+    const contestId=state.context.contest;
+    const contest=contestId?state.contests.find(item=>item.id===contestId):null;
+    const route=state.route;
     const globalOrder=state.route==='problems'&&!state.context.platform&&!algorithmId;
-    if(!algorithm&&!globalOrder)return;
+    if(!algorithm&&!contest&&!globalOrder)return;
     state.busy=true;
     document.body.classList.add('problem-dragging');
     try{
       if(globalOrder){
         await api('/api/problems/order','PUT',{version:state.problemOrderVersion,problem_ids:problemIds});
+      }else if(contest){
+        await api(`/api/contests/${encodeURIComponent(contestId)}/problems/order`,'PUT',{version:contest.version,problem_ids:problemIds});
       }else{
         await api(`/api/algorithms/${encodeURIComponent(algorithmId)}/problems/order`,'PUT',{version:algorithm.version,problem_ids:problemIds});
       }
       await loadState();
-      if(globalOrder){
-        updateTable();
-      }else{
-        const updated=state.algorithms.find(item=>item.id===algorithmId);
-        if(updated&&state.route===`algorithm/${algorithmId}`)algorithmDetail(updated);
-      }
+      if(state.route===route)updateTable();
       toast(successMessage);
     }catch(error){
-      if(error.status===409)await loadState();
-      if(globalOrder){
-        updateTable();
-      }else{
-        const latest=state.algorithms.find(item=>item.id===algorithmId)||algorithm;
-        if(state.route===`algorithm/${algorithmId}`)algorithmDetail(latest);
+      if(error.status===409){
+        try{await loadState();}catch(_){ }
       }
+      if(state.route===route)updateTable();
       toast(error.message,true);
     }finally{
       state.busy=false;

@@ -351,10 +351,10 @@ function createFixture() {
   const contests = [], problems = [];
   function addContest(id, platform, title, url, rows) {
     contests.push({ ...common, id, platform, title, url, sort_order: contests.length, problem_count: rows.length });
-    for (const [number, name, link, algorithm_id = null] of rows) {
+    for (const [contest_order, [number, name, link, algorithm_id = null]] of rows.entries()) {
       problems.push({ ...common, id: `p-${id}-${number}`, platform, number, name, url: link,
         language: "cpp", code: "", code_locked: false, tests: [], contest_id: id,
-        contest_title: title, algorithm_id, algorithm_order: problems.length, global_order: problems.length,
+        contest_title: title, contest_order, algorithm_id, algorithm_order: problems.length, global_order: problems.length,
         algorithm_name: algorithms.find(a => a.id === algorithm_id)?.name || null });
     }
   }

@@ -105,6 +105,13 @@ class SystemTests(unittest.TestCase):
             "platform": platform, "title": title, "url": url,
         }, expected=(200, 201))["contest"]
 
+    def test_static_webp_is_served_as_an_image(self):
+        with urllib.request.urlopen(self.base + "/sidebar-art-blended.webp", timeout=5) as response:
+            self.assertEqual(response.headers.get_content_type(), "image/webp")
+            header = response.read(12)
+        self.assertEqual(header[:4], b"RIFF")
+        self.assertEqual(header[8:12], b"WEBP")
+
     def test_code_lock_endpoint_protects_problem_and_template(self):
         problem = self.request("POST", "/api/problems", {
             "platform": "蓝桥杯", "name": "Locked", "url": "lanqiao.example/1",
@@ -997,6 +1004,87 @@ class SystemTests(unittest.TestCase):
             expected=409,
         )
         self.assertEqual(stale["code"], "version_conflict")
+
+    def test_contest_problem_order_is_independent_and_versioned(self):
+        contest = self.contest(
+            title="独立排序比赛",
+            url="https://example.com/contest/problem-order",
+        )
+        algorithm = self.algorithm(name="排序关联算法")
+        first = self.problem(
+            number="A",
+            name="比赛题目 A",
+            url="https://example.com/contest/problem-order/a",
+            contest_id=contest["id"],
+            algorithm_id=algorithm["id"],
+        )
+        second = self.problem(
+            number="B",
+            name="比赛题目 B",
+            url="https://example.com/contest/problem-order/b",
+            contest_id=contest["id"],
+            algorithm_id=algorithm["id"],
+        )
+        initial = self.request("GET", "/api/state")
+        current_contest = next(item for item in initial["contests"] if item["id"] == contest["id"])
+        before = {item["id"]: (item["global_order"], item["algorithm_order"])
+                  for item in initial["problems"] if item["id"] in {first["id"], second["id"]}}
+
+        result = self.request(
+            "PUT",
+            f"/api/contests/{contest['id']}/problems/order",
+            {"version": current_contest["version"], "problem_ids": [second["id"], first["id"]]},
+        )
+        self.assertEqual(result["contest"]["version"], current_contest["version"] + 1)
+        state = self.request("GET", "/api/state")
+        ordered = sorted(
+            (item for item in state["problems"] if item["contest_id"] == contest["id"]),
+            key=lambda item: item["contest_order"],
+        )
+        self.assertEqual([item["id"] for item in ordered], [second["id"], first["id"]])
+        self.assertEqual(
+            {item["id"]: (item["global_order"], item["algorithm_order"])
+             for item in state["problems"] if item["id"] in before},
+            before,
+        )
+        stale = self.request(
+            "PUT",
+            f"/api/contests/{contest['id']}/problems/order",
+            {"version": current_contest["version"], "problem_ids": [first["id"], second["id"]]},
+            expected=409,
+        )
+        self.assertEqual(stale["code"], "version_conflict")
+
+    def test_contest_problem_order_validates_members_and_appends_new_entries(self):
+        contest = self.contest()
+        other = self.contest(title="其他比赛", url="https://example.com/other-contest")
+        first = self.problem(contest_id=contest["id"])
+        second = self.problem(number="B", contest_id=contest["id"], url="https://example.com/order/b")
+        outsider = self.problem(number="C", contest_id=other["id"], url="https://example.com/order/c")
+        current = self.request("GET", f"/api/contests/{contest['id']}")["contest"]
+        route = f"/api/contests/{contest['id']}/problems/order"
+        for ids, status in (([first["id"], first["id"]], 400),
+                            ([first["id"]], 409),
+                            ([first["id"], outsider["id"]], 409),
+                            ([first["id"], 3], 400)):
+            self.request("PUT", route, {"version": current["version"], "problem_ids": ids}, expected=status)
+        self.request("PUT", route, {
+            "version": current["version"], "problem_ids": [second["id"], first["id"]],
+        })
+        self.request("POST", "/api/problems/import", {"problems": [
+            {"contest_id": contest["id"], "platform": "codeforces", "name": "导入 A", "url": "https://example.com/order/import-a", "language": "cpp", "code": "// a"},
+            {"contest_id": contest["id"], "platform": "codeforces", "name": "导入 B", "url": "https://example.com/order/import-b", "language": "cpp", "code": "// b"},
+        ]}, expected=(200, 201))
+        self.request("PUT", f"/api/problems/{outsider['id']}", {
+            "version": outsider["version"], "contest_id": contest["id"],
+        })
+        self.stop_server()
+        self.start_server()
+        state = self.request("GET", "/api/state")
+        ordered = sorted((p for p in state["problems"] if p["contest_id"] == contest["id"]),
+                         key=lambda p: p["contest_order"])
+        self.assertEqual([p["name"] for p in ordered], [second["name"], first["name"], "导入 A", "导入 B", outsider["name"]])
+        self.assertEqual([p["contest_order"] for p in ordered], [0, 1, 2, 3, 4])
 
     def test_contest_and_algorithm_card_orders_persist_after_restart(self):
         contests = [
