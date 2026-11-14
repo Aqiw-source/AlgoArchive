@@ -1,10 +1,10 @@
-算法档案 · AlgoArchive 2.2.6
+算法档案 · AlgoArchive 2.2.7
 作者：Aqiw
 GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.2.6-Windows-x64-Setup.exe。安装程序可选择是否创建
+安装版：运行 AlgoArchive-2.2.7-Windows-x64-Setup.exe。安装程序可选择是否创建
 桌面快捷方式，默认不勾选。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -12,7 +12,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.2.6-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.2.7-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 AlgoArchive.exe。普通启动不会创建或恢复快捷方式；
@@ -104,8 +104,9 @@ AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runt
 或全部用例、停止运行，并导入或导出 CPH `.prob` 文件。测试用例保存在
 archive.sqlite3，重启、备份和恢复后仍会保留。
 
-程序默认调用当前 VS Code 工作区使用的：
-D:\x86_64-8.1.0-release-posix-seh-rt_v6-rev0\mingw64\bin\g++.exe
+程序优先调用“设置 → 编译与运行”中填写的 g++；留空时从系统 PATH 中查找。
+未找到时会提示选择完整 MinGW-w64 工具链中的 bin\g++.exe。
+Windows 试跑会为子进程补充所选工具链的 DLL 搜索路径，不修改系统 PATH。
 
 默认标准为 GNU++14。可在“设置 → 编译与运行”检查 __int128、multiset 和
 unordered_map 的真实编译运行能力，也可以改用其他 g++ 路径和标准。
@@ -156,7 +157,7 @@ python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.2.6
+.\scripts\build-release.ps1 -Version 2.2.7
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。

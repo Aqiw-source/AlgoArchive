@@ -77,10 +77,13 @@ async function main() {
     const original = await area.inputValue();
     const draft = original + "\n// session edit";
     await area.fill(draft);
-    await page.locator("#save-problem").click();
-    await page.getByText("题目、代码与测试用例已保存，所有页面已同步。", { exact: true }).waitFor();
     await page.locator("#code-lock-toggle").check();
     await page.waitForFunction(() => document.querySelector("#code-input").readOnly);
+    const savedDraft = await page.evaluate(async id => (await fetch(`/api/problems/${id}`).then(r=>r.json())).problem, feature.id);
+    assert.equal(savedDraft.code, draft);
+    assert.equal(savedDraft.code_locked, true);
+    await page.locator("#save-problem").click();
+    await page.getByText("题目、代码与测试用例已保存，所有页面已同步。", { exact: true }).last().waitFor();
     await page.locator("[data-select-code]").click();
     assert.ok(await area.evaluate(e => e.selectionEnd === e.value.length));
     await page.locator("[data-copy-code]").click();

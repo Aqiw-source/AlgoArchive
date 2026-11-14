@@ -7,20 +7,14 @@ from pathlib import Path
 import sys
 import time
 import unittest
+from unittest.mock import patch
 
 import app as app_module
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-USER_GXX = Path(
-    r"D:\x86_64-8.1.0-release-posix-seh-rt_v6-rev0\mingw64\bin\g++.exe"
-)
-
-
 def available_compiler():
-    if USER_GXX.is_file():
-        return USER_GXX
-    discovered = shutil.which("g++")
+    discovered = os.environ.get("ALGOARCHIVE_TEST_GXX") or shutil.which("g++")
     return Path(discovered) if discovered else None
 
 
@@ -104,14 +98,30 @@ class CphRunnerTests(unittest.TestCase):
             0,
         )
 
-    def test_compiler_config_defaults_to_the_vscode_gcc_and_gnu14(self):
+    def test_default_compiler_uses_path_and_gnu14(self):
         config = app_module._normalized_user_config(
             {"format": 1, "data_dir": ""}
         )
-        compiler_path, standard = app_module.resolve_cpp_compiler(config)
-        if USER_GXX.is_file():
-            self.assertEqual(compiler_path, USER_GXX)
+        discovered = Path(__file__).resolve()
+        with patch("cph_runner.shutil.which", return_value=str(discovered)):
+            compiler_path, standard = app_module.resolve_cpp_compiler(config)
+        self.assertEqual(compiler_path, discovered)
         self.assertEqual(standard, "gnu++14")
+
+    def test_no_compiler_on_path_does_not_use_author_machine(self):
+        with patch("cph_runner.shutil.which", return_value=None):
+            compiler_path, standard = app_module.resolve_cpp_compiler({})
+        self.assertIsNone(compiler_path)
+        self.assertEqual(standard, "gnu++14")
+
+    def test_configured_compiler_takes_priority_over_path(self):
+        configured = Path(__file__).resolve()
+        with patch("cph_runner.shutil.which", return_value=str(PROJECT / "other-g++")):
+            compiler_path, standard = app_module.resolve_cpp_compiler({
+                "compiler": {"cpp_path": str(configured), "cpp_standard": "gnu++17"}
+            })
+        self.assertEqual(compiler_path, configured)
+        self.assertEqual(standard, "gnu++17")
 
     def test_configured_missing_compiler_does_not_silently_fallback(self):
         missing = PROJECT / ".test-tmp" / "missing-gpp" / "g++.exe"
@@ -162,6 +172,42 @@ class CphRunnerTests(unittest.TestCase):
         self.assertTrue(result["cancelled"])
         self.assertFalse(result["timed_out"])
         self.assertLess(time.monotonic() - started, 1)
+
+    @unittest.skipUnless(available_compiler(), "g++ is required")
+    @unittest.skipUnless(os.name == "nt", "Windows toolchain DLL lookup")
+    def test_explicit_compiler_runs_without_toolchain_on_path(self):
+        compiler = available_compiler()
+        tmp = PROJECT / ".test-tmp" / f"常博昊 编译环境 {secrets.token_hex(6)}"
+        tmp.mkdir(parents=True)
+        self.addCleanup(shutil.rmtree, tmp, True)
+        system = Path(os.environ["SystemRoot"])
+        system_path = os.pathsep.join(map(str, (system / "System32", system)))
+        runner = app_module.CppTestRunner(compiler, "gnu++14")
+        with patch.dict(os.environ, {"PATH": system_path, "TEMP": str(tmp), "TMP": str(tmp)}), patch(
+            "cph_runner.tempfile.gettempdir", return_value=str(tmp)
+        ):
+            result = runner.run(
+                '#include <iostream>\nint main(){int n;std::cin>>n;std::cout<<n+1;}\n',
+                [{"input": "41\n", "output": "42\n"}],
+            )
+            self.assertEqual(os.environ["PATH"], system_path)
+        self.assertTrue(result["ok"], result)
+
+    @unittest.skipUnless(available_compiler(), "g++ is required")
+    def test_runner_compiles_with_chinese_and_spaced_system_temp(self):
+        tmp = PROJECT / ".test-tmp" / f"用户 张三 临时目录 {secrets.token_hex(6)}"
+        tmp.mkdir(parents=True)
+        self.addCleanup(shutil.rmtree, tmp, True)
+        runner = app_module.CppTestRunner(available_compiler(), "gnu++14")
+        with patch("cph_runner.tempfile.gettempdir", return_value=str(tmp)), patch.dict(
+            os.environ, {"TEMP": str(tmp), "TMP": str(tmp)}
+        ):
+            result = runner.run(
+                '#include <iostream>\nint main(){int n;std::cin>>n;std::cout<<n+1;}\n',
+                [{"input": "41\n", "output": "42\n"}],
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(list(tmp.iterdir()), [])
 
     @unittest.skipUnless(available_compiler(), "g++ is required")
     def test_runner_supports_int128_multiset_and_unordered_map(self):

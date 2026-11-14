@@ -170,11 +170,19 @@
     if(language)language.disabled=locked||state.busy;
   }
   async function changeEditorLock(locked){
-    const editor=state.editor;if(!editor)return;
+    let editor=state.editor;if(!editor)return;
+    if(state.busy){applyEditorLock();return;}
+    if(locked&&editor.entity.id&&isDirty()){
+      const saved=await saveCurrentEditor();
+      if(!saved){applyEditorLock();updateSaveState();return;}
+      editor=state.editor;
+      if(!editor)return;
+    }
     const toggle=$('#code-lock-toggle');
     if(editor.entity.id){
-      state.busy=true;toggle.disabled=true;
+      state.busy=true;toggle.disabled=true;toggle.checked=locked;
       $('#code-input').readOnly=true;
+      $('#editor-language').disabled=true;
       try{
         const kind=editor.kind==='snippet'?'snippet':'problem';
         const resource=kind==='snippet'?'algorithm-snippets':'problems';
@@ -999,18 +1007,18 @@
   function updateCursor(){const a=$('#code-input');if(!a)return;const before=a.value.slice(0,a.selectionStart).split('\n');$('#cursor-status').textContent=`第 ${before.length} 行，第 ${before[before.length-1].length+1} 列 · ${a.value.length.toLocaleString()} 字符`;}
   function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();const standalone=state.editor.entity?.standalone;status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(standalone?'✓ 草稿已保存':(state.editor.entity.id?'✓ 已保存到本地':'尚未保存'));}
   function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
-  async function saveProblem(event){event?.preventDefault();if(state.busy||!state.editor)return;const form=$('#problem-form');if(!validateRequiredFields(form))return;const data=readProblemForm();
+  async function saveProblem(event){event?.preventDefault();if(state.busy||!state.editor)return false;const form=$('#problem-form');if(!validateRequiredFields(form))return false;const data=readProblemForm();
     commitCphFields();const testsToSave=state.editor.tests.map(item=>({input:item.input,output:item.output}));
-    if(!validateCphTestSizes(testsToSave))return;
+    if(!validateCphTestSizes(testsToSave))return false;
     const caseControls=Array.from(main.querySelectorAll('.cph-runner input,.cph-runner textarea,.cph-runner button:not([data-stop-cph])'));
     const caseDisabled=caseControls.map(el=>el.disabled);caseControls.forEach(el=>{el.disabled=true;});
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
-    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;await loadState().catch(error=>toast('已保存；刷新列表失败：'+error.message,true));state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');}
-    catch(e){showEditorError(e);}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
+    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;await loadState().catch(error=>toast('已保存；刷新列表失败：'+error.message,true));state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');return true;}
+    catch(e){showEditorError(e);return false;}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   async function saveSnippet(event){
-    event?.preventDefault();if(state.busy||!state.editor||state.editor.kind!=='snippet')return;
-    const form=$('#snippet-form');if(!validateRequiredFields(form))return;
+    event?.preventDefault();if(state.busy||!state.editor||state.editor.kind!=='snippet')return false;
+    const form=$('#snippet-form');if(!validateRequiredFields(form))return false;
     const data=readSnippetForm();
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});
     const button=$('#save-snippet');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
@@ -1022,7 +1030,8 @@
       try{await loadState();}catch(error){refreshError=error;}
       state.editor=null;state.route=`snippet/${saved.snippet.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);snippetEditor(saved.snippet);
       toast(refreshError?`代码模板已保存；列表刷新失败：${refreshError.message}`:'代码模板已保存到本地。',!!refreshError);
-    }catch(e){showEditorError(e);}
+      return true;
+    }catch(e){showEditorError(e);return false;}
     finally{state.busy=false;$('#snippet-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-snippet')){$('#save-snippet').disabled=false;$('#save-snippet').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   function saveCurrentEditor(event){if(state.editor?.kind==='snippet')return saveSnippet(event);if(state.editor?.entity?.standalone){event?.preventDefault();return savePlaygroundDraft();}return saveProblem(event);}
@@ -1169,7 +1178,7 @@
     const compiler=state.settings?.compiler||{};
     const standard=compiler.standard||'gnu++14';
     const missing=compiler.available?'':`<div class="compiler-missing-banner compact"><div class="compiler-missing-mark" aria-hidden="true">!</div><div><strong>未找到 C++ 编译器</strong><p>请安装或解压完整的 MinGW-w64，然后填写其 <code>bin\\g++.exe</code> 路径。不要只复制单个 g++.exe；它需要同一工具链中的配套程序。</p></div></div>`;
-    return `<form id="compiler-settings-form" novalidate><div class="settings-section-head"><div><h3>C++ 编译与运行</h3><p>默认自动使用当前 VS Code 工作区的 MinGW g++ 8.1.0，并以 GNU++14 编译。</p></div></div><div class="compiler-status ${compiler.available?'ok':'missing'}"><span>${compiler.available?'可用':'未找到'}</span><div><strong>${esc(compiler.version||'没有检测到 g++')}</strong><small>${compiler.auto_detected?'自动检测路径':'自定义路径'} · ${esc(compiler.standard||standard)}</small></div></div>${missing}<label class="field"><span>g++ 可执行文件路径 <small>留空时自动检测</small></span><input name="cpp_path" id="compiler-cpp-path" maxlength="2048" value="${esc(compiler.configured_path||'')}" placeholder="${esc(compiler.path||'D:\\mingw64\\bin\\g++.exe')}"></label><div class="settings-path"><code>${esc(compiler.path||'未找到编译器')}</code><button type="button" class="btn small" data-copy-compiler-path>复制实际路径</button></div><label class="field"><span>C++ 标准</span><select name="standard" id="compiler-standard">${(compiler.standards||['gnu++14']).map(value=>option(value,value,standard)).join('')}</select></label><div id="compiler-diagnostic" class="compiler-diagnostic" aria-live="polite"><strong>尚未运行能力检查</strong><span>检查将对 __int128、multiset 和 unordered_map 进行真实编译运行。</span></div><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="button" class="btn" id="compiler-test">编译能力检查</button><button type="submit" class="btn primary">保存编译器设置</button></div></form>`;
+return `<form id="compiler-settings-form" novalidate><div class="settings-section-head"><div><h3>C++ 编译与运行</h3><p>优先使用你设置的 g++；路径留空时从系统 PATH 查找，默认以 GNU++14 编译。</p></div></div><div class="compiler-status ${compiler.available?'ok':'missing'}"><span>${compiler.available?'可用':'未找到'}</span><div><strong>${esc(compiler.version||'没有检测到 g++')}</strong><small>${compiler.auto_detected?'自动检测路径':'自定义路径'} · ${esc(compiler.standard||standard)}</small></div></div>${missing}<label class="field"><span>g++ 可执行文件路径 <small>留空时自动检测</small></span><input name="cpp_path" id="compiler-cpp-path" maxlength="2048" value="${esc(compiler.configured_path||'')}" placeholder="${esc(compiler.path||'D:\\mingw64\\bin\\g++.exe')}"></label><div class="settings-path"><code>${esc(compiler.path||'未找到编译器')}</code><button type="button" class="btn small" data-copy-compiler-path>复制实际路径</button></div><label class="field"><span>C++ 标准</span><select name="standard" id="compiler-standard">${(compiler.standards||['gnu++14']).map(value=>option(value,value,standard)).join('')}</select></label><div id="compiler-diagnostic" class="compiler-diagnostic" aria-live="polite"><strong>尚未运行能力检查</strong><span>检查将对 __int128、multiset 和 unordered_map 进行真实编译运行。</span></div><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="button" class="btn" id="compiler-test">编译能力检查</button><button type="submit" class="btn primary">保存编译器设置</button></div></form>`;
   }
   function settingsDataHTML(){
     const settings=state.settings||{};

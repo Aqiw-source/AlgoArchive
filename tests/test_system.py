@@ -22,9 +22,7 @@ import urllib.request
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-VSCODE_GXX = Path(
-    r"D:\x86_64-8.1.0-release-posix-seh-rt_v6-rev0\mingw64\bin\g++.exe"
-)
+AVAILABLE_GXX = shutil.which("g++")
 
 
 class SystemTests(unittest.TestCase):
@@ -202,7 +200,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/api/problems/" + problem["id"])["problem"]["code"], changed["code"])
 
     @unittest.skipUnless(
-        VSCODE_GXX.is_file() or shutil.which("g++"),
+        AVAILABLE_GXX,
         "g++ is required",
     )
     def test_cph_test_cases_save_run_and_survive_restart(self):
@@ -260,7 +258,7 @@ class SystemTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(
-        VSCODE_GXX.is_file() or shutil.which("g++"),
+        AVAILABLE_GXX,
         "g++ is required",
     )
     def test_cph_run_can_be_stopped(self):
@@ -302,7 +300,7 @@ class SystemTests(unittest.TestCase):
             self.assertEqual(result["cases"][0]["status"], "cancelled")
 
     @unittest.skipUnless(
-        VSCODE_GXX.is_file() or shutil.which("g++"),
+        AVAILABLE_GXX,
         "g++ is required",
     )
     def test_standalone_compiler_runs_without_creating_a_problem(self):
@@ -1420,7 +1418,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(saved["browser"]["window_mode"], "app")
 
     @unittest.skipUnless(
-        VSCODE_GXX.is_file() or shutil.which("g++"),
+        AVAILABLE_GXX,
         "g++ is required",
     )
     def test_compiler_settings_and_cph_attribution_are_reported(self):
@@ -1434,9 +1432,7 @@ class SystemTests(unittest.TestCase):
             "POST",
             "/api/settings/compiler/test",
             {
-                "cpp_path": str(
-                    VSCODE_GXX if VSCODE_GXX.is_file() else Path(shutil.which("g++"))
-                ),
+                "cpp_path": str(AVAILABLE_GXX),
                 "standard": "gnu++14",
             },
         )["diagnostic"]

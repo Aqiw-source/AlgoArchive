@@ -20,9 +20,6 @@ import time
 
 DEFAULT_CPP_STANDARD = "gnu++14"
 CPP_STANDARDS = ("gnu++11", "gnu++14", "gnu++17", "gnu++20", "c++17", "c++20")
-DEFAULT_VSCODE_GXX = Path(
-    r"D:\x86_64-8.1.0-release-posix-seh-rt_v6-rev0\mingw64\bin\g++.exe"
-)
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_TEST_COUNT = 100
 MAX_TEST_TEXT_BYTES = 1024 * 1024
@@ -33,7 +30,7 @@ _WINDOWS_ERROR_MODE_LOCK = threading.Lock()
 
 
 def resolve_cpp_compiler(config=None):
-    """Return (compiler_path, standard) from config, VS Code default, then PATH."""
+    """Return (compiler_path, standard) from explicit config, then PATH."""
     config = dict(config or {})
     compiler = config.get("compiler")
     compiler = dict(compiler) if isinstance(compiler, dict) else {}
@@ -46,8 +43,6 @@ def resolve_cpp_compiler(config=None):
         if candidate.is_file():
             return candidate.resolve(), standard
         return None, standard
-    if DEFAULT_VSCODE_GXX.is_file():
-        return DEFAULT_VSCODE_GXX.resolve(), standard
     discovered = shutil.which("g++")
     if discovered:
         return Path(discovered).resolve(), standard
@@ -272,6 +267,15 @@ class CppTestRunner:
         )
         started = time.monotonic()
         deadline = started + max(0.05, timeout_seconds)
+        environment = None
+        if os.name == "nt" and self.compiler_path:
+            # Compiler helpers and compiled programs share the toolchain's DLLs.
+            environment = os.environ.copy()
+            environment["PATH"] = (
+                str(self.compiler_path.resolve().parent)
+                + os.pathsep
+                + environment.get("PATH", "")
+            )
         # File-backed input cannot block waiting for a child to read a full stdin pipe.
         input_file = tempfile.TemporaryFile(dir=str(cwd))
         try:
@@ -301,6 +305,7 @@ class CppTestRunner:
                     stdin=input_file,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    env=environment,
                     creationflags=creationflags,
                     start_new_session=os.name != "nt",
                 )

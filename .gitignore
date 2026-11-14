@@ -13,6 +13,7 @@ __pycache__/
 htmlcov/
 .qa-data/
 .qa-*/
+.qa-deps/
 .test-tmp/
 .test-*/
 qa-data/

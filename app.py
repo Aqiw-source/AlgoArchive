@@ -44,7 +44,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.6"
+APP_VERSION = "2.2.7"
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 10
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
