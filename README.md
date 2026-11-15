@@ -21,8 +21,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.2.7-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.2.7-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.2.8-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.2.8-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -132,7 +132,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.2.7-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.2.8-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -372,18 +372,19 @@ node --check web/app.js
 
 ```powershell
 node tests/test_editor_lock.cjs
+node tests/test_card_colors.cjs
 ```
 
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.7
+.\scripts\build-portable.ps1 -Version 2.2.8
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.2.7
+.\scripts\build-release.ps1 -Version 2.2.8
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
@@ -395,11 +396,12 @@ Windows CI 会执行后端测试、前端语法检查、启动器 PE 依赖检�
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.7 已验证：
+详见 [TEST_REPORT.md](TEST_REPORT.md)。本次版本 2.2.8 已验证：
 
-- 159 项 Windows 隔离后端测试通过，在线演示测试 7 项通过；覆盖原子保存、迁移写入屏障、9,999 题备份恢复、代码锁定、运行时限、输出超限和用例总大小限制。
+- 165 项 Windows 隔离后端测试通过，在线演示测试 9 项通过；覆盖六色轮换、原子保存、迁移写入屏障、9,999 题备份恢复、代码锁定、运行时限、输出超限和用例总大小限制。
+- 算法与比赛卡片独立按六色轮换；改名、筛选、拖动和刷新保持颜色，删除不回退轮换，旧数据和旧备份自动补齐颜色。后台继续使用 schema 10，仅增加颜色设置。
 - 题目和模板有未保存修改时，先保存成功再锁定；校验、请求或版本冲突失败时保持草稿可编辑。
-- 真实 ZIP、安装器、内置 Python 和快捷方式在中文及空格路径验证；2.2.6 升级到 2.2.7 保留题库与配置，卸载保留外部数据。使用当前账户下的模拟中文用户目录，尚未覆盖全新账户或干净虚拟机。
+- 真实 ZIP、安装器、内置 Python 和快捷方式在中文及空格路径验证；2.2.7 升级到 2.2.8 保留题库与配置，卸载保留外部数据。使用当前账户下的模拟中文用户目录，尚未覆盖全新账户或干净虚拟机。
 - Windows 显式配置 MinGW、系统 PATH 不含工具链时，中文 TEMP 下仍可完成编译运行。
 - `node --check web/app.js` 通过。
 - 无协议域名会自动补全 HTTPS；普通备注和文件名保持不变。

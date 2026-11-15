@@ -118,14 +118,8 @@
   };
   const snippetName = p => p.title || '未命名模板';
   const algorithmButton = a => `<button class="title-link" data-open-algorithm="${esc(a.id)}">${esc(a.name)}</button>`;
-  const algorithmTone = a => {
-    const text=`${a.name||''} ${a.category||''}`.toLocaleLowerCase();
-    if(/搜索|search|dfs|bfs/.test(text))return 'rose';
-    if(/树状数组|fenwick|\bbit\b/.test(text))return 'blue';
-    if(/线段树|segment/.test(text))return 'green';
-    let hash=0;for(const char of text)hash=(hash*31+char.codePointAt(0))>>>0;
-    return ['green','blue','rose','amber'][hash%4];
-  };
+  const cardColors = ['blue','cyan','green','amber','rose','violet'];
+  const cardTone = item => cardColors.includes(item?.card_color)?item.card_color:'blue';
   const algorithmGlyph = a => {
     const text=`${a.name||''} ${a.category||''}`.toLocaleLowerCase();
     if(/搜索|search|dfs|bfs/.test(text))return icon('search');
@@ -272,7 +266,7 @@
   }
   function algorithmRelation(p) {
     if(!p.algorithm_id)return '<span class="relation-badge algorithm-relation is-empty"><span class="relation-dot"></span><span>未关联算法</span></span>';
-    const tone=algorithmTone({name:p.algorithm_name||'',category:''});
+    const tone=cardTone(state.algorithms.find(item=>item.id===p.algorithm_id));
     const title=p.algorithm_name||'查看算法';
     return `<button class="relation-badge algorithm-relation relation-${tone}" data-open-algorithm="${esc(p.algorithm_id)}" title="${esc(title)}">${icon('search')}<span>${esc(title)}</span></button>`;
   }
@@ -287,11 +281,11 @@
   }
   function contestCards(items) {
     if (!items.length) return empty('还没有比赛','新建一场比赛，把每一道题目的思路都收好。',addContestButton(state.context.platform || ''));
-    return `<div class="contest-grid">${items.map(c => `<article class="contest-card" data-order-card="contest" data-order-id="${esc(c.id)}" data-open-contest="${esc(c.id)}" role="link" tabindex="0" aria-label="打开比赛：${esc(c.title)}"><div class="contest-card-top">${cardDragHandle('contest',c.id,c.title)}${badge(c.platform)}<span class="card-top-icon">${icon('grid')}</span></div><h3><button class="title-link" data-open-contest="${esc(c.id)}">${esc(c.title)}</button></h3><p class="contest-meta">${icon('clock')}<span>最近修改 ${time(c.updated_at)}</span></p><div class="contest-card-bottom"><span>${icon('document')}${state.problems.filter(p=>p.contest_id===c.id).length} 道题目</span><button class="card-open" data-open-contest="${esc(c.id)}">进入比赛 ${icon('arrow')}</button></div></article>`).join('')}</div>`;
+    return `<div class="contest-grid">${items.map(c => `<article class="contest-card card-tone-${cardTone(c)}" data-order-card="contest" data-order-id="${esc(c.id)}" data-open-contest="${esc(c.id)}" role="link" tabindex="0" aria-label="打开比赛：${esc(c.title)}"><div class="contest-card-top">${cardDragHandle('contest',c.id,c.title)}${badge(c.platform)}<span class="card-top-icon">${icon('grid')}</span></div><h3><button class="title-link" data-open-contest="${esc(c.id)}">${esc(c.title)}</button></h3><p class="contest-meta">${icon('clock')}<span>最近修改 ${time(c.updated_at)}</span></p><div class="contest-card-bottom"><span>${icon('document')}${state.problems.filter(p=>p.contest_id===c.id).length} 道题目</span><button class="card-open" data-open-contest="${esc(c.id)}">进入比赛 ${icon('arrow')}</button></div></article>`).join('')}</div>`;
   }
   function algorithmCards(items) {
     if (!items.length) return empty('还没有算法模板','新建一个算法，在内部整理题目、代码和参考链接。',addAlgorithmButton());
-    return `<div class="algorithm-grid">${items.map(a => `<article class="algorithm-card algorithm-tone-${algorithmTone(a)}" data-order-card="algorithm" data-order-id="${esc(a.id)}" data-open-algorithm="${esc(a.id)}" role="link" tabindex="0" aria-label="打开算法：${esc(a.name)}"><div class="algorithm-card-top">${cardDragHandle('algorithm',a.id,a.name)}<span class="algorithm-glyph" aria-hidden="true">${algorithmGlyph(a)}</span><span class="algorithm-category">${esc(a.category || '未分类')}</span><span class="card-top-icon">{ }</span></div><h3>${algorithmButton(a)}</h3><p class="algorithm-description">${esc(a.description || '暂无说明')}</p><div class="algorithm-card-bottom"><span class="card-metrics"><span>${icon('document')}${a.problem_count || 0} 道题目</span><span>${icon('code')}${a.snippets.length} 份代码</span><span>${icon('link')}${a.links.length} 个链接</span></span><button class="card-open" data-open-algorithm="${esc(a.id)}">查看算法 ${icon('arrow')}</button></div></article>`).join('')}</div>`;
+    return `<div class="algorithm-grid">${items.map(a => `<article class="algorithm-card card-tone-${cardTone(a)}" data-order-card="algorithm" data-order-id="${esc(a.id)}" data-open-algorithm="${esc(a.id)}" role="link" tabindex="0" aria-label="打开算法：${esc(a.name)}"><div class="algorithm-card-top">${cardDragHandle('algorithm',a.id,a.name)}<span class="algorithm-glyph" aria-hidden="true">${algorithmGlyph(a)}</span><span class="algorithm-category">${esc(a.category || '未分类')}</span><span class="card-top-icon">{ }</span></div><h3>${algorithmButton(a)}</h3><p class="algorithm-description">${esc(a.description || '暂无说明')}</p><div class="algorithm-card-bottom"><span class="card-metrics"><span>${icon('document')}${a.problem_count || 0} 道题目</span><span>${icon('code')}${a.snippets.length} 份代码</span><span>${icon('link')}${a.links.length} 个链接</span></span><button class="card-open" data-open-algorithm="${esc(a.id)}">查看算法 ${icon('arrow')}</button></div></article>`).join('')}</div>`;
   }
   function home() {
     const platformProblemCount=key=>state.problems.filter(p=>platformKey(p.platform)===key).length;

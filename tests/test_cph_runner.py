@@ -177,7 +177,7 @@ class CphRunnerTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows toolchain DLL lookup")
     def test_explicit_compiler_runs_without_toolchain_on_path(self):
         compiler = available_compiler()
-        tmp = PROJECT / ".test-tmp" / f"常博昊 编译环境 {secrets.token_hex(6)}"
+        tmp = PROJECT / ".test-tmp" / f"测试用户 小林 编译环境 {secrets.token_hex(6)}"
         tmp.mkdir(parents=True)
         self.addCleanup(shutil.rmtree, tmp, True)
         system = Path(os.environ["SystemRoot"])

@@ -2631,50 +2631,72 @@ tbody tr:nth-child(6n) .number-box {
 
 .contest-card,
 .algorithm-card {
-  --tone: #0baa6d;
-  --tone-soft: #e7f8f0;
-  --tone-line: #d5f0e4;
-  border-color: #e2e6f2;
+  --tone: #2867c4;
+  --tone-soft: #e8f0ff;
+  --tone-line: #d7e4ff;
+  --tone-decoration: #8db7ff2b;
+  border-color: var(--tone-line);
   box-shadow: 0 8px 26px #26365d0b;
-}
-
-.contest-card {
-  background: linear-gradient(125deg, #fffdf8 0%, #fff4e5 100%);
-  border-color: #f8e2c8;
 }
 
 .contest-card:hover,
 .algorithm-card:hover {
-  border-color: #bcded1;
+  border-color: var(--tone);
   box-shadow: 0 16px 36px #22355f16;
 }
 
-.algorithm-card.algorithm-tone-green {
-  --tone: #10a96f;
+.algorithm-card.card-tone-green,
+.contest-card.card-tone-green {
+  --tone: #087a50;
   --tone-soft: #e4f8ef;
   --tone-line: #d3f0e3;
+  --tone-decoration: #78debd24;
   background: linear-gradient(125deg, #fbfefc 0%, #eaf8f2 100%);
 }
 
-.algorithm-card.algorithm-tone-rose {
-  --tone: #e95070;
+.algorithm-card.card-tone-rose,
+.contest-card.card-tone-rose {
+  --tone: #b73358;
   --tone-soft: #ffe7ed;
   --tone-line: #f9d6df;
+  --tone-decoration: #f7a5b72b;
   background: linear-gradient(125deg, #fffafb 0%, #ffeaf0 100%);
 }
 
-.algorithm-card.algorithm-tone-blue {
-  --tone: #3279e8;
+.algorithm-card.card-tone-blue,
+.contest-card.card-tone-blue {
+  --tone: #2867c4;
   --tone-soft: #e8f0ff;
   --tone-line: #d7e4ff;
+  --tone-decoration: #8db7ff2b;
   background: linear-gradient(125deg, #fafdff 0%, #eaf2ff 100%);
 }
 
-.algorithm-card.algorithm-tone-amber {
-  --tone: #c98a24;
+.algorithm-card.card-tone-amber,
+.contest-card.card-tone-amber {
+  --tone: #906014;
   --tone-soft: #fff0d8;
   --tone-line: #f5dfbd;
+  --tone-decoration: #f1c4772b;
   background: linear-gradient(125deg, #fffdf8 0%, #fff1dc 100%);
+}
+
+.algorithm-card.card-tone-cyan,
+.contest-card.card-tone-cyan {
+  --tone: #0b7285;
+  --tone-soft: #e0f4f8;
+  --tone-line: #c9e9ef;
+  --tone-decoration: #78cbdc2b;
+  background: linear-gradient(125deg, #f8fdfe 0%, #e8f6fa 100%);
+}
+
+.algorithm-card.card-tone-violet,
+.contest-card.card-tone-violet {
+  --tone: #6e49b3;
+  --tone-soft: #f0eaff;
+  --tone-line: #e0d6f6;
+  --tone-decoration: #b5a0e62b;
+  background: linear-gradient(125deg, #fdfbff 0%, #f1eafb 100%);
 }
 
 .algorithm-card-top {
@@ -3221,6 +3243,16 @@ button.relation-badge {
   background: #fff2df;
 }
 
+.algorithm-relation.relation-cyan {
+  color: #0b7285;
+  background: #e0f4f8;
+}
+
+.algorithm-relation.relation-violet {
+  color: #6e49b3;
+  background: #f0eaff;
+}
+
 .lang-badge {
   min-height: 31px;
   padding: 5px 10px;
@@ -3307,20 +3339,8 @@ button.relation-badge {
   width: 92%;
   height: 190px;
   border-radius: 50% 50% 0 0;
-  background: linear-gradient(180deg, #73dfbb00, #78debd24);
+  background: linear-gradient(180deg, transparent, var(--tone-decoration));
   pointer-events: none;
-}
-
-.algorithm-tone-rose::after {
-  background: linear-gradient(180deg, #f7a5b700, #f7a5b72b);
-}
-
-.algorithm-tone-blue::after {
-  background: linear-gradient(180deg, #8db7ff00, #8db7ff2b);
-}
-
-.algorithm-tone-amber::after {
-  background: linear-gradient(180deg, #f1c47700, #f1c4772b);
 }
 
 .contest-card::after {
@@ -3328,7 +3348,6 @@ button.relation-badge {
   bottom: -115px;
   width: 95%;
   height: 210px;
-  background: linear-gradient(180deg, #f6c77e00, #f5cb8a38);
 }
 
 .contest-card-top,

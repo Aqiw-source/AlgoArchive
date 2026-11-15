@@ -52,6 +52,10 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
         run: node tests/test_editor_lock.cjs
+      - name: Card color browser regression
+        env:
+          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
+        run: node tests/test_card_colors.cjs
       - name: Verify native launcher dependencies
         run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Install Inno Setup

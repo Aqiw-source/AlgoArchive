@@ -8,10 +8,18 @@
   const bytes = value => new TextEncoder().encode(value).length;
   const aliases = { lanqiao: "蓝桥杯", "蓝桥": "蓝桥杯", lanqiaobei: "蓝桥杯", hdu: "HDU", hduoj: "HDU", matiji: "码蹄集", codeforces: "Codeforces", atcoder: "AtCoder", acwing: "AcWing", luogu: "洛谷", niuke: "牛客", nowcoder: "牛客" };
   const platform = v => aliases[String(v || "").trim().toLowerCase()] || String(v || "").trim();
+  const cardColors = ["blue", "cyan", "green", "amber", "rose", "violet"];
   const fail = (message, status = 400) => { const e = new Error(message); e.status = status; throw e; };
 
   function createStore(fixture, options = {}) {
     const data = copy(fixture);
+    const nextColors = { algorithm: 0, contest: 0 };
+    for (const [kind, collection] of [["algorithm", "algorithms"], ["contest", "contests"]]) {
+      for (const item of [...data[collection]].sort((a,b)=>(Number(a.sort_order)||0)-(Number(b.sort_order)||0))) {
+        if (!cardColors.includes(item.card_color)) item.card_color = cardColors[nextColors[kind]];
+        nextColors[kind] = (nextColors[kind] + 1) % cardColors.length;
+      }
+    }
     let serial = 0;
     const snippets = data.algorithms.flatMap(a => a.snippets || []);
     const find = (items, id) => items.find(x => x.id === id) || fail("记录不存在或已被删除。", 404);
@@ -39,7 +47,7 @@
     const state = () => ({ ...data, problems: data.problems.map(getProblem), contests: data.contests.map(getContest), algorithms: data.algorithms.map(getAlgorithm) });
     const validate = (kind, payload, old = null) => {
       const p = copy(payload);
-      delete p.version; delete p.id; delete p.created_at; delete p.updated_at;
+      delete p.version; delete p.id; delete p.created_at; delete p.updated_at; delete p.card_color;
       if (kind === "problem" || kind === "snippet") {
         if (old?.code_locked && ((p.code !== undefined && p.code !== old.code) || (p.language !== undefined && p.language !== old.language))) fail("代码已锁定，请先解锁后再修改代码或语言。", 409);
         if (old && p.code_locked !== undefined && p.code_locked !== old.code_locked) fail("请使用代码锁定开关。", 409);
@@ -74,7 +82,7 @@
     function dispatch(method, route, payload) {
       if (method === "GET" && route === "/api/state") return state();
       if (method === "GET" && route === "/api/settings") return { settings: {
-        version: options.version || "2.2.7", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
+        version: options.version || "2.2.8", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
         data_dir: "当前页面内存（刷新重置）", config_path: "不适用（在线演示）", log_path: "不适用（在线演示）", backup_dir: "不适用（在线演示）",
         browser: { mode: "default", window_mode: "tab" },
         compiler: { available: false, standard: "gnu++14", standards: ["gnu++11", "gnu++14", "gnu++17"], version: "在线演示不执行 C++，请使用本地版。", configured_path: "", path: "" },
@@ -148,6 +156,8 @@
           const p = validate(kind, payload);
           if (kind === "problem") return { problem: insertProblem(p) };
           const item = { ...base(), sort_order: items.length, ...(kind === "algorithm" ? { links: [], snippets: [], category: "", description: "" } : { url: "", platform: "" }), ...p };
+          item.card_color = cardColors[nextColors[kind]];
+          nextColors[kind] = (nextColors[kind] + 1) % cardColors.length;
           items.push(item); return { [kind]: shape(item) };
         }
         if ((method === "PUT" || method === "DELETE") && resource[2]) {

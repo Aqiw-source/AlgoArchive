@@ -44,7 +44,8 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.7"
+APP_VERSION = "2.2.8"
+CARD_COLORS = ("blue", "cyan", "green", "amber", "rose", "violet")
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 10
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
@@ -1175,6 +1176,37 @@ class Repository:
         """)
         self._flush_pending()
         self._migrate_profile_avatar()
+        self._initialize_card_colors()
+
+    def _initialize_card_colors(self):
+        with self.db:
+            for kind, table in (("algorithm", "algorithms"), ("contest", "contests")):
+                rows = self.db.execute(
+                    f"SELECT id FROM {table} ORDER BY sort_order,updated_at DESC,id"
+                ).fetchall()
+                for row in rows:
+                    if self._card_color(kind, row["id"]) is None:
+                        self._assign_card_color(kind, row["id"])
+
+    def _card_color(self, kind, identifier):
+        row = self.db.execute(
+            "SELECT value FROM settings WHERE key=?",
+            (f"card_color:{kind}:{identifier}",),
+        ).fetchone()
+        return row[0] if row and row[0] in CARD_COLORS else None
+
+    def _assign_card_color(self, kind, identifier):
+        counter = f"card_color_next:{kind}"
+        row = self.db.execute("SELECT value FROM settings WHERE key=?", (counter,)).fetchone()
+        try:
+            index = int(row[0]) % len(CARD_COLORS) if row else 0
+        except ValueError:
+            index = 0
+        self.db.executemany(
+            "INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)",
+            ((f"card_color:{kind}:{identifier}", CARD_COLORS[index]),
+             (counter, str((index + 1) % len(CARD_COLORS)))),
+        )
 
     def _backup_before_schema_upgrade(self):
         backup_root = self.data_dir.parent / "backups"
@@ -1887,6 +1919,7 @@ class Repository:
 
     def _contest(self, identifier):
         row = self._row("contests", identifier)
+        row["card_color"] = self._card_color("contest", identifier)
         row["problem_count"] = self.db.execute("SELECT COUNT(*) FROM problems WHERE contest_id=?", (identifier,)).fetchone()[0]
         return row
 
@@ -1978,6 +2011,7 @@ class Repository:
 
     def _algorithm(self, identifier):
         row = self._row("algorithms", identifier)
+        row["card_color"] = self._card_color("algorithm", identifier)
         row["links"] = self._algorithm_links(identifier)
         row["snippets"] = self._algorithm_snippets(identifier)
         row["problem_count"] = self.db.execute(
@@ -2215,6 +2249,12 @@ class Repository:
                     "ORDER BY sort_order,updated_at DESC,id"
                 )
             ]
+            colors = dict(self.db.execute(
+                "SELECT key,value FROM settings WHERE key GLOB 'card_color:*'"
+            ))
+            for kind, items in (("algorithm", algorithms), ("contest", contests)):
+                for item in items:
+                    item["card_color"] = colors.get(f"card_color:{kind}:{item['id']}")
             links_by_algorithm = {}
             snippets_by_algorithm = {}
             problem_counts = {}
@@ -2322,6 +2362,7 @@ class Repository:
                         sort_order,
                     ),
                 )
+                self._assign_card_color("contest", identifier)
             return self._contest(identifier)
 
     def update_contest(self, identifier, payload):
@@ -2861,6 +2902,7 @@ class Repository:
                     for algorithm_id in {r[1] for r in rows} - {None}:
                         self._touch_algorithm(algorithm_id, timestamp)
                 self.db.execute("DELETE FROM contests WHERE id=?", (identifier,))
+                self.db.execute("DELETE FROM settings WHERE key=?", (f"card_color:contest:{identifier}",))
             self._flush_pending()
             return {"ok": True, "kept_problems": payload["keep_problems"]}
 
@@ -2886,6 +2928,7 @@ class Repository:
                     ),
                 )
                 self._replace_algorithm_links(identifier, links)
+                self._assign_card_color("algorithm", identifier)
             return self._algorithm(identifier)
 
     def update_algorithm(self, identifier, payload):
@@ -2933,6 +2976,7 @@ class Repository:
                     [(item["code_path"],) for item in snippets],
                 )
                 self.db.execute("DELETE FROM algorithms WHERE id=?", (identifier,))
+                self.db.execute("DELETE FROM settings WHERE key=?", (f"card_color:algorithm:{identifier}",))
                 for snippet in snippets:
                     self._write_code_lock("snippet", snippet["id"], False)
             self._flush_pending()

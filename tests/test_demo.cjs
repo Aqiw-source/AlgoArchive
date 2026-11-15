@@ -129,3 +129,34 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.ok(!fs.readFileSync(path.join(__dirname, "../web/index.html"), "utf8").includes("demo.js"));
   } finally { fs.rmSync(out, { recursive: true, force: true }); }
 });
+
+test("card colors cycle independently and remain stable after rename, sort and deletion", () => {
+  const fixture = createFixture();
+  fixture.algorithms = []; fixture.contests = []; fixture.problems = [];
+  const s = createStore(fixture);
+  const expected = ["blue", "cyan", "green", "amber", "rose", "violet", "blue", "cyan"];
+  for (const [collection, kind, field] of [["algorithms","algorithm","name"],["contests","contest","title"]]) {
+    const records = Array.from({length:8}, (_,i) => s.request("POST", `/api/${collection}`, {
+      [field]: `Item ${i}`, platform:"HDU", url:`https://example.com/${i}`, card_color:"violet"
+    }).body[kind]);
+    assert.deepEqual(records.map(item=>item.card_color), expected);
+    const renamed = s.request("PUT", `/api/${collection}/${records[0].id}`, {
+      version:1, [field]:"Renamed search", card_color:"rose"
+    }).body[kind];
+    assert.equal(renamed.card_color,"blue");
+    assert.equal(s.request("PUT", `/api/${collection}/order`, {version:1,ordered_ids:records.map(item=>item.id).reverse()}).status,200);
+    for (const record of records) assert.equal(s.request("GET", `/api/${collection}/${record.id}`).body[kind].card_color,record.card_color);
+    assert.equal(s.request("DELETE", `/api/${collection}/${records[7].id}`, {version:1,confirmed:true,keep_problems:true}).status,200);
+    assert.equal(s.request("POST", `/api/${collection}`, {[field]:"Next",platform:"HDU",url:"https://example.com/next"}).body[kind].card_color,"green");
+  }
+});
+
+test("legacy demo fixtures receive six colors without changing source data", () => {
+  const fixture = createFixture(), original = structuredClone(fixture);
+  const s = createStore(fixture);
+  const state = s.request("GET", "/api/state").body;
+  for (const collection of ["algorithms","contests"]) {
+    assert.deepEqual(state[collection].slice(0,6).map(item=>item.card_color),["blue","cyan","green","amber","rose","violet"]);
+  }
+  assert.deepEqual(fixture,original);
+});
