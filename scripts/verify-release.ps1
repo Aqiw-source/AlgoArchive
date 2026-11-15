@@ -73,6 +73,28 @@ try {
             }
         }
     }
+    $lfExtensions = @(".py", ".js", ".cjs", ".mjs", ".css", ".html")
+    foreach ($entry in $archive.Entries) {
+        $extension = [System.IO.Path]::GetExtension($entry.FullName)
+        if ($extension -notin ($lfExtensions + @(".bat", ".ps1"))) {
+            continue
+        }
+        $reader = New-Object System.IO.StreamReader(
+            $entry.Open(),
+            (New-Object System.Text.UTF8Encoding($false, $true))
+        )
+        try {
+            $text = $reader.ReadToEnd()
+        } finally {
+            $reader.Dispose()
+        }
+        if ($extension -in $lfExtensions -and $text.Contains("`r")) {
+            throw "Release source must use LF: $($entry.FullName)"
+        }
+        if ($extension -in @(".bat", ".ps1") -and $text -match "(?<!`r)`n|`r(?!`n)") {
+            throw "Windows scripts must use CRLF: $($entry.FullName)"
+        }
+    }
     $runtimePthEntry = $archive.GetEntry("runtime/python313._pth")
     $reader = New-Object System.IO.StreamReader(
         $runtimePthEntry.Open(),

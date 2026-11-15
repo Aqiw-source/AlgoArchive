@@ -3,6 +3,7 @@
 #define MyAppVersion "2.2.8"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "AlgoArchive.exe"
+#define PackageRoot "..\dist\AlgoArchive-" + MyAppVersion + "-Windows-x64"
 
 [Setup]
 AppId={{66E6CC98-742D-4B90-9A18-4A5125AA4F21}
@@ -40,26 +41,27 @@ Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\app.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\AlgoArchive.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\self_check.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\TEST_REPORT.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\LOCAL_FIXES.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\THIRD_PARTY.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\LICENSE-PENDING.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\ACM-ICPC-Windows.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\scripts\create-desktop-shortcut.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
-Source: "..\docs\screenshots\*"; DestDir: "{app}\docs\screenshots"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#PackageRoot}\app.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\cph_runner.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\run.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\AlgoArchive.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\start.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\自检.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\self_check.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\TEST_REPORT.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\LOCAL_FIXES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\THIRD_PARTY.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\LICENSE-PENDING.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\ACM-ICPC-Windows.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\SHA256SUMS.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PackageRoot}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PackageRoot}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PackageRoot}\scripts\create-desktop-shortcut.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#PackageRoot}\docs\screenshots\*"; DestDir: "{app}\docs\screenshots"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\AlgoArchive.exe"

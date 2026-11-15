@@ -99,17 +99,6 @@ foreach ($name in @("runtime", "web", "licenses")) {
     }
 }
 
-$utf8 = New-Object System.Text.UTF8Encoding($false, $true)
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-Get-ChildItem -LiteralPath $staging -Recurse -File |
-    Where-Object { $_.Extension -in @(".bat", ".ps1") } |
-    ForEach-Object {
-        $text = $utf8.GetString([System.IO.File]::ReadAllBytes($_.FullName))
-        $text = $text -replace "`r`n", "`n"
-        $text = $text -replace "`n", "`r`n"
-        [System.IO.File]::WriteAllText($_.FullName, $text, $utf8NoBom)
-    }
-
 $bundledPython = Join-Path $staging "runtime\python.exe"
 $runtimeProbe = @(
     & $bundledPython -X utf8 -c "import app, cph_runner; print(app.APP_VERSION)" 2>&1
@@ -130,6 +119,20 @@ if (-not (Test-Path -LiteralPath $shortcutScript -PathType Leaf)) {
 }
 New-Item -ItemType Directory -Path (Join-Path $staging "scripts") | Out-Null
 Copy-Item -LiteralPath $shortcutScript -Destination (Join-Path $staging "scripts")
+
+$utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$lfExtensions = @(".py", ".js", ".cjs", ".mjs", ".css", ".html")
+Get-ChildItem -LiteralPath $staging -Recurse -File |
+    Where-Object { $_.Extension -in ($lfExtensions + @(".bat", ".ps1")) } |
+    ForEach-Object {
+        $text = $utf8.GetString([System.IO.File]::ReadAllBytes($_.FullName))
+        $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+        if ($_.Extension -in @(".bat", ".ps1")) {
+            $text = $text.Replace("`n", "`r`n")
+        }
+        [System.IO.File]::WriteAllText($_.FullName, $text, $utf8NoBom)
+    }
 
 Get-ChildItem -LiteralPath $staging -Recurse -Force -Directory |
     Where-Object { $_.Name -in @("__pycache__", ".qa-data", ".test-tmp", "backups") } |
