@@ -118,12 +118,20 @@ textarea:focus-visible,
   background-size: 100% 360px;
 }
 
-.sidebar-art {
+.sidebar-art-shell {
+  position: relative;
   flex: 0 0 300px;
   min-height: 0;
   max-height: 300px;
   margin: 4px 0 6px;
   width: 100%;
+}
+
+.workspace-sidebar.sidebar-art-hidden { background-image: none; }
+
+.sidebar-art {
+  width: 100%;
+  height: 100%;
   padding: 0;
   background: transparent;
   border: 0;
@@ -134,6 +142,49 @@ textarea:focus-visible,
   justify-content: center;
   overflow: hidden;
 }
+
+.sidebar-art-arrow {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border: 1px solid #d9dcea;
+  border-radius: 50%;
+  background: rgba(248, 249, 254, .88);
+  color: #68718a;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.sidebar-art-arrow.previous { left: 0; }
+.sidebar-art-arrow.next { right: 0; }
+.sidebar-art-arrow:hover { color: #3a4c85; background: #fff; }
+.sidebar-art-arrow:disabled { opacity: .5; cursor: wait; }
+.sidebar-art-arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.sidebar-art-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0; margin: 20px 0; border: 0; }
+.sidebar-art-choices legend { margin-bottom: 12px; color: #677086; font-size: 12px; }
+.sidebar-art-choice { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; padding: 8px; border: 1px solid #dfe3ec; border-radius: 6px; background: #f2f4fb; cursor: pointer; }
+.sidebar-art-choice:has(input:checked) { border-color: #828fca; background: #edf0fb; }
+.sidebar-art-choice img { display: block; width: 100%; height: 180px; object-fit: contain; }
+.sidebar-art-choice span { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.sidebar-art-visibility { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+.platform-picker { position: relative; min-width: 0; }
+.field > label { color: #58647a; font-size: 12px; font-weight: 600; }
+.platform-picker input { width: 100%; padding-right: 38px; }
+.platform-picker [data-toggle-platforms] { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 36px; height: 100%; padding: 8px; border: 0; border-radius: 0 5px 5px 0; color: #78839a; background: transparent; cursor: pointer; }
+.platform-picker [data-toggle-platforms] svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.platform-options { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; width: 100%; max-height: 256px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid #d8dfeb; border-radius: 6px; background: #fff; box-shadow: 0 6px 18px rgba(43, 55, 83, .12); }
+.platform-options [role="option"] { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; color: #43516b; }
+.platform-options [role="option"]:hover, .platform-options [aria-selected="true"] { background: #edf2fc; }
+.platform-options .platform-mark { width: 22px; height: 22px; border-radius: 4px; background: transparent; box-shadow: none; }
+.platform-options .platform-logo { width: 20px; height: 20px; object-fit: contain; }
+.platform-badge.leetcode { color: #98661b; background: #fff5df; }
+.platform-badge.poj { color: #496b96; background: #edf3fc; }
 
 .sidebar-art img {
   display: block;
@@ -256,14 +307,19 @@ dialog:has(.sidebar-art-preview) { width: min(760px, calc(100vw - 28px)); }
 .editor-toolbar > .actions { gap: 8px; }
 
 @media (max-height: 800px) and (min-width: 721px) {
-  .sidebar-art { flex-basis: 190px; max-height: 190px; }
+  .sidebar-art-shell { flex-basis: 190px; max-height: 190px; }
   .sidebar-art img { max-height: 190px; }
   .workspace-sidebar { background-size: 100% 250px; }
 }
 
 @media (max-width: 720px) {
-  .sidebar-art { display: flex; flex: 0 0 auto; height: 160px; max-height: 160px; margin: 6px 0; }
+  .settings-button { display: flex; }
+  .sidebar-art-shell { flex: 0 0 160px; height: 160px; max-height: 160px; margin: 6px 0; }
   .sidebar-art img { max-height: 160px; }
+  .sidebar-art-choices { gap: 6px; }
+  .sidebar-art-choice { padding: 5px; }
+  .sidebar-art-choice img { height: 125px; }
+  .sidebar-art-choice span { gap: 3px; font-size: 11px; }
   .workspace-sidebar { background-size: 100% 230px; }
   .editor-toolbar > .actions { width: auto; margin-left: auto; justify-content: flex-end; }
   .code-lock-toggle { font-size: 11px; }

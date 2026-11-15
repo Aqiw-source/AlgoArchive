@@ -1,4 +1,4 @@
-算法档案 · AlgoArchive 2.2.8
+算法档案 · AlgoArchive 2.2.9
 
 算法和比赛模块分别按蓝、青、绿、琥珀、玫红、紫六色循环分配。
 每次新建时确定颜色，改名、分类、筛选、拖动、刷新或重启不改变已分配颜色。
@@ -8,7 +8,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.2.8-Windows-x64-Setup.exe。安装程序可选择是否创建
+安装版：运行 AlgoArchive-2.2.9-Windows-x64-Setup.exe。安装程序可选择是否创建
 桌面快捷方式，默认不勾选。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -16,7 +16,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.2.8-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.2.9-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 AlgoArchive.exe。普通启动不会创建或恢复快捷方式；
@@ -36,6 +36,14 @@ AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runt
 点击“退出算法档案”都可以停止服务。关闭普通浏览器标签页不会结束本地服务。
 
 二、数据和配置
+
+平台填写与侧栏插画：
+- 题目和比赛的所属平台可搜索、点击选择十个内置图标平台，也可手动输入。
+  力扣、POJ 等扩展平台不会增加侧栏工作空间或首页统计。
+- 侧栏左右箭头手动切换调试报错、优化思路、通过庆祝三张内置图，不自动播放。
+- 设置中的“侧栏插画”可选择、隐藏或恢复默认庆祝图，不提供自定义插画上传。
+  本地重启后保留选择和隐藏状态，完整备份也包含这些设置。
+  在线演示仅在当前页面生效，刷新重置，不影响本地题库。
 
 数据目录优先级：
 1. 本次明确指定 --data-dir。
@@ -161,7 +169,7 @@ python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.2.8
+.\scripts\build-release.ps1 -Version 2.2.9
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。

@@ -43,6 +43,12 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
         run: node tests/test_card_colors.cjs
+      - name: Platform picker and sidebar artwork browser regression
+        env:
+          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
+        run: node tests/test_platform_art.cjs
+      - name: Online demo tests
+        run: node --test tests/test_demo.cjs
       - name: Verify native launcher dependencies
         run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Build portable package

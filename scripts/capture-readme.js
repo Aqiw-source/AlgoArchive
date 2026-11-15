@@ -103,6 +103,9 @@ async function main() {
     await page.locator("#create-desktop-shortcut").click();
     await page.getByText("在线演示不执行此操作，请下载本地版使用。", { exact: true }).last().waitFor();
     await page.screenshot({ path: path.join(screenshots, "settings.png") }); files.push("settings.png");
+    await page.locator('[data-settings-tab="art"]').click();
+    await page.waitForFunction(() => [...document.querySelectorAll('.sidebar-art-choice img')].every(image=>image.complete&&image.naturalWidth));
+    await page.screenshot({ path: path.join(screenshots, "sidebar-art-settings.png") }); files.push("sidebar-art-settings.png");
     await page.locator("[data-close-modal]").first().click();
     await page.locator(".toast").last().waitFor({ state: "detached" });
     await page.setViewportSize({ width: 390, height: 844 });

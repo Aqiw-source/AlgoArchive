@@ -12,8 +12,8 @@
 <link rel="stylesheet" href="/style.css?v=20261030-platform-normalize">
 <link rel="stylesheet" href="/codex-theme.css?v=20261115-card-colors">
 <link rel="stylesheet" href="/mobile.css?v=20261030-platform-normalize">
-<link rel="stylesheet" href="/workspace-updates.css?v=20261114-sidebar-tone">
-<script src="/app.js?v=20261115-card-colors" defer></script>
+<link rel="stylesheet" href="/workspace-updates.css?v=20261115-platform-art229">
+<script src="/app.js?v=20261115-platform-art229" defer></script>
 </head>
 <body>
 <div class="app-shell">
@@ -37,7 +37,12 @@
         <a href="#problems" data-nav="problems"><span class="nav-icon">≡</span>全部题目<span class="nav-count" id="nav-problems">0</span></a>
         <a href="#compiler" data-nav="compiler"><span class="nav-icon code-nav-icon" aria-hidden="true">&gt;_</span>代码试跑</a>
       </nav>
-      <button type="button" class="sidebar-art" data-open-sidebar-art title="放大庆祝插画" aria-label="放大庆祝插画"><img src="/sidebar-art-blended.webp?v=20261114-celebration-blend" alt="C++ 通过后的庆祝插画" decoding="async" width="938" height="1670"></button>
+      <div class="sidebar-art-shell" id="sidebar-art-shell" hidden>
+        <button type="button" class="sidebar-art" data-open-sidebar-art title="放大通过庆祝插画" aria-label="放大通过庆祝插画"><img src="/sidebar-art-blended.webp?v=20261115-art229" alt="通过庆祝" decoding="async" width="938" height="1670"></button>
+        <button type="button" class="sidebar-art-arrow previous" data-sidebar-art-step="-1" title="上一张插画" aria-label="上一张插画"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
+        <button type="button" class="sidebar-art-arrow next" data-sidebar-art-step="1" title="下一张插画" aria-label="下一张插画"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
+        <span id="sidebar-art-status" class="visually-hidden" aria-live="polite"></span>
+      </div>
       <button type="button" class="settings-button" id="open-profile-settings" data-open-profile-settings aria-label="设置头像和用户名">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
         <span>设置</span>

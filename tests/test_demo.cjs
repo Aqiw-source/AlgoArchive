@@ -8,6 +8,32 @@ const { createFixture } = require("../demo/fixture.cjs");
 const { createStore } = require("../demo/store.js");
 const { buildDemo } = require("../scripts/build-demo.cjs");
 
+test("sidebar art preferences stay in the session and reject arbitrary images", () => {
+  const s = createStore(createFixture());
+  const initial = { image: "celebration", hidden: false };
+  assert.deepEqual(s.request("GET", "/api/state").body.sidebar_art, initial);
+  for (const image of ["debug", "thinking", "celebration"]) {
+    const preference = { image, hidden: true };
+    assert.equal(s.request("PUT", "/api/settings/sidebar-art", preference).status, 200);
+    assert.deepEqual(s.request("GET", "/api/settings").body.settings.sidebar_art, preference);
+    assert.deepEqual(s.request("GET", "/api/state").body.sidebar_art, preference);
+  }
+  assert.equal(s.request("PUT", "/api/settings/sidebar-art", { image: "custom.png", hidden: false }).status, 400);
+  assert.equal(s.request("PUT", "/api/settings/sidebar-art", { image: "debug", hidden: "false" }).status, 400);
+  assert.deepEqual(createStore(createFixture()).request("GET", "/api/state").body.sidebar_art, initial);
+});
+
+test("LeetCode and POJ normalize consistently without restricting custom platforms", () => {
+  const s = createStore(createFixture());
+  for (const [raw, canonical] of [["LeetCode", "力扣"], ["leetcode.cn", "力扣"], ["力扣", "力扣"], ["poj", "POJ"], ["POJ", "POJ"], ["自定义平台", "自定义平台"]]) {
+    const c = s.request("POST", "/api/contests", { title: raw, platform: raw, url: "https://example.com" });
+    assert.equal(c.body.contest.platform, canonical);
+    const p = s.request("POST", "/api/problems", { name: raw, platform: raw, contest_id: c.body.contest.id });
+    assert.equal(p.status, 200);
+    assert.equal(p.body.problem.platform, canonical);
+  }
+});
+
 test("substantial public demo data keeps ICPC and Lanqiao separate", () => {
   const data = createFixture();
   assert.ok(data.contests.length >= 13);
@@ -118,10 +144,10 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
     assert.equal(sourceImage.readUInt32BE(16), 938);
     assert.equal(sourceImage.readUInt32BE(20), 1670);
-    assert.ok(html.includes('src="/AlgoArchive/sidebar-art-blended.webp?v=20261114-celebration-blend"'));
-    assert.ok(fs.existsSync(path.join(out, "sidebar-art-blended.webp")));
-    const appJs = fs.readFileSync(path.join(out, "app.js"), "utf8");
-    assert.ok(appJs.includes("/AlgoArchive/sidebar-art.png?v=20261114-celebration"));
+    assert.ok(html.includes('src="/AlgoArchive/sidebar-art-blended.webp?v=20261115-art229"'));
+    for (const file of ["sidebar-art-blended.webp", "sidebar-art-debug.png", "sidebar-art-thinking.png", "sidebar-art-debug-blended.webp", "sidebar-art-thinking-blended.webp", "platform-icons/leetcode.png", "platform-icons/poj.png"]) {
+      assert.ok(fs.existsSync(path.join(out, file)), file);
+    }
     const files = fs.readdirSync(out, { recursive: true }).map(String);
     assert.ok(files.every(p => !/\.py$|sqlite|config\.json$|runtime[\\/]|codes[\\/]/i.test(p)));
     assert.ok(!fs.readFileSync(path.join(out, "app.js"), "utf8").includes('src="/platform-icons/'));

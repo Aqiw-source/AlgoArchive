@@ -6,13 +6,14 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const copy = value => JSON.parse(JSON.stringify(value));
   const bytes = value => new TextEncoder().encode(value).length;
-  const aliases = { lanqiao: "蓝桥杯", "蓝桥": "蓝桥杯", lanqiaobei: "蓝桥杯", hdu: "HDU", hduoj: "HDU", matiji: "码蹄集", codeforces: "Codeforces", atcoder: "AtCoder", acwing: "AcWing", luogu: "洛谷", niuke: "牛客", nowcoder: "牛客" };
+  const aliases = { lanqiao: "蓝桥杯", "蓝桥": "蓝桥杯", lanqiaobei: "蓝桥杯", hdu: "HDU", hduoj: "HDU", "杭电": "HDU", "杭州电子科技大学": "HDU", matiji: "码蹄集", "码蹄": "码蹄集", codeforces: "Codeforces", atcoder: "AtCoder", acwing: "AcWing", luogu: "洛谷", niuke: "牛客", nowcoder: "牛客", leetcode: "力扣", "leetcode.cn": "力扣", "leetcode.com": "力扣", poj: "POJ", "poj.org": "POJ" };
   const platform = v => aliases[String(v || "").trim().toLowerCase()] || String(v || "").trim();
   const cardColors = ["blue", "cyan", "green", "amber", "rose", "violet"];
   const fail = (message, status = 400) => { const e = new Error(message); e.status = status; throw e; };
 
   function createStore(fixture, options = {}) {
     const data = copy(fixture);
+    data.sidebar_art = { image: "celebration", hidden: false };
     const nextColors = { algorithm: 0, contest: 0 };
     for (const [kind, collection] of [["algorithm", "algorithms"], ["contest", "contests"]]) {
       for (const item of [...data[collection]].sort((a,b)=>(Number(a.sort_order)||0)-(Number(b.sort_order)||0))) {
@@ -82,12 +83,18 @@
     function dispatch(method, route, payload) {
       if (method === "GET" && route === "/api/state") return state();
       if (method === "GET" && route === "/api/settings") return { settings: {
-        version: options.version || "2.2.8", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
+        version: options.version || "2.2.9", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
         data_dir: "当前页面内存（刷新重置）", config_path: "不适用（在线演示）", log_path: "不适用（在线演示）", backup_dir: "不适用（在线演示）",
         browser: { mode: "default", window_mode: "tab" },
+        sidebar_art: data.sidebar_art,
         compiler: { available: false, standard: "gnu++14", standards: ["gnu++11", "gnu++14", "gnu++17"], version: "在线演示不执行 C++，请使用本地版。", configured_path: "", path: "" },
       } };
       if (method === "GET" && route === "/api/backups") return { backups: [] };
+      if (method === "PUT" && route === "/api/settings/sidebar-art") {
+        if (!["debug", "thinking", "celebration"].includes(payload.image) || typeof payload.hidden !== "boolean") fail("请选择内置侧栏插画，并指定是否隐藏。");
+        data.sidebar_art = { image: payload.image, hidden: payload.hidden };
+        return { sidebar_art: data.sidebar_art };
+      }
       if (method === "PUT" && route === "/api/profile") {
         if (typeof payload.name !== "string" || !payload.name.trim() || payload.name.length > 50) fail("用户名必须为 1-50 字符。");
         data.profile = { name: payload.name.trim(), avatar: typeof payload.avatar === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(payload.avatar) ? payload.avatar : "" };

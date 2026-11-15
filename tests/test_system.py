@@ -110,6 +110,30 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(header[:4], b"RIFF")
         self.assertEqual(header[8:12], b"WEBP")
 
+    def test_sidebar_art_settings_api_validates_and_persists(self):
+        default = {"image": "celebration", "hidden": False}
+        self.assertEqual(self.request("GET", "/api/state").get("sidebar_art"), default)
+        self.assertEqual(self.request("GET", "/api/settings")["settings"].get("sidebar_art"), default)
+        expected = {"image": "thinking", "hidden": True}
+        saved = self.request("PUT", "/api/settings/sidebar-art", expected)
+        self.assertEqual(saved["sidebar_art"], expected)
+        self.request("PUT", "/api/settings/sidebar-art", {"image": "unknown", "hidden": False}, expected=400)
+        self.request("PUT", "/api/settings/sidebar-art", default, expected=403,
+                     headers={"X-CSRF-Token": "invalid"})
+        self.stop_server()
+        self.start_server()
+        self.assertEqual(self.request("GET", "/api/state")["sidebar_art"], expected)
+
+    def test_leetcode_and_poj_aliases_allow_problem_contest_associations(self):
+        for raw, canonical in (("LeetCode", "力扣"), ("leetcode.cn", "力扣"),
+                               ("力扣", "力扣"), ("POJ", "POJ"), ("poj", "POJ")):
+            with self.subTest(platform=raw):
+                contest = self.contest(platform=raw, title=raw)
+                self.assertEqual(contest["platform"], canonical)
+                problem = self.problem(platform=raw.swapcase(), contest_id=contest["id"],
+                                       url="https://example.com/" + contest["id"])
+                self.assertEqual(problem["platform"], canonical)
+
     def test_code_lock_endpoint_protects_problem_and_template(self):
         problem = self.request("POST", "/api/problems", {
             "platform": "蓝桥杯", "name": "Locked", "url": "lanqiao.example/1",

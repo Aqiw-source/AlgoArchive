@@ -6,7 +6,7 @@
   const csrf = $('meta[name="csrf-token"]').content;
   const userName = ($('meta[name="user-name"]')?.content || '本地用户').trim();
   const platforms = {codeforces: 'Codeforces', atcoder: 'AtCoder', acwing: 'AcWing', luogu: '洛谷', niuke: '牛客'};
-  const platformIdentities = {...platforms,lanqiao:'蓝桥杯',hdu:'HDU',matiji:'码蹄集'};
+  const platformIdentities = {...platforms,lanqiao:'蓝桥杯',hdu:'HDU',matiji:'码蹄集',leetcode:'力扣',poj:'POJ'};
   const knownPlatform = value => Object.prototype.hasOwnProperty.call(platformIdentities, value);
   const platformKey = value => {
     const key=String(value || '').trim().toLocaleLowerCase();
@@ -16,6 +16,8 @@
     if(['蓝桥杯','蓝桥','lanqiaobei'].includes(key))return 'lanqiao';
     if(['hduoj','杭电','杭州电子科技大学'].includes(key))return 'hdu';
     if(['码蹄集','码蹄'].includes(key))return 'matiji';
+    if(['力扣','leetcode.cn','leetcode.com'].includes(key))return 'leetcode';
+    if(key==='poj.org')return 'poj';
     return key;
   };
   const platformLabel = value => {
@@ -43,7 +45,17 @@
   const MAX_CPH_CASE_BYTES = 1024 * 1024;
   const MAX_CPH_SUITE_BYTES = 2 * 1024 * 1024;
   const PLAYGROUND_DEFAULT_CODE = '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n';
+  const appAssetBase = new URL('.',document.currentScript.src);
+  const sidebarArtImages = [
+    {id:'debug',label:'调试报错',full:'sidebar-art-debug.png',blended:'sidebar-art-debug-blended.webp'},
+    {id:'thinking',label:'优化思路',full:'sidebar-art-thinking.png',blended:'sidebar-art-thinking-blended.webp'},
+    {id:'celebration',label:'通过庆祝',full:'sidebar-art.png',blended:'sidebar-art-blended.webp'},
+  ];
+  const defaultSidebarArt = () => ({image:'celebration',hidden:false});
   const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, contestOrderVersion: 1, algorithmOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, running: false, runId: ''}};
+  state.sidebarArt=defaultSidebarArt();
+  let sidebarArtSaving=false;
+  let sidebarArtRevision=0;
   let navigating = false;
   let renderNumber = 0;
   let draggedAlgorithmProblemId = null;
@@ -67,7 +79,7 @@
   const time = v => { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.valueOf()) ? '—' : dateTimeFormatter.format(d); };
   const copyableURL = v => { const candidate=normalizeURLInput(v); try { const u = new URL(candidate); return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
   const safeURL = v => { const href=copyableURL(v); return href ? esc(href) : '#'; };
-  const platformLogoFiles = {codeforces:'codeforces.png',atcoder:'atcoder.png',acwing:'acwing.png',luogu:'luogu.png',niuke:'niuke.png',lanqiao:'lanqiao.png',hdu:'hdu.png',matiji:'matiji.png'};
+  const platformLogoFiles = {codeforces:'codeforces.png',atcoder:'atcoder.png',acwing:'acwing.png',luogu:'luogu.png',niuke:'niuke.png',lanqiao:'lanqiao.png',hdu:'hdu.png',matiji:'matiji.png',leetcode:'leetcode.png',poj:'poj.png'};
   const platformLogo = value => {
     const file=platformLogoFiles[platformKey(value)];
     return file?`<img class="platform-logo" src="/platform-icons/${file}?v=20261030-platform-icons" alt="" loading="eager" decoding="async">`:'';
@@ -94,6 +106,77 @@
     knot:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8q4-5 8 0t0 8q-4 5-8 0t0-8Z"/><path d="M8 8q5 4 8 8M16 8q-5 4-8 8"/></svg>',
   };
   const icon = name => uiIcon[name] || '';
+  function currentSidebarArt(){
+    return sidebarArtImages.find(image=>image.id===state.sidebarArt.image)||sidebarArtImages[2];
+  }
+  const artURL = file => new URL(file+'?v=20261115-art229',appAssetBase).href;
+  function renderSidebarArt(){
+    const art=currentSidebarArt(),shell=$('#sidebar-art-shell'),image=$('.sidebar-art img');
+    shell.hidden=state.sidebarArt.hidden;
+    shell.closest('.workspace-sidebar').classList.toggle('sidebar-art-hidden',state.sidebarArt.hidden);
+    image.src=artURL(art.blended);image.alt=art.label;image.dataset.artImage=art.id;
+    const preview=$('[data-open-sidebar-art]');
+    preview.title=`放大${art.label}插画`;preview.setAttribute('aria-label',preview.title);
+    $('#sidebar-art-status').textContent=art.label;
+    document.querySelectorAll('[data-sidebar-art-step],#sidebar-art-settings input,#sidebar-art-settings button').forEach(control=>control.disabled=sidebarArtSaving);
+    if(!sidebarArtSaving){
+      const hidden=$('#sidebar-art-hidden');if(hidden)hidden.checked=state.sidebarArt.hidden;
+      const selected=$(`#sidebar-art-settings input[name="image"][value="${art.id}"]`);if(selected)selected.checked=true;
+    }
+  }
+  async function saveSidebarArt(preference){
+    if(sidebarArtSaving||state.busy)return;
+    sidebarArtRevision++;sidebarArtSaving=true;renderSidebarArt();
+    try{
+      const result=await api('/api/settings/sidebar-art','PUT',preference);
+      state.sidebarArt=result.sidebar_art;
+      if(state.settings)state.settings.sidebar_art=result.sidebar_art;
+    }catch(error){toast(error.message,true);}
+    finally{sidebarArtRevision++;sidebarArtSaving=false;renderSidebarArt();}
+  }
+  async function stepSidebarArt(step){
+    const index=sidebarArtImages.findIndex(image=>image.id===currentSidebarArt().id);
+    await saveSidebarArt({...state.sidebarArt,image:sidebarArtImages[(index+step+sidebarArtImages.length)%sidebarArtImages.length].id});
+  }
+  function platformInputHTML(id,value){
+    return `<div class="field"><label for="${id}">所属平台</label><div class="platform-picker"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div></div>`;
+  }
+  function bindPlatformPicker(root){
+    root.querySelectorAll('.platform-picker').forEach(picker=>{
+      const input=$('input',picker),list=$('[role="listbox"]',picker),toggle=$('[data-toggle-platforms]',picker);
+      let active=-1;
+      const close=()=>{list.hidden=true;input.setAttribute('aria-expanded','false');toggle.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');};
+      const open=(query='')=>{
+        const q=query.trim().toLocaleLowerCase();active=-1;
+        list.innerHTML=Object.entries(platformIdentities).filter(([key,label])=>!q||`${key} ${label}`.toLocaleLowerCase().includes(q)||platformKey(q)===key).map(([key,label])=>`<div role="option" id="${input.id}-option-${key}" data-platform-value="${esc(label)}" aria-selected="false">${platformMark(key)}<span>${esc(label)}</span></div>`).join('');
+        list.hidden=!list.children.length;
+        input.setAttribute('aria-expanded',String(!list.hidden));toggle.setAttribute('aria-expanded',String(!list.hidden));input.removeAttribute('aria-activedescendant');
+      };
+      const choose=choice=>{
+        input.focus();input.value=choice.dataset.platformValue;
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new Event('change',{bubbles:true}));
+        clearFieldError(input);close();
+      };
+      input.addEventListener('focus',()=>open());
+      input.addEventListener('click',()=>{if(list.hidden)open();});
+      input.addEventListener('input',()=>open(input.value));
+      input.addEventListener('keydown',event=>{
+        if(event.key==='Escape'){close();event.preventDefault();event.stopPropagation();return;}
+        if(event.key==='Enter'&&!list.hidden&&active>=0){event.preventDefault();choose(list.children[active]);return;}
+        if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
+        event.preventDefault();if(list.hidden)open();
+        const choices=[...list.children];if(!choices.length)return;
+        active=(active+(event.key==='ArrowDown'?1:active<0?0:-1)+choices.length)%choices.length;
+        choices.forEach((choice,index)=>choice.setAttribute('aria-selected',String(index===active)));
+        input.setAttribute('aria-activedescendant',choices[active].id);choices[active].scrollIntoView({block:'nearest'});
+      });
+      toggle.addEventListener('click',()=>{if(list.hidden){input.focus();open();}else close();});
+      list.addEventListener('mousedown',event=>{if(event.target.closest('[data-platform-value]'))event.preventDefault();});
+      list.addEventListener('click',event=>{const choice=event.target.closest('[data-platform-value]');if(choice)choose(choice);});
+      picker.addEventListener('focusout',event=>{if(!picker.contains(event.relatedTarget))close();});
+    });
+  }
   const sectionTitle = (iconName,label) => `<h2><span class="section-icon">${icon(iconName)}</span><span>${esc(label)}</span></h2>`;
   const badge = p => {
     const key=platformKey(p);
@@ -212,11 +295,14 @@
     return data;
   }
   async function loadState() {
+    const artRevision=sidebarArtRevision;
     const data = await api('/api/state'); state.contests = data.contests || []; state.problems = data.problems || []; state.algorithms = data.algorithms || [];
     state.problemOrderVersion = Number(data.problem_order_version) || 1;
     state.contestOrderVersion = Number(data.contest_order_version) || 1;
     state.algorithmOrderVersion = Number(data.algorithm_order_version) || 1;
     state.profile = data.profile || {name:'',avatar:''}; renderProfile(state.profile);
+    if(artRevision===sidebarArtRevision&&!sidebarArtSaving)state.sidebarArt=data.sidebar_art||defaultSidebarArt();
+    renderSidebarArt();
     $('#nav-contests').textContent = state.contests.length; $('#nav-problems').textContent = state.problems.length; $('#nav-algorithms').textContent = state.algorithms.length;
   }
   function toast(message, error=false) {
@@ -863,7 +949,8 @@
     const back=p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems';
     const backLabel=p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
     main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
-      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid"><label class="field"><span>所属平台 <small>可输入任意平台</small></span><input name="platform" id="editor-platform" list="problem-platform-options" required maxlength="100" autocomplete="off" placeholder="例如 Codeforces、AtCoder、AcWing、洛谷、牛客" value="${esc(platformLabel(p.platform))}"><datalist id="problem-platform-options">${problemPlatformOptions().map(([k,v])=>`<option value="${esc(v)}"></option>`).join('')}</datalist></label><label class="field wide"><span>题目名称</span><input name="name" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码保存在设置中的数据目录下的 codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
+      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid">${platformInputHTML('editor-platform',p.platform)}<label class="field wide"><span>题目名称</span><input name="name" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码保存在设置中的数据目录下的 codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
+    bindPlatformPicker(main);
     $('#code-input').value=p.code||'';
     state.editor.initial=JSON.stringify(readProblemForm());
     highlightCode(); updateCursor();
@@ -1168,6 +1255,18 @@
     const mode=browser.mode||'default', windowMode=browser.window_mode||'tab';
     return `<form id="browser-settings-form" novalidate><div class="settings-section-head"><div><h3>启动浏览器</h3><p>首次使用系统默认浏览器；此设置不会修改 Windows 全局默认应用。</p></div></div><label class="field"><span>浏览器</span><select name="mode" id="browser-mode">${option('default','系统默认浏览器',mode)}${option('edge','Microsoft Edge',mode)}${option('chrome','Google Chrome',mode)}${option('firefox','Mozilla Firefox',mode)}${option('custom','自定义可执行文件',mode)}</select></label><label class="field" id="browser-custom-field"><span>自定义浏览器路径 <small>仅接受本机可执行文件</small></span><input name="custom_path" id="browser-custom-path" maxlength="2048" value="${esc(browser.custom_path||'')}" placeholder="C:\\Program Files\\Browser\\browser.exe"></label><label class="field"><span>窗口模式</span><select name="window_mode" id="browser-window-mode">${option('tab','普通标签页',windowMode)}${option('app','独立应用窗口（Chrome / Edge）',windowMode)}</select></label><div id="settings-error" class="error-text" role="alert"></div><div class="settings-actions"><button type="button" class="btn" id="browser-test">测试打开</button><button type="submit" class="btn primary">保存浏览器设置</button></div></form>`;
   }
+  function settingsArtHTML(){
+    return `<div id="sidebar-art-settings"><h3>侧栏插画</h3><fieldset class="sidebar-art-choices"><legend>内置图片</legend>${sidebarArtImages.map(art=>`<label class="sidebar-art-choice"><img src="${esc(artURL(art.blended))}" alt="" loading="eager"><span><input type="radio" name="image" value="${art.id}"${state.sidebarArt.image===art.id?' checked':''}>${art.label}</span></label>`).join('')}</fieldset><label class="sidebar-art-visibility"><input type="checkbox" id="sidebar-art-hidden"${state.sidebarArt.hidden?' checked':''}>隐藏侧栏插画</label><div class="settings-actions"><button type="button" class="btn" data-reset-sidebar-art>恢复默认</button></div></div>`;
+  }
+  function bindArtSettings(){
+    $('#sidebar-art-settings').addEventListener('change',async()=>{
+      const image=$('#sidebar-art-settings input[name="image"]:checked').value;
+      const hidden=$('#sidebar-art-hidden').checked;
+      await saveSidebarArt({image,hidden});
+    });
+    $('[data-reset-sidebar-art]').addEventListener('click',()=>saveSidebarArt(defaultSidebarArt()));
+    renderSidebarArt();
+  }
   function settingsCompilerHTML(){
     const compiler=state.settings?.compiler||{};
     const standard=compiler.standard||'gnu++14';
@@ -1188,12 +1287,13 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     return `<div class="settings-section"><div class="settings-section-head"><div><h3>快捷方式</h3><p>普通启动不会创建或恢复快捷方式。需要时可在这里明确创建桌面和开始菜单入口。</p></div><button type="button" class="btn" id="create-desktop-shortcut">创建快捷方式</button></div><div id="shortcut-settings-status" class="settings-hint" aria-live="polite">创建后可从桌面或开始菜单直接启动当前程序；固定到开始屏幕需在系统中手动完成。</div></div>`;
   }
   function showSettingsTab(tab='profile'){
-    const safeTab=['profile','browser','compiler','data','about'].includes(tab)?tab:'profile';
+    const safeTab=['profile','art','browser','compiler','data','about'].includes(tab)?tab:'profile';
     modal.querySelectorAll('[data-settings-tab]').forEach(button=>button.classList.toggle('active',button.dataset.settingsTab===safeTab));
     const content=$('#settings-content');
-    content.innerHTML=safeTab==='profile'?settingsProfileHTML():safeTab==='browser'?settingsBrowserHTML():safeTab==='compiler'?settingsCompilerHTML():safeTab==='data'?settingsDataHTML():settingsAboutHTML();
+    content.innerHTML=safeTab==='profile'?settingsProfileHTML():safeTab==='art'?settingsArtHTML():safeTab==='browser'?settingsBrowserHTML():safeTab==='compiler'?settingsCompilerHTML():safeTab==='data'?settingsDataHTML():settingsAboutHTML();
     if(safeTab==='about')content.insertAdjacentHTML('beforeend',shortcutSettingsHTML());
     if(safeTab==='profile')bindProfileSettings();
+    else if(safeTab==='art')bindArtSettings();
     else if(safeTab==='browser')bindBrowserSettings();
     else if(safeTab==='compiler')bindCompilerSettings();
     else if(safeTab==='data')bindDataSettings();
@@ -1201,10 +1301,13 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   }
   async function openSettings(tab='profile'){
     if(state.busy)return;
+    const artRevision=sidebarArtRevision;
     try{
       const [settingsResult,backupResult]=await Promise.all([api('/api/settings'),api('/api/backups')]);
       state.settings=settingsResult.settings;state.backups=backupResult.backups||[];
-      modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('compiler','编译与运行')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
+      if(artRevision===sidebarArtRevision&&!sidebarArtSaving)state.sidebarArt=state.settings.sidebar_art||defaultSidebarArt();
+      state.settings.sidebar_art=state.sidebarArt;renderSidebarArt();
+      modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('art','侧栏插画')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('compiler','编译与运行')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
       modal.showModal();
       $('.settings-tabs',modal).addEventListener('click',event=>{
         const button=event.target.closest('[data-settings-tab]');
@@ -1390,12 +1493,9 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   }
   function openContestForm(id='', platform=''){
     const c=state.contests.find(c=>c.id===id)||{platform:platform||'codeforces',title:'',url:''};
-    modal.innerHTML=`<form id="contest-form" class="contest-form" novalidate>${dialogHeader(id?'编辑比赛':'新建比赛')}<div class="modal-body contest-form-body"><p class="form-intro">保存比赛信息，之后可以逐题加入代码。</p><div class="contest-form-grid"><label class="field"><span>所属平台 <small>自由输入</small></span><input name="platform" id="contest-form-platform" required maxlength="100" autocomplete="off" placeholder="Codeforces、AtCoder、AcWing、洛谷、牛客…" value="${esc(platformLabel(c.platform))}"></label><label class="field"><span>比赛标题</span><input name="title" required maxlength="300" placeholder="例如 Codeforces Round 1000" value="${esc(c.title)}"></label><div class="platform-presets" aria-label="常用平台"><span>常用</span>${[['Codeforces','codeforces'],['AtCoder','atcoder'],['AcWing','acwing'],['洛谷','luogu'],['牛客','niuke']].map(([label,key])=>`<button type="button" data-platform-preset="${label}"><span class="preset-icon has-logo">${platformLogo(key)}</span>${label}</button>`).join('')}</div><label class="field full"><span>比赛链接 <small>也可以先填写备注</small></span><input name="url" type="text" required maxlength="2048" placeholder="粘贴比赛页面链接，或填写“链接稍后补充”" value="${esc(c.url)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建比赛'}</button></div></form>`;
+    modal.innerHTML=`<form id="contest-form" class="contest-form" novalidate>${dialogHeader(id?'编辑比赛':'新建比赛')}<div class="modal-body contest-form-body"><p class="form-intro">保存比赛信息，之后可以逐题加入代码。</p><div class="contest-form-grid">${platformInputHTML('contest-form-platform',c.platform)}<label class="field"><span>比赛标题</span><input name="title" required maxlength="300" placeholder="例如 Codeforces Round 1000" value="${esc(c.title)}"></label><label class="field full"><span>比赛链接 <small>也可以先填写备注</small></span><input name="url" type="text" required maxlength="2048" placeholder="粘贴比赛页面链接，或填写“链接稍后补充”" value="${esc(c.url)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建比赛'}</button></div></form>`;
+    bindPlatformPicker(modal);
     modal.showModal();$('#contest-form').addEventListener('submit',async event=>{event.preventDefault();if(state.busy)return;if(!validateRequiredFields(event.target))return;const f=new FormData(event.target);setModalBusy(true);try{const result=await api(id?`/api/contests/${encodeURIComponent(id)}`:'/api/contests',id?'PUT':'POST',{platform:f.get('platform'),title:f.get('title'),url:f.get('url'),...(id?{version:c.version}:{})});setModalBusy(false);closeModal();toast(id?'比赛信息已更新。':'比赛已创建，可以开始添加题目。');await go(`contest/${result.contest.id}`,{force:true});}catch(e){setModalBusy(false);const err=$('#dialog-error');if(err)err.textContent=e.message;else toast(e.message,true);}});
-    modal.querySelectorAll('[data-platform-preset]').forEach(button=>button.addEventListener('click',()=>{
-      const input=$('#contest-form-platform');if(!input)return;
-      input.value=button.dataset.platformPreset||'';clearFieldError(input);input.focus();
-    }));
   }
   function algorithmLinkRow(link={}){
     return `<div class="link-row"><input data-link-title maxlength="300" placeholder="链接名称（可选）" value="${esc(link.title||'')}"><input data-link-url type="url" maxlength="2048" placeholder="https://…" value="${esc(link.url||'')}"><button type="button" class="icon-text danger-text" data-remove-algorithm-link aria-label="移除这条链接">移除</button></div>`;
@@ -1566,9 +1666,11 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(t.hasAttribute('data-select-code'))selectEditorCode();
     else if(t.hasAttribute('data-select-preview-code'))selectPreviewCode();
     else if(t.hasAttribute('data-copy-preview-code'))await copyPreviewCode();
+    else if(t.hasAttribute('data-sidebar-art-step'))await stepSidebarArt(Number(t.dataset.sidebarArtStep));
     else if(t.hasAttribute('data-open-sidebar-art')){
       state.preview=null;
-      modal.innerHTML=dialogHeader('庆祝插画')+'<div class="sidebar-art-preview"><img src="/sidebar-art.png?v=20261114-celebration" alt="C++ 通过后的庆祝插画" width="938" height="1670"></div>';
+      const art=currentSidebarArt();
+      modal.innerHTML=dialogHeader(art.label)+`<div class="sidebar-art-preview"><img src="${esc(artURL(art.full))}" alt="${esc(art.label)}"></div>`;
       modal.showModal();
     }
     else if(t.hasAttribute('data-open-contest')){e.preventDefault();await go(`contest/${t.dataset.openContest}`);}
@@ -1623,7 +1725,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(e.target.id==='algorithm-search')updateAlgorithms();
     else if(e.target.id==='cph-input'||e.target.id==='cph-expected-output'){commitCphFields();updateCphTestsState();updateSaveState();}
     else if(e.target.id==='code-input'){highlightCode();updateCursor();updateSelectionBands();}
-    else if(e.target.id==='editor-platform'){$('#editor-contest').innerHTML=contestSelect(e.target.value,'');updateSaveState();}
+    else if(e.target.id==='editor-platform'){$('#editor-contest').innerHTML=contestSelect(e.target.value,$('#editor-contest').value);updateSaveState();}
     else if(e.target.id==='cph-time-limit'){state.cph.timeLimit=Math.max(50,Math.min(30000,Number(e.target.value)||3000));updateSaveState();}
     else if(e.target.closest('#problem-form'))updateSaveState();
     else if(e.target.closest('#snippet-form'))updateSaveState();
@@ -1637,7 +1739,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     }else if(e.target.id==='contest-platform')updateContests();
     else if(e.target.id==='algorithm-category')updateAlgorithms();
     else if(e.target.id==='contest-form-platform'){e.target.value=canonicalPlatformValue(e.target.value);clearFieldError(e.target);}
-    else if(e.target.id==='editor-platform'){e.target.value=canonicalPlatformValue(e.target.value);$('#editor-contest').innerHTML=contestSelect(e.target.value,'');updateSaveState();}
+    else if(e.target.id==='editor-platform'){e.target.value=canonicalPlatformValue(e.target.value);$('#editor-contest').innerHTML=contestSelect(e.target.value,$('#editor-contest').value);updateSaveState();}
     else if(e.target.id==='editor-language'){highlightCode();$('#code-file-type').textContent=`UTF-8 · ${extensions[e.target.value]||'.txt'}`;}
     else if(e.target.closest('#problem-form'))updateSaveState();
     else if(e.target.closest('#snippet-form'))updateSaveState();

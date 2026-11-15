@@ -44,8 +44,9 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.8"
+APP_VERSION = "2.2.9"
 CARD_COLORS = ("blue", "cyan", "green", "amber", "rose", "violet")
+SIDEBAR_ART_IMAGES = ("debug", "thinking", "celebration")
 ROOT = Path(__file__).resolve().parent
 DATABASE_SCHEMA_VERSION = 10
 SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
@@ -69,6 +70,12 @@ PROBLEM_PLATFORM_ALIASES = {
     "码蹄集": "码蹄集",
     "码蹄": "码蹄集",
     "matiji": "码蹄集",
+    "leetcode": "力扣",
+    "leetcode.cn": "力扣",
+    "leetcode.com": "力扣",
+    "力扣": "力扣",
+    "poj": "POJ",
+    "poj.org": "POJ",
 }
 EXTENSIONS = {"cpp": ".cpp", "python": ".py", "java": ".java", "other": ".txt"}
 SCHEMELESS_URL_PATTERN = re.compile(
@@ -1829,6 +1836,31 @@ class Repository:
             self.db.execute("DELETE FROM settings WHERE key='profile_avatar'")
         self._remove_avatar_files(relative)
 
+    def get_sidebar_art(self):
+        with self.lock:
+            values = dict(self.db.execute(
+                "SELECT key,value FROM settings WHERE key IN ('sidebar_art_image','sidebar_art_hidden')"
+            ).fetchall())
+            image = values.get("sidebar_art_image", "celebration")
+            return {
+                "image": image if image in SIDEBAR_ART_IMAGES else "celebration",
+                "hidden": values.get("sidebar_art_hidden") == "true",
+            }
+
+    def update_sidebar_art(self, payload):
+        image, hidden = payload.get("image"), payload.get("hidden")
+        if image not in SIDEBAR_ART_IMAGES or type(hidden) is not bool:
+            raise AppError("请选择内置侧栏插画，并指定是否隐藏")
+        with self.lock:
+            self._ready()
+            with self.db:
+                self.db.executemany(
+                    "INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)",
+                    (("sidebar_art_image", image),
+                     ("sidebar_art_hidden", "true" if hidden else "false")),
+                )
+            return self.get_sidebar_art()
+
     def get_profile(self):
         rows = self.db.execute(
             "SELECT key,value FROM settings WHERE key IN ('profile_name','profile_avatar_path')"
@@ -2303,6 +2335,7 @@ class Repository:
                 "problems": problems,
                 "algorithms": algorithms,
                 "profile": self.get_profile(),
+                "sidebar_art": self.get_sidebar_art(),
                 "problem_order_version": order_versions["problem_order_version"],
                 "contest_order_version": order_versions["contest_order_version"],
                 "algorithm_order_version": order_versions["algorithm_order_version"],
@@ -3157,6 +3190,7 @@ class LocalServer(ThreadingHTTPServer):
             "log_path": str(self.log_path),
             "backup_dir": str(self.repo.backup_directory()),
             "browser": dict(self.config.get("browser") or {}),
+            "sidebar_art": self.repo.get_sidebar_art(),
             "started_at": datetime.fromtimestamp(
                 self.started_at,
                 tz=timezone.utc,
@@ -3526,6 +3560,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 upload.unlink(missing_ok=True)
             return self._json({"backup": backup}, 201)
         body = self._body()
+        if self.command == "PUT" and path == "/api/settings/sidebar-art":
+            return self._json({"sidebar_art": repo.update_sidebar_art(body)})
         if self.command == "PUT" and path == "/api/settings/browser":
             return self._json(
                 {"browser": self.server.update_browser_settings(body)}
