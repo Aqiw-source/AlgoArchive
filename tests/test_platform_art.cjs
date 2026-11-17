@@ -160,7 +160,7 @@ async function main() {
       await input.waitFor();
       await input.click();
       assert.equal(await input.getAttribute("role"), "combobox");
-      const picker = input.locator("..");
+      const picker = page.locator('.platform-picker').filter({has:input});
       assert.equal(await picker.locator('[role="option"]').count(), 10);
       await page.waitForFunction(() => [...document.querySelectorAll('.platform-picker [role="option"] img')].every(el => el.complete && el.naturalWidth > 0));
       assert.equal(await picker.locator('.platform-mark').first().evaluate(el=>getComputedStyle(el).boxShadow), "none", "official icons must not receive the old green inset fill");

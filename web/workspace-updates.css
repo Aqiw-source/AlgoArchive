@@ -174,11 +174,12 @@ textarea:focus-visible,
 .sidebar-art-visibility { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
 .platform-picker { position: relative; min-width: 0; }
+.platform-input-line { position: relative; }
 .field > label { color: #58647a; font-size: 12px; font-weight: 600; }
 .platform-picker input { width: 100%; padding-right: 38px; }
 .platform-picker [data-toggle-platforms] { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 36px; height: 100%; padding: 8px; border: 0; border-radius: 0 5px 5px 0; color: #78839a; background: transparent; cursor: pointer; }
 .platform-picker [data-toggle-platforms] svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
-.platform-options { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; width: 100%; max-height: 256px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid #d8dfeb; border-radius: 6px; background: #fff; box-shadow: 0 6px 18px rgba(43, 55, 83, .12); }
+.platform-options { width: 100%; max-height: clamp(96px, 24dvh, 180px); margin-top: 6px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid #d8dfeb; border-radius: 6px; background: #fff; }
 .platform-options [role="option"] { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; color: #43516b; }
 .platform-options [role="option"]:hover, .platform-options [aria-selected="true"] { background: #edf2fc; }
 .platform-options .platform-mark { width: 22px; height: 22px; border-radius: 4px; background: transparent; box-shadow: none; }
@@ -340,7 +341,24 @@ dialog:has(.sidebar-art-preview) { width: min(760px, calc(100vw - 28px)); }
 .sidebar-art-status { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; color: #68718a; pointer-events: none; }
 .sidebar-art-notice { flex-shrink: 0; font-size: 11px; padding: 4px; color: #9b4f3e; }
 .sidebar-art-notice[hidden], .sync-notice[hidden] { display: none; }
-.platform-help { display: block; margin-top: 6px; font-size: 11px; line-height: 1.6; color: #68718a; }
+.platform-field-heading { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; }
+.platform-field-heading label { color: #58647a; font-size: 12px; font-weight: 600; }
+.platform-field .platform-help { visibility: hidden; font-size: 11px; line-height: 1.6; color: #b42335; }
+.platform-field:focus-within .platform-help { visibility: visible; }
+/* Suggestions occupy their own row; the dialog actions remain reachable. */
+#modal:has(.contest-form) { overflow: hidden; }
+.contest-form { display: flex; flex-direction: column; max-height: calc(90dvh - 2px); }
+.contest-form .modal-header, .contest-form .modal-actions { flex-shrink: 0; }
+.contest-form-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.code-editor { min-height: 0; height: clamp(180px, 46dvh, 520px); max-height: none; }
+.editor-toolbar { scroll-margin-top: 64px; }
+.code-stage pre, .code-stage textarea { padding-bottom: 32px; }
+.editor-status { min-height: 36px; align-items: center; gap: 6px 14px; font-size: 11px; }
+.page-header > div { min-width: 0; }
+.page-header p { overflow-wrap: anywhere; }
+.cards-toolbar select,
+.algorithm-toolbar select,
+.filters select { min-width: 0; max-width: 100%; }
 .sync-notice { padding: 10px 22px; background: #fff2d7; color: #705214; font-size: 12px; }
 
 /* A modal makes background controls inert, but scrolling needs its own lock. */

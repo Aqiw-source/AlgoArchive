@@ -114,7 +114,7 @@
   function currentSidebarArt(){
     return sidebarArtImages.find(image=>image.id===state.sidebarArt.image)||sidebarArtImages[2];
   }
-  const artURL = file => new URL(file+'?v=20261117-local2210-r2',appAssetBase).href;
+  const artURL = file => new URL(file+'?v=20261117-local2210-r3',appAssetBase).href;
   function acceptSidebarArt(preference,revision,read){
     if(revision!==sidebarArtRevision||sidebarArtSaving||read<sidebarArtAppliedRead||!preference)return false;
     sidebarArtAppliedRead=read;state.sidebarArt=preference;sidebarArtKnown=true;sidebarArtPreferenceError='';cacheSidebarArt();renderSidebarArt();return true;
@@ -170,17 +170,26 @@
     await saveSidebarArt({...state.sidebarArt,image:sidebarArtImages[(index+step+sidebarArtImages.length)%sidebarArtImages.length].id});
   }
   function platformInputHTML(id,value){
-    return `<div class="field"><label for="${id}">所属平台</label><div class="platform-picker"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div><small class="platform-help">未找到你的平台？可直接输入其他平台名称。</small></div>`;
+    return `<div class="field platform-field"><div class="platform-field-heading"><label for="${id}">所属平台</label><small id="${id}-help" class="platform-help">可选择平台，也可直接输入名称</small></div><div class="platform-picker"><div class="platform-input-line"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" aria-describedby="${id}-help" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div></div>`;
   }
+  let openPlatformPicker=null;
+  document.addEventListener('click',event=>{
+    if(openPlatformPicker&&!openPlatformPicker.picker.contains(event.target))openPlatformPicker.close();
+  });
   function bindPlatformPicker(root){
+    openPlatformPicker?.close();
     root.querySelectorAll('.platform-picker').forEach(picker=>{
       const input=$('input',picker),list=$('[role="listbox"]',picker),toggle=$('[data-toggle-platforms]',picker);
       let active=-1;
-      const close=()=>{list.hidden=true;input.setAttribute('aria-expanded','false');toggle.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');};
+      const close=()=>{list.hidden=true;input.setAttribute('aria-expanded','false');toggle.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');if(openPlatformPicker?.picker===picker)openPlatformPicker=null;};
       const open=(query='')=>{
+        if(openPlatformPicker?.picker!==picker)openPlatformPicker?.close();
         const q=query.trim().toLocaleLowerCase();active=-1;
         list.innerHTML=Object.entries(platformIdentities).filter(([key,label])=>!q||`${key} ${label}`.toLocaleLowerCase().includes(q)||platformKey(q)===key).map(([key,label])=>`<div role="option" id="${input.id}-option-${key}" data-platform-value="${esc(label)}" aria-selected="false">${platformMark(key)}<span>${esc(label)}</span></div>`).join('');
         list.hidden=!list.children.length;
+        openPlatformPicker=list.hidden?null:{picker,close};
+        if(!list.hidden)list.scrollIntoView({block:'nearest'});
+        list.scrollTop=0;
         input.setAttribute('aria-expanded',String(!list.hidden));toggle.setAttribute('aria-expanded',String(!list.hidden));input.removeAttribute('aria-activedescendant');
       };
       const choose=choice=>{
@@ -205,7 +214,8 @@
       toggle.addEventListener('click',()=>{if(list.hidden){input.focus();open();}else close();});
       list.addEventListener('mousedown',event=>{if(event.target.closest('[data-platform-value]'))event.preventDefault();});
       list.addEventListener('click',event=>{const choice=event.target.closest('[data-platform-value]');if(choice)choose(choice);});
-      picker.addEventListener('focusout',event=>{if(!picker.contains(event.relatedTarget))close();});
+      // Closing during pointer focusout moves the inline form before mouseup and loses clicks.
+      picker.addEventListener('keydown',event=>{if(event.key==='Tab')close();});
     });
   }
   const sectionTitle = (iconName,label) => `<h2><span class="section-icon">${icon(iconName)}</span><span>${esc(label)}</span></h2>`;
@@ -1078,7 +1088,8 @@
     field.classList.remove('is-invalid');
     field.querySelector('.field-error')?.remove();
     element.removeAttribute('aria-invalid');
-    element.removeAttribute('aria-describedby');
+    const hint=field.querySelector('.platform-help');
+    if(hint)element.setAttribute('aria-describedby',hint.id);else element.removeAttribute('aria-describedby');
   }
   function validateRequiredFields(form) {
     form.querySelectorAll('.field.is-invalid').forEach(field=>{
@@ -1089,7 +1100,7 @@
       if(String(element.value||'').trim())continue;
       const field=element.closest('.field');
       if(!field)continue;
-      const label=field.querySelector(':scope > span')?.childNodes[0]?.textContent?.trim()||'此字段';
+      const label=field.querySelector(':scope > span')?.childNodes[0]?.textContent?.trim()||element.labels?.[0]?.textContent?.trim()||'此字段';
       const error=document.createElement('span');
       const errorId=`${form.id||'form'}-${element.name||element.id||'field'}-error`;
       error.className='field-error';error.id=errorId;error.textContent=`请填写${label}。`;
