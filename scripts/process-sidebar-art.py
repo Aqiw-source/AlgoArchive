@@ -23,5 +23,8 @@ for y in range(height):
         pixels[x, y] = (r, g, b, round(alpha * edge))
 
 destination = Path(sys.argv[2]).resolve()
-source.save(destination, "WEBP", lossless=True, method=6)
+# The sidebar displays at most 300 CSS pixels tall. Keep a 2x thumbnail;
+# original PNGs remain available for the full-size preview.
+source.thumbnail((600, 600), Image.Resampling.LANCZOS)
+source.save(destination, "WEBP", quality=88, method=6)
 print(f"{destination}: {source.size}, {destination.stat().st_size} bytes")
