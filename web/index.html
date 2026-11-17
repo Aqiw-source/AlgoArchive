@@ -12,17 +12,17 @@
 <link rel="stylesheet" href="/style.css?v=20261030-platform-normalize">
 <link rel="stylesheet" href="/codex-theme.css?v=20261115-card-colors">
 <link rel="stylesheet" href="/mobile.css?v=20261030-platform-normalize">
-<link rel="stylesheet" href="/workspace-updates.css?v=20261117-local2210-r5">
-<script src="/app.js?v=20261117-local2210-r5" defer></script>
+<link rel="stylesheet" href="/workspace-updates.css?v=20261117-local2210-r6">
+<script src="/app.js?v=20261117-local2210-r6" defer></script>
 </head>
 <body>
 <div class="app-shell">
   <aside class="sidebar">
     <div class="workspace-sidebar">
-      <a href="#home" class="sidebar-identity" data-nav="home">
-        <span class="profile-avatar" id="profile-avatar" aria-hidden="true">A</span>
-        <span class="identity-copy"><strong id="profile-name">本地用户</strong><small>算法档案 · 本地工作空间</small></span>
-      </a>
+      <div class="sidebar-identity">
+        <button type="button" class="profile-avatar" id="profile-avatar" data-open-avatar aria-label="查看头像原图" title="查看头像原图"></button>
+        <a href="#home" class="identity-copy" data-nav="home"><strong id="profile-name">本地用户</strong><small>算法档案 · 本地工作空间</small></a>
+      </div>
       <div class="nav-label">工作空间</div>
       <nav class="workspace-nav" aria-label="主导航">
         <a href="#home" data-nav="home"><span class="nav-icon home-nav-icon"><img src="/nav-icons/home.png?v=20261030-platform-normalize" alt="" decoding="async"></span>首页</a>

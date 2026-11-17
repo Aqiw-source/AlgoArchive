@@ -114,7 +114,46 @@
   function currentSidebarArt(){
     return sidebarArtImages.find(image=>image.id===state.sidebarArt.image)||sidebarArtImages[2];
   }
-  const artURL = file => new URL(file+'?v=20261117-local2210-r5',appAssetBase).href;
+  let imagePreview=null;
+  function renderImagePreview(){
+    if(!imagePreview)return;
+    const artwork=imagePreview.kind==='art',art=artwork?sidebarArtImages[imagePreview.index]:null;
+    const image=$('.image-preview img',modal),status=$('.image-preview-status',modal);
+    $('#dialog-title').textContent=artwork?art.label:'头像原图';
+    $('#image-preview-caption').textContent=artwork?`${imagePreview.index+1} / ${sidebarArtImages.length} · ${art.label}`:(image?'完整头像':'当前使用默认头像');
+    if(image){
+      status.textContent='正在加载图片…';
+      image.onload=()=>{status.textContent='';};
+      image.onerror=()=>{status.textContent='图片加载失败，请关闭后重试。';};
+      image.alt=artwork?art.label:'头像原图';
+      image.src=artwork?artURL(art.full):avatarSource(state.profile?.avatar);
+    }
+  }
+  function stepImagePreview(step){
+    if(imagePreview?.kind!=='art')return;
+    imagePreview.index=(imagePreview.index+step+sidebarArtImages.length)%sidebarArtImages.length;
+    renderImagePreview();
+  }
+  function openImagePreview(kind){
+    const artwork=kind==='art';state.preview=null;
+    imagePreview={kind,index:artwork?sidebarArtImages.findIndex(art=>art.id===currentSidebarArt().id):0};
+    const previous=artwork?`<button type="button" class="image-preview-arrow" data-image-preview-step="-1" aria-label="预览上一张插画" title="上一张（←）">${icon('arrow')}</button>`:'';
+    const next=artwork?`<button type="button" class="image-preview-arrow" data-image-preview-step="1" aria-label="预览下一张插画" title="下一张（→）">${icon('arrow')}</button>`:'';
+    modal.innerHTML=dialogHeader(artwork?'插画预览':'头像原图')+`<div class="image-preview ${artwork?'sidebar-art-preview':'avatar-preview'}"><div class="image-preview-stage${artwork?'':' avatar-preview-stage'}">${previous}<div class="image-preview-canvas">${artwork||avatarSource(state.profile?.avatar)?'<img draggable="false" decoding="async" alt="">':'<div class="profile-avatar avatar-preview-placeholder" role="img" aria-label="默认头像"></div>'}</div>${next}</div><div class="image-preview-footer"><span id="image-preview-caption" aria-live="polite"></span>${artwork?'<span>预览切换不会更改侧栏插画</span>':''}</div><p class="image-preview-status" role="status"></p></div>`;
+    if(artwork){
+      const stage=$('.image-preview-stage',modal);let start=null;
+      stage.addEventListener('pointerdown',event=>{if(event.button===0&&!event.target.closest('button'))start={id:event.pointerId,x:event.clientX,y:event.clientY};});
+      stage.addEventListener('pointerup',event=>{
+        const origin=start;start=null;if(!origin||origin.id!==event.pointerId)return;
+        const dx=event.clientX-origin.x,dy=event.clientY-origin.y;
+        if(Math.abs(dx)>48&&Math.abs(dx)>Math.abs(dy)*1.25)stepImagePreview(dx<0?1:-1);
+      });
+      stage.addEventListener('pointercancel',()=>{start=null;});
+      stage.addEventListener('pointerleave',()=>{start=null;});
+    }
+    renderImagePreview();modal.showModal();
+  }
+  const artURL = file => new URL(file+'?v=20261117-local2210-r6',appAssetBase).href;
   function acceptSidebarArt(preference,revision,read){
     if(revision!==sidebarArtRevision||sidebarArtSaving||read<sidebarArtAppliedRead||!preference)return false;
     sidebarArtAppliedRead=read;state.sidebarArt=preference;sidebarArtKnown=true;sidebarArtPreferenceError='';cacheSidebarArt();renderSidebarArt();return true;
@@ -1240,7 +1279,7 @@
       toast(ok?'原题链接已复制。':'无法写入剪贴板，请手动复制原题链接。',!ok);
     }
   }
-  function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';state.preview=null;}
+  function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';state.preview=null;imagePreview=null;}
   function setModalBusy(busy){state.busy=busy;modal.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=busy;});}
   function dialogHeader(title){return `<div class="modal-header"><h2 id="dialog-title">${esc(title)}</h2><button type="button" class="modal-close" data-close-modal aria-label="关闭">×</button></div>`;}
   function downloadProblemImportSample(){
@@ -1781,12 +1820,9 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(t.hasAttribute('data-retry-sync'))await retryStateSync();
     else if(t.hasAttribute('data-retry-sidebar-art')){if(sidebarArtPreferenceError||!sidebarArtKnown)await loadSidebarArt();else{sidebarArtRequested='';renderSidebarArt();}}
     else if(t.hasAttribute('data-sidebar-art-step'))await stepSidebarArt(Number(t.dataset.sidebarArtStep));
-    else if(t.hasAttribute('data-open-sidebar-art')){
-      state.preview=null;
-      const art=currentSidebarArt();
-      modal.innerHTML=dialogHeader(art.label)+`<div class="sidebar-art-preview"><img src="${esc(artURL(art.full))}" alt="${esc(art.label)}"></div>`;
-      modal.showModal();
-    }
+    else if(t.hasAttribute('data-open-sidebar-art'))openImagePreview('art');
+    else if(t.hasAttribute('data-open-avatar'))openImagePreview('avatar');
+    else if(t.hasAttribute('data-image-preview-step'))stepImagePreview(Number(t.dataset.imagePreviewStep));
     else if(t.hasAttribute('data-open-contest')){e.preventDefault();await go(`contest/${t.dataset.openContest}`);}
     else if(t.hasAttribute('data-open-algorithm')){e.preventDefault();await go(`algorithm/${t.dataset.openAlgorithm}`);}
     else if(t.hasAttribute('data-open-snippet')){e.preventDefault();await go(`snippet/${t.dataset.openSnippet}`);}
@@ -1859,6 +1895,9 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(e.target.closest('#snippet-form'))updateSaveState();
   });
   document.addEventListener('keydown',e=>{
+    if(modal.open&&imagePreview?.kind==='art'&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&['ArrowLeft','ArrowRight'].includes(e.key)){
+      e.preventDefault();stepImagePreview(e.key==='ArrowLeft'?-1:1);return;
+    }
     if(modal.open&&state.preview&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){
       e.preventDefault();selectPreviewCode();return;
     }
@@ -1888,7 +1927,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   document.addEventListener('scroll',e=>{if(e.target.id==='code-input')syncScroll();},true);
   window.addEventListener('beforeunload',e=>{if(state.busy||isDirty()){e.preventDefault();e.returnValue='';}});
   window.addEventListener('hashchange',()=>{const route=location.hash.slice(1)||'home';if(navigating||route===state.route)return;if(state.busy||!allowLeave()){navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);return;}state.editor=null;state.route=route;renderRoute(route);});
-  modal.addEventListener('cancel',e=>e.preventDefault());
+  modal.addEventListener('cancel',e=>{e.preventDefault();if(imagePreview)closeModal();});
   renderSidebarArt();loadSidebarArt();
   state.route=location.hash.slice(1)||'home';renderRoute(state.route);
 })();
