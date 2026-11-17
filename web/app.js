@@ -9,7 +9,7 @@
   const platformIdentities = {...platforms,lanqiao:'蓝桥杯',hdu:'HDU',matiji:'码蹄集',leetcode:'力扣',poj:'POJ'};
   const knownPlatform = value => Object.prototype.hasOwnProperty.call(platformIdentities, value);
   const platformKey = value => {
-    const key=String(value || '').trim().toLocaleLowerCase();
+    const key=String(value || '').trim().toLowerCase();
     if(key==='acwing')return 'acwing';
     if(key==='洛谷')return 'luogu';
     if(key==='牛客'||key==='nowcoder')return 'niuke';
@@ -54,8 +54,13 @@
   const defaultSidebarArt = () => ({image:'celebration',hidden:false});
   const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, contestOrderVersion: 1, algorithmOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, running: false, runId: ''}};
   state.sidebarArt=defaultSidebarArt();
+  let stateGeneration=0;
+  let sidebarArtKnown=false, sidebarArtPreferenceError='', sidebarArtImageError='', sidebarArtImageGeneration=0, sidebarArtRequested='';
+  const artCacheKey='algoarchive.sidebar-art.v1';
+  function cacheSidebarArt(){try{localStorage.setItem(artCacheKey,JSON.stringify(state.sidebarArt));}catch(_){} }
+  try{const cached=JSON.parse(localStorage.getItem(artCacheKey));if(cached&&sidebarArtImages.some(a=>a.id===cached.image)&&typeof cached.hidden==='boolean'){state.sidebarArt=cached;sidebarArtKnown=true;}}catch(_){}
   let sidebarArtSaving=false;
-  let sidebarArtRevision=0;
+  let sidebarArtRevision=0, sidebarArtReadGeneration=0, sidebarArtAppliedRead=0;
   let navigating = false;
   let renderNumber = 0;
   let draggedAlgorithmProblemId = null;
@@ -109,15 +114,41 @@
   function currentSidebarArt(){
     return sidebarArtImages.find(image=>image.id===state.sidebarArt.image)||sidebarArtImages[2];
   }
-  const artURL = file => new URL(file+'?v=20261115-art229',appAssetBase).href;
+  const artURL = file => new URL(file+'?v=20261117-local2210',appAssetBase).href;
+  function acceptSidebarArt(preference,revision,read){
+    if(revision!==sidebarArtRevision||sidebarArtSaving||read<sidebarArtAppliedRead||!preference)return false;
+    sidebarArtAppliedRead=read;state.sidebarArt=preference;sidebarArtKnown=true;sidebarArtPreferenceError='';cacheSidebarArt();renderSidebarArt();return true;
+  }
+  async function loadSidebarArt(){
+    const revision=sidebarArtRevision,read=++sidebarArtReadGeneration;
+    try{const result=await api('/api/settings/sidebar-art');acceptSidebarArt(result.sidebar_art,revision,read);
+    }catch(error){if(revision!==sidebarArtRevision||read<sidebarArtAppliedRead)return;sidebarArtPreferenceError=error.message;}
+    renderSidebarArt();
+  }
   function renderSidebarArt(){
     const art=currentSidebarArt(),shell=$('#sidebar-art-shell'),image=$('.sidebar-art img');
-    shell.hidden=state.sidebarArt.hidden;
-    shell.closest('.workspace-sidebar').classList.toggle('sidebar-art-hidden',state.sidebarArt.hidden);
-    image.src=artURL(art.blended);image.alt=art.label;image.dataset.artImage=art.id;
+    shell.hidden=!sidebarArtKnown||state.sidebarArt.hidden;
+    shell.closest('.workspace-sidebar').classList.toggle('sidebar-art-hidden',shell.hidden);
+    const notice=$('#sidebar-art-notice');
+    notice.hidden=!(sidebarArtPreferenceError||sidebarArtImageError);
+    $('#sidebar-art-error').textContent=sidebarArtPreferenceError||sidebarArtImageError;
+    if(sidebarArtKnown&&!state.sidebarArt.hidden&&sidebarArtRequested!==art.id){
+      sidebarArtRequested=art.id;sidebarArtImageError='';notice.hidden=!sidebarArtPreferenceError;
+      const generation=++sidebarArtImageGeneration, pending=new Image();
+      $('#sidebar-art-status').textContent=`正在加载${art.label}…`;
+      pending.onload=()=>{
+        if(generation!==sidebarArtImageGeneration||currentSidebarArt().id!==art.id)return;
+        image.replaceWith(pending);pending.alt=art.label;pending.dataset.artImage=art.id;
+        $('#sidebar-art-status').textContent=art.label;sidebarArtImageError='';renderSidebarArt();
+      };
+      pending.onerror=()=>{
+        if(generation!==sidebarArtImageGeneration||currentSidebarArt().id!==art.id)return;
+        sidebarArtImageError=`${art.label}加载失败，可重试。`;$('#sidebar-art-status').textContent=sidebarArtImageError;renderSidebarArt();
+      };
+      pending.decoding='async';pending.src=artURL(art.blended);
+    }
     const preview=$('[data-open-sidebar-art]');
     preview.title=`放大${art.label}插画`;preview.setAttribute('aria-label',preview.title);
-    $('#sidebar-art-status').textContent=art.label;
     document.querySelectorAll('[data-sidebar-art-step],#sidebar-art-settings input,#sidebar-art-settings button').forEach(control=>control.disabled=sidebarArtSaving);
     if(!sidebarArtSaving){
       const hidden=$('#sidebar-art-hidden');if(hidden)hidden.checked=state.sidebarArt.hidden;
@@ -129,7 +160,7 @@
     sidebarArtRevision++;sidebarArtSaving=true;renderSidebarArt();
     try{
       const result=await api('/api/settings/sidebar-art','PUT',preference);
-      state.sidebarArt=result.sidebar_art;
+      state.sidebarArt=result.sidebar_art;sidebarArtKnown=true;sidebarArtPreferenceError='';cacheSidebarArt();
       if(state.settings)state.settings.sidebar_art=result.sidebar_art;
     }catch(error){toast(error.message,true);}
     finally{sidebarArtRevision++;sidebarArtSaving=false;renderSidebarArt();}
@@ -139,7 +170,7 @@
     await saveSidebarArt({...state.sidebarArt,image:sidebarArtImages[(index+step+sidebarArtImages.length)%sidebarArtImages.length].id});
   }
   function platformInputHTML(id,value){
-    return `<div class="field"><label for="${id}">所属平台</label><div class="platform-picker"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div></div>`;
+    return `<div class="field"><label for="${id}">所属平台</label><div class="platform-picker"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div><small class="platform-help">未找到你的平台？可直接输入其他平台名称。</small></div>`;
   }
   function bindPlatformPicker(root){
     root.querySelectorAll('.platform-picker').forEach(picker=>{
@@ -203,13 +234,11 @@
   const algorithmButton = a => `<button class="title-link" data-open-algorithm="${esc(a.id)}">${esc(a.name)}</button>`;
   const cardColors = ['blue','cyan','green','amber','rose','violet'];
   const cardTone = item => cardColors.includes(item?.card_color)?item.card_color:'blue';
-  const algorithmGlyph = a => {
-    const text=`${a.name||''} ${a.category||''}`.toLocaleLowerCase();
-    if(/搜索|search|dfs|bfs/.test(text))return icon('search');
-    if(/树状数组|fenwick|\bbit\b/.test(text))return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 7v4M12 11 6 16M12 11l6 5"/></svg>';
-    if(/线段树|segment/.test(text))return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5M6 10h12M6 10v4M18 10v4"/><path d="m9 4 3-3 3 3-3 3ZM3 16l3-3 3 3-3 3ZM15 16l3-3 3 3-3 3Z"/></svg>';
-    return icon('code');
-  };
+  const algorithmGlyph = a => ({
+    blue:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 7v4M12 11 6 16M12 11l6 5"/></svg>',
+    cyan:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v3M6 10h12M6 10v3M18 10v3"/><path d="m9 4 3-3 3 3-3 3ZM3 16l3-3 3 3-3 3ZM15 16l3-3 3 3-3 3Z"/></svg>',
+    green:icon('code'),amber:icon('search'),rose:icon('grid'),violet:icon('layers'),
+  })[cardTone(a)];
   const sortedProblems = items => [...items].sort((a,b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
   const sortedAlgorithmProblems = items => [...items].sort((a,b) => (Number(a.algorithm_order) || 0) - (Number(b.algorithm_order) || 0));
   const sortedContestProblems = items => [...items].sort((a,b) => (Number(a.contest_order) || 0) - (Number(b.contest_order) || 0));
@@ -286,25 +315,54 @@
 
   async function api(path, method='GET', payload) {
     const config = {method, headers: {'Accept':'application/json'}, cache:'no-store'};
-    if (method !== 'GET') { config.headers['X-CSRF-Token'] = csrf; config.headers['Content-Type'] = 'application/json'; config.body = JSON.stringify(payload || {}); }
+    if (method !== 'GET') { if(path!=='/api/settings/sidebar-art')stateGeneration++; config.headers['X-CSRF-Token'] = csrf; config.headers['Content-Type'] = 'application/json'; config.body = JSON.stringify(payload || {}); }
     let response;
-    try { response = await fetch(path, config); } catch (_) { throw new Error('无法连接本地服务。请确认启动窗口仍在运行，然后重试。'); }
+    try { response = await fetch(path, config); } catch (_) { throw new Error('无法连接本地服务。请确认启动窗口仍在运行，然后重试。'); } finally { if(method!=='GET'&&path!=='/api/settings/sidebar-art')stateGeneration++; }
     let data;
     try { data = await response.json(); } catch (_) { throw new Error('本地服务返回了无法读取的内容，请重新打开程序。'); }
     if (!response.ok) { const e = new Error(data.error || '操作未完成，请重试。'); Object.assign(e, data); e.status = response.status; throw e; }
+    if(method!=='GET')notifyOtherWindows();
     return data;
   }
   async function loadState() {
-    const artRevision=sidebarArtRevision;
-    const data = await api('/api/state'); state.contests = data.contests || []; state.problems = data.problems || []; state.algorithms = data.algorithms || [];
-    state.problemOrderVersion = Number(data.problem_order_version) || 1;
-    state.contestOrderVersion = Number(data.contest_order_version) || 1;
-    state.algorithmOrderVersion = Number(data.algorithm_order_version) || 1;
-    state.profile = data.profile || {name:'',avatar:''}; renderProfile(state.profile);
-    if(artRevision===sidebarArtRevision&&!sidebarArtSaving)state.sidebarArt=data.sidebar_art||defaultSidebarArt();
-    renderSidebarArt();
-    $('#nav-contests').textContent = state.contests.length; $('#nav-problems').textContent = state.problems.length; $('#nav-algorithms').textContent = state.algorithms.length;
+    const generation=++stateGeneration,artRevision=sidebarArtRevision,artRead=++sidebarArtReadGeneration;
+    let data;
+    try{data=await api('/api/state');}catch(error){if(generation!==stateGeneration)return false;throw error;}
+    if(generation!==stateGeneration)return false;
+    state.contests=data.contests||[];state.problems=data.problems||[];state.algorithms=data.algorithms||[];
+    state.platformProblemOrders=data.platform_problem_orders||{};
+    state.problemOrderVersion=Number(data.problem_order_version)||1;
+    state.contestOrderVersion=Number(data.contest_order_version)||1;
+    state.algorithmOrderVersion=Number(data.algorithm_order_version)||1;
+    state.profile=data.profile||{name:'',avatar:''};renderProfile(state.profile);renderCounts();
+    acceptSidebarArt(data.sidebar_art,artRevision,artRead);
+    return true;
   }
+  function renderCounts(){
+    $('#nav-contests').textContent=state.contests.length;$('#nav-problems').textContent=state.problems.length;$('#nav-algorithms').textContent=state.algorithms.length;
+  }
+  function mergeSavedProblem(problem){
+    const index=state.problems.findIndex(p=>p.id===problem.id);
+    if(index<0)state.problems.push(problem);else state.problems[index]=problem;
+    state.contests.forEach(c=>c.problem_count=state.problems.filter(p=>p.contest_id===c.id).length);
+    state.algorithms.forEach(a=>a.problem_count=state.problems.filter(p=>p.algorithm_id===a.id).length);
+    renderCounts();
+  }
+  function showSyncError(message){$('#sync-notice').hidden=false;$('#sync-error').textContent=message;}
+  async function retryStateSync(){
+    try{if(!await loadState())return;if(!state.editor&&!await renderRoute(state.route,false))return;$('#sync-notice').hidden=true;toast('列表已更新。');}
+    catch(error){showSyncError('已保存的数据仍保留；列表刷新失败：'+error.message);}
+  }
+  const syncChannel=typeof BroadcastChannel==='function'?new BroadcastChannel('algoarchive.data.v1'):null;
+  function notifyOtherWindows(){syncChannel?.postMessage('changed');}
+  let externalRefreshTimer;
+  if(syncChannel)syncChannel.onmessage=()=>{
+    clearTimeout(externalRefreshTimer);externalRefreshTimer=setTimeout(async()=>{
+      if(state.busy){syncChannel.onmessage();return;}
+      try{if(state.editor){await loadState();}else await renderRoute(state.route);}
+      catch(error){showSyncError('其他窗口已修改数据，刷新失败：'+error.message);}
+    },100);
+  };
   function toast(message, error=false) {
     const el = document.createElement('div'); el.className = `toast${error?' error':''}`; el.textContent = message;
     $('#toast-area').append(el); setTimeout(() => el.remove(), 4300);
@@ -398,15 +456,23 @@
     if(ctx.algorithm)return sortedAlgorithmProblems(items);
     if(ctx.contest)return sortedContestProblems(items);
     if(state.route==='problems'&&!ctx.platform)return sortedGlobalProblems(items);
+    if(ctx.platform)return sortedPlatformProblems(items,ctx.platform);
     return sortedProblems(items);
   }
   function tableArea() { return `<section class="panel">${filtersHTML()}<div id="problem-table"></div><div class="table-footer" id="problem-count"></div></section>`; }
   function updateTable() {
     const rows=filteredProblems(); $('#problem-table').innerHTML=problemTable(rows,!!Object.values(state.filter).some(Boolean));
     $('#problem-count').textContent=`共 ${rows.length} 道题目 · 所有入口共享同一份代码记录`;
+    if(state.context.platform&&!state.context.contest&&!state.context.algorithm)$('#problem-count').textContent+=Object.values(state.filter).some(Boolean)?' · 筛选时暂停排序；清除筛选后可拖动或用 Alt + ↑/↓ 调整':' · 平台独立排序，新题追加末尾';
     prepareAlgorithmProblemDragging();
   }
+  function sortedPlatformProblems(items,key){
+    const ids=state.platformProblemOrders?.[platformKey(key)]?.problem_ids||[];
+    const rank=new Map(ids.map((id,index)=>[id,index]));
+    return [...items].sort((a,b)=>(rank.get(a.id)??ids.length)-(rank.get(b.id)??ids.length));
+  }
   function algorithmProblemIds(){
+    if(state.context.platform&&!state.context.contest&&!state.context.algorithm){if(Object.values(state.filter).some(Boolean))return [];return sortedPlatformProblems(state.problems.filter(p=>platformKey(p.platform)===platformKey(state.context.platform)),state.context.platform).map(p=>p.id);}
     const contestId=state.context.contest;
     if(contestId)return sortedContestProblems(state.problems.filter(problem=>problem.contest_id===contestId)).map(problem=>problem.id);
     const algorithmId=state.context.algorithm;
@@ -425,7 +491,7 @@
   }
   function prepareAlgorithmProblemDragging(){
     clearAlgorithmProblemDragState();
-    if(!algorithmProblemIds().length)return;
+    if(algorithmProblemIds().length<2)return;
     document.querySelectorAll('#problem-table tbody tr').forEach(row=>{
       const problemId=row.dataset.problemPreview;
       const title=row.querySelector('.problem-title');
@@ -454,11 +520,16 @@
     const contest=contestId?state.contests.find(item=>item.id===contestId):null;
     const route=state.route;
     const globalOrder=state.route==='problems'&&!state.context.platform&&!algorithmId;
-    if(!algorithm&&!contest&&!globalOrder)return;
+    const platform=state.context.platform&&!contest&&!algorithm?platformKey(state.context.platform):'';
+    if(!algorithm&&!contest&&!globalOrder&&!platform)return;
+    if(platform&&Object.values(state.filter).some(Boolean))return;
     state.busy=true;
     document.body.classList.add('problem-dragging');
     try{
-      if(globalOrder){
+      if(platform){
+        const result=await api(`/api/platforms/${encodeURIComponent(platform)}/problems/order`,'PUT',{version:state.platformProblemOrders?.[platform]?.version||1,problem_ids:problemIds});
+        state.platformProblemOrders[platform]={version:result.platform_order_version,problem_ids:result.problem_ids};
+      }else if(globalOrder){
         await api('/api/problems/order','PUT',{version:state.problemOrderVersion,problem_ids:problemIds});
       }else if(contest){
         await api(`/api/contests/${encodeURIComponent(contestId)}/problems/order`,'PUT',{version:contest.version,problem_ids:problemIds});
@@ -587,12 +658,12 @@
       `<div class="contest-info">${badge(c.platform)}<span>${state.problems.filter(p=>p.contest_id===id).length} 道题目</span><span>创建于 ${time(c.created_at)}</span>${external(c.url,'打开比赛 ↗')}<button class="text-link" data-delete-contest="${esc(id)}">删除比赛</button></div><div class="section-head"><h2>比赛题目</h2><span class="muted">同一题目，只保存一份代码</span></div>`+tableArea();updateTable();
   }
   function missing(message) { main.innerHTML=pageHeader('记录暂不可用',message)+empty('记录不存在','请返回题库，查看最新记录。','<button class="btn primary" data-nav="problems">返回全部题目</button>'); }
-  async function renderRoute(route) {
+  async function renderRoute(route,refresh=true) {
     const seq=++renderNumber;
     const navRoute=route.startsWith('contest/')?'contests':route.startsWith('problem/')||route.startsWith('new-problem')?'problems':route.startsWith('algorithm/')||route.startsWith('new-algorithm')?'algorithms':route.startsWith('snippet/')||route.startsWith('new-snippet')?'algorithms':route;
     document.querySelectorAll('[data-nav]').forEach(el=>el.classList.toggle('active',el.closest('nav')&&navRoute===el.dataset.nav));
     try {
-      await loadState(); if(seq!==renderNumber)return;
+      if((refresh&&!await loadState())||seq!==renderNumber||route!==state.route)return false;
       state.context={}; const [path,query='']=route.split('?'); const parts=path.split('/');
       if(path==='home'||!path) home();
       else if(path==='contests') allContests();
@@ -602,16 +673,16 @@
       else if(parts[0]==='platform'&&platforms[parts[1]]) allProblems(parts[1]);
       else if(parts[0]==='contest') contestDetail(parts[1]);
       else if(parts[0]==='algorithm') algorithmDetail(state.algorithms.find(a=>a.id===parts[1]));
-      else if(parts[0]==='problem') {const d=await api(`/api/problems/${encodeURIComponent(parts[1])}`);if(seq!==renderNumber)return;problemEditor(d.problem);}
+      else if(parts[0]==='problem') {const d=await api(`/api/problems/${encodeURIComponent(parts[1])}`);if(seq!==renderNumber||route!==state.route)return;problemEditor(d.problem);}
       else if(path==='new-problem') {const qp=new URLSearchParams(query);const c=state.contests.find(c=>c.id===qp.get('contest'));const a=state.algorithms.find(a=>a.id===qp.get('algorithm'));problemEditor({platform:c?.platform||qp.get('platform')||'codeforces',number:'',name:'',url:'',language:'cpp',code:'',contest_id:c?.id||null,algorithm_id:a?.id||null});}
       else if(path==='new-snippet') {const qp=new URLSearchParams(query);const a=state.algorithms.find(a=>a.id===qp.get('algorithm'));if(!a){missing('所属算法不存在或已经删除。');return;}snippetEditor({algorithm_id:a.id,algorithm_name:a.name,title:'',language:'cpp',code:''});}
-      else if(parts[0]==='snippet') {const d=await api(`/api/algorithm-snippets/${encodeURIComponent(parts[1])}`);if(seq!==renderNumber)return;snippetEditor(d.snippet);}
+      else if(parts[0]==='snippet') {const d=await api(`/api/algorithm-snippets/${encodeURIComponent(parts[1])}`);if(seq!==renderNumber||route!==state.route)return;snippetEditor(d.snippet);}
       else {await go('home',{force:true});return;}
       const heading=$('h1',main)?.textContent||'首页';
       document.title='算法档案';
       const toolbarTitle=$('#toolbar-title');if(toolbarTitle)toolbarTitle.textContent=path==='home'||!path?'算法档案':heading;
-      window.scrollTo(0,0);
-    } catch(e) { if(seq!==renderNumber)return; main.innerHTML=pageHeader('暂时无法读取数据','请保留启动窗口运行，再尝试重新加载。')+`<div class="error-banner">${esc(e.message)}</div><button class="btn primary" data-retry>重新加载</button>`; }
+      window.scrollTo(0,0);return true;
+    } catch(e) { if(seq!==renderNumber||route!==state.route)return; main.innerHTML=pageHeader('暂时无法读取数据','请保留启动窗口运行，再尝试重新加载。')+`<div class="error-banner">${esc(e.message)}</div><button class="btn primary" data-retry>重新加载</button>`; }
   }
 
   function contestSelect(platform, selected) { const key=platformKey(platform); return option('','未关联比赛',selected||'')+state.contests.filter(c=>platformKey(c.platform)===key).map(c=>option(c.id,c.title,selected)).join(''); }
@@ -949,7 +1020,7 @@
     const back=p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems';
     const backLabel=p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
     main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
-      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" novalidate><div class="form-grid">${platformInputHTML('editor-platform',p.platform)}<label class="field wide"><span>题目名称</span><input name="name" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码保存在设置中的数据目录下的 codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
+      `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" autocomplete="off" novalidate><div class="form-grid">${platformInputHTML('editor-platform',p.platform)}<label class="field wide"><span>题目名称</span><input name="name" autocomplete="off" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" autocomplete="off" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label><label class="field"><span>所属算法 <small>可选</small></span><select name="algorithm_id" id="editor-algorithm">${algorithmSelect(p.algorithm_id)}</select></label></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码保存在设置中的数据目录下的 codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
     bindPlatformPicker(main);
     $('#code-input').value=p.code||'';
     state.editor.initial=JSON.stringify(readProblemForm());
@@ -966,7 +1037,7 @@
     const back=`algorithm/${p.algorithm_id}`;
     main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← 返回 ${esc(p.algorithm_name||'算法详情')}</a>`+
       pageHeader(p.id?'代码模板':'添加代码模板',p.id?'修改这份模板不会影响同一算法下的其他代码。':'为当前算法保存一份完整、可复用的代码。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="snippet-form" id="save-snippet">保存${p.id?'修改':'代码'} <span aria-hidden="true">↵</span></button>`,p.id?'SNIPPET / 代码工作台':'NEW SNIPPET / 新的模板')+
-      `<div id="editor-error" class="error-banner" role="alert"></div><form id="snippet-form" class="editor-panel" novalidate><div class="form-grid"><label class="field wide"><span>模板名称</span><input name="title" required maxlength="300" placeholder="例如 单点修改 + 区间查询" value="${esc(p.title)}"></label><div class="field"><span>所属算法</span><div class="readonly-value">${esc(p.algorithm_name||'')}</div></div></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path||'')} · 最近修改 ${time(p.updated_at)}`:'代码将作为独立源文件保存在本地数据目录。'}</span><div class="actions">${p.id?'<button class="btn small danger" data-delete-snippet>删除代码模板</button>':''}</div></div>`;
+      `<div id="editor-error" class="error-banner" role="alert"></div><form id="snippet-form" class="editor-panel" novalidate><div class="form-grid"><label class="field wide"><span>模板名称</span><input name="title" autocomplete="off" required maxlength="300" placeholder="例如 单点修改 + 区间查询" value="${esc(p.title)}"></label><div class="field"><span>所属算法</span><div class="readonly-value">${esc(p.algorithm_name||'')}</div></div></div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?'已保存到本地':'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${p.id?`文件：${esc(p.code_path||'')} · 最近修改 ${time(p.updated_at)}`:'代码将作为独立源文件保存在本地数据目录。'}</span><div class="actions">${p.id?'<button class="btn small danger" data-delete-snippet>删除代码模板</button>':''}</div></div>`;
     $('#code-input').value=p.code||'';
     state.editor={kind:'snippet',entity:{...p},initial:''};state.editor.initial=JSON.stringify(readSnippetForm());
     highlightCode();updateCursor();
@@ -1094,7 +1165,7 @@
     const caseControls=Array.from(main.querySelectorAll('.cph-runner input,.cph-runner textarea,.cph-runner button:not([data-stop-cph])'));
     const caseDisabled=caseControls.map(el=>el.disabled);caseControls.forEach(el=>{el.disabled=true;});
     state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
-    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;await loadState().catch(error=>toast('已保存；刷新列表失败：'+error.message,true));state.editor=null;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast('题目、代码与测试用例已保存，所有页面已同步。');return true;}
+    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;mergeSavedProblem(saved.problem);let refreshError=null;try{await loadState();$('#sync-notice').hidden=true;}catch(error){refreshError=error;showSyncError('题目已保存；列表刷新失败：'+error.message);}state.editor=null;++renderNumber;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast(refreshError?'题目已保存，可重试刷新列表，无需重复添加。':'题目、代码与测试用例已保存。');return true;}
     catch(e){showEditorError(e);return false;}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
   }
   async function saveSnippet(event){
@@ -1200,7 +1271,9 @@
         closeModal();
         const warningSummary=warnings.length?` ${warnings.slice(0,3).join(' ')}${warnings.length>3?' …':''}`:'';
         toast(`已导入 ${result.count} 道题目。${warningSummary}`,warnings.length>0);
+        showSyncError(`已导入 ${result.count} 道题目；正在刷新列表，请勿重复导入。`);
         await go('problems',{force:true});
+        if(!main.querySelector('[data-retry]'))$('#sync-notice').hidden=true;
       }catch(error){
         setModalBusy(false);
         showError(error.message);
@@ -1301,11 +1374,11 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   }
   async function openSettings(tab='profile'){
     if(state.busy)return;
-    const artRevision=sidebarArtRevision;
+    const artRevision=sidebarArtRevision,artRead=++sidebarArtReadGeneration;
     try{
       const [settingsResult,backupResult]=await Promise.all([api('/api/settings'),api('/api/backups')]);
       state.settings=settingsResult.settings;state.backups=backupResult.backups||[];
-      if(artRevision===sidebarArtRevision&&!sidebarArtSaving)state.sidebarArt=state.settings.sidebar_art||defaultSidebarArt();
+      acceptSidebarArt(state.settings.sidebar_art,artRevision,artRead);
       state.settings.sidebar_art=state.sidebarArt;renderSidebarArt();
       modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('art','侧栏插画')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('compiler','编译与运行')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
       modal.showModal();
@@ -1493,7 +1566,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   }
   function openContestForm(id='', platform=''){
     const c=state.contests.find(c=>c.id===id)||{platform:platform||'codeforces',title:'',url:''};
-    modal.innerHTML=`<form id="contest-form" class="contest-form" novalidate>${dialogHeader(id?'编辑比赛':'新建比赛')}<div class="modal-body contest-form-body"><p class="form-intro">保存比赛信息，之后可以逐题加入代码。</p><div class="contest-form-grid">${platformInputHTML('contest-form-platform',c.platform)}<label class="field"><span>比赛标题</span><input name="title" required maxlength="300" placeholder="例如 Codeforces Round 1000" value="${esc(c.title)}"></label><label class="field full"><span>比赛链接 <small>也可以先填写备注</small></span><input name="url" type="text" required maxlength="2048" placeholder="粘贴比赛页面链接，或填写“链接稍后补充”" value="${esc(c.url)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建比赛'}</button></div></form>`;
+    modal.innerHTML=`<form id="contest-form" class="contest-form" autocomplete="off" novalidate>${dialogHeader(id?'编辑比赛':'新建比赛')}<div class="modal-body contest-form-body"><p class="form-intro">保存比赛信息，之后可以逐题加入代码。</p><div class="contest-form-grid">${platformInputHTML('contest-form-platform',c.platform)}<label class="field"><span>比赛标题</span><input name="title" autocomplete="off" required maxlength="300" placeholder="例如 Codeforces Round 1000" value="${esc(c.title)}"></label><label class="field full"><span>比赛链接 <small>也可以先填写备注</small></span><input name="url" type="text" autocomplete="off" required maxlength="2048" placeholder="粘贴比赛页面链接，或填写“链接稍后补充”" value="${esc(c.url)}"></label><div id="dialog-error" class="error-text" role="alert"></div></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建比赛'}</button></div></form>`;
     bindPlatformPicker(modal);
     modal.showModal();$('#contest-form').addEventListener('submit',async event=>{event.preventDefault();if(state.busy)return;if(!validateRequiredFields(event.target))return;const f=new FormData(event.target);setModalBusy(true);try{const result=await api(id?`/api/contests/${encodeURIComponent(id)}`:'/api/contests',id?'PUT':'POST',{platform:f.get('platform'),title:f.get('title'),url:f.get('url'),...(id?{version:c.version}:{})});setModalBusy(false);closeModal();toast(id?'比赛信息已更新。':'比赛已创建，可以开始添加题目。');await go(`contest/${result.contest.id}`,{force:true});}catch(e){setModalBusy(false);const err=$('#dialog-error');if(err)err.textContent=e.message;else toast(e.message,true);}});
   }
@@ -1508,7 +1581,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   function openAlgorithmForm(id=''){
     const algorithm=state.algorithms.find(item=>item.id===id)||{name:'',category:'',description:'',links:[]};
     const rows=algorithm.links.length?algorithm.links.map(link=>algorithmLinkRow(link)).join(''):algorithmLinkRow();
-    modal.innerHTML=`<form id="algorithm-form" novalidate>${dialogHeader(id?'编辑算法':'新建算法')}<div class="modal-body"><p>算法下可以关联多道题目，并保存多份代码模板和多个参考资料。</p><label class="field"><span>算法名称</span><input name="name" required maxlength="200" placeholder="例如 树状数组" value="${esc(algorithm.name)}"></label><label class="field"><span>分类 <small>可选</small></span><input name="category" maxlength="100" placeholder="例如 数据结构" value="${esc(algorithm.category)}"></label><label class="field"><span>算法说明 <small>可选</small></span><textarea name="description" maxlength="10000" rows="4" placeholder="记录适用范围、复杂度或学习摘要">${esc(algorithm.description)}</textarea></label><div class="link-editor"><div class="link-editor-head"><strong>参考链接</strong><button type="button" class="text-link" data-add-algorithm-link>+ 添加链接</button></div><div id="algorithm-link-rows">${rows}</div></div><div id="dialog-error" class="error-text" role="alert"></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建算法'}</button></div></form>`;
+    modal.innerHTML=`<form id="algorithm-form" novalidate>${dialogHeader(id?'编辑算法':'新建算法')}<div class="modal-body"><p>算法下可以关联多道题目，并保存多份代码模板和多个参考资料。</p><label class="field"><span>算法名称</span><input name="name" autocomplete="off" required maxlength="200" placeholder="例如 树状数组" value="${esc(algorithm.name)}"></label><label class="field"><span>分类 <small>可选</small></span><input name="category" maxlength="100" placeholder="例如 数据结构" value="${esc(algorithm.category)}"></label><label class="field"><span>算法说明 <small>可选</small></span><textarea name="description" maxlength="10000" rows="4" placeholder="记录适用范围、复杂度或学习摘要">${esc(algorithm.description)}</textarea></label><div class="link-editor"><div class="link-editor-head"><strong>参考链接</strong><button type="button" class="text-link" data-add-algorithm-link>+ 添加链接</button></div><div id="algorithm-link-rows">${rows}</div></div><div id="dialog-error" class="error-text" role="alert"></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button type="submit" class="btn primary">${id?'保存修改':'创建算法'}</button></div></form>`;
     modal.showModal();
     $('#algorithm-form').addEventListener('submit',async event=>{
       event.preventDefault();if(state.busy)return;
@@ -1666,6 +1739,8 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(t.hasAttribute('data-select-code'))selectEditorCode();
     else if(t.hasAttribute('data-select-preview-code'))selectPreviewCode();
     else if(t.hasAttribute('data-copy-preview-code'))await copyPreviewCode();
+    else if(t.hasAttribute('data-retry-sync'))await retryStateSync();
+    else if(t.hasAttribute('data-retry-sidebar-art')){if(sidebarArtPreferenceError||!sidebarArtKnown)await loadSidebarArt();else{sidebarArtRequested='';renderSidebarArt();}}
     else if(t.hasAttribute('data-sidebar-art-step'))await stepSidebarArt(Number(t.dataset.sidebarArtStep));
     else if(t.hasAttribute('data-open-sidebar-art')){
       state.preview=null;
@@ -1775,5 +1850,6 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   window.addEventListener('beforeunload',e=>{if(state.busy||isDirty()){e.preventDefault();e.returnValue='';}});
   window.addEventListener('hashchange',()=>{const route=location.hash.slice(1)||'home';if(navigating||route===state.route)return;if(state.busy||!allowLeave()){navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);return;}state.editor=null;state.route=route;renderRoute(route);});
   modal.addEventListener('cancel',e=>e.preventDefault());
+  renderSidebarArt();loadSidebarArt();
   state.route=location.hash.slice(1)||'home';renderRoute(state.route);
 })();

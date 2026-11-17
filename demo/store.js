@@ -13,7 +13,8 @@
 
   function createStore(fixture, options = {}) {
     const data = copy(fixture);
-    data.sidebar_art = { image: "celebration", hidden: false };
+    data.sidebar_art = data.sidebar_art || { image: "celebration", hidden: false };
+    data.platform_problem_orders = data.platform_problem_orders || {};
     const nextColors = { algorithm: 0, contest: 0 };
     for (const [kind, collection] of [["algorithm", "algorithms"], ["contest", "contests"]]) {
       for (const item of [...data[collection]].sort((a,b)=>(Number(a.sort_order)||0)-(Number(b.sort_order)||0))) {
@@ -45,6 +46,23 @@
     const getProblem = p => ({ ...p, contest_title: data.contests.find(c => c.id === p.contest_id)?.title || null, algorithm_name: data.algorithms.find(a => a.id === p.algorithm_id)?.name || null });
     const getAlgorithm = a => ({ ...a, snippets: snippets.filter(s => s.algorithm_id === a.id), problem_count: data.problems.filter(p => p.algorithm_id === a.id).length });
     const getContest = c => ({ ...c, problem_count: data.problems.filter(p => p.contest_id === c.id).length });
+    const platformKey = value => {
+      const label=platform(value);
+      return ({Codeforces:'codeforces',AtCoder:'atcoder',AcWing:'acwing','洛谷':'luogu','牛客':'niuke','蓝桥杯':'lanqiao',HDU:'hdu','码蹄集':'matiji','力扣':'leetcode',POJ:'poj'})[label]||label.toLowerCase();
+    };
+    function syncPlatformOrders(){
+      const keys=new Set(['codeforces','atcoder','acwing','luogu','niuke','lanqiao','hdu','matiji','leetcode','poj',...Object.keys(data.platform_problem_orders),...data.problems.map(p=>platformKey(p.platform))]);
+      keys.forEach(key=>{
+        const old=data.platform_problem_orders[key];
+        const records=data.problems.filter(p=>platformKey(p.platform)===key);
+        if(!old)records.sort((a,b)=>(b.updated_at||'').localeCompare(a.updated_at||'')||a.id.localeCompare(b.id));
+        const members=records.map(p=>p.id);
+        const ids=old?old.problem_ids.filter(id=>members.includes(id)):[];
+        members.forEach(id=>{if(!ids.includes(id))ids.push(id);});
+        data.platform_problem_orders[key]={version:old?old.version+(JSON.stringify(ids)!==JSON.stringify(old.problem_ids)?1:0):1,problem_ids:ids};
+      });
+    }
+    syncPlatformOrders();
     const state = () => ({ ...data, problems: data.problems.map(getProblem), contests: data.contests.map(getContest), algorithms: data.algorithms.map(getAlgorithm) });
     const validate = (kind, payload, old = null) => {
       const p = copy(payload);
@@ -89,6 +107,7 @@
         sidebar_art: data.sidebar_art,
         compiler: { available: false, standard: "gnu++14", standards: ["gnu++11", "gnu++14", "gnu++17"], version: "在线演示不执行 C++，请使用本地版。", configured_path: "", path: "" },
       } };
+      if (method === "GET" && route === "/api/settings/sidebar-art") return {sidebar_art:data.sidebar_art};
       if (method === "GET" && route === "/api/backups") return { backups: [] };
       if (method === "PUT" && route === "/api/settings/sidebar-art") {
         if (!["debug", "thinking", "celebration"].includes(payload.image) || typeof payload.hidden !== "boolean") fail("请选择内置侧栏插画，并指定是否隐藏。");
@@ -99,6 +118,15 @@
         if (typeof payload.name !== "string" || !payload.name.trim() || payload.name.length > 50) fail("用户名必须为 1-50 字符。");
         data.profile = { name: payload.name.trim(), avatar: typeof payload.avatar === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(payload.avatar) ? payload.avatar : "" };
         return { profile: data.profile };
+      }
+      const platformOrder=route.match(/^\/api\/platforms\/([^/]+)\/problems\/order$/);
+      if(method==='PUT'&&platformOrder){
+        const key=platformKey(decodeURIComponent(platformOrder[1])),old=data.platform_problem_orders[key]||{version:1,problem_ids:[]},ids=payload.problem_ids;
+        if(!Array.isArray(ids)||ids.some(id=>typeof id!=='string')||new Set(ids).size!==ids.length)fail('题目顺序格式不正确。');
+        if(!Number.isInteger(payload.version)||payload.version!==old.version)fail('排序已改变，请刷新。',409);
+        if(ids.length!==old.problem_ids.length||ids.some(id=>!old.problem_ids.includes(id)))fail('题目列表已发生变化，请刷新。',409);
+        data.platform_problem_orders[key]={version:old.version+1,problem_ids:[...ids]};
+        return {platform:key,platform_order_version:old.version+1,problem_ids:ids};
       }
       const orderMatch = route.match(/^\/api\/(contests|algorithms|problems)\/order$/);
       if (method === "PUT" && orderMatch) {
@@ -195,7 +223,7 @@
       fail("在线演示不执行此操作，请下载本地版使用。", 501);
     }
     return { request(method, route, payload = {}) {
-      try { return { status: 200, body: copy(dispatch(method.toUpperCase(), route.split("?")[0], copy(payload))) }; }
+      try { const result=dispatch(method.toUpperCase(), route.split("?")[0], copy(payload));syncPlatformOrders();return { status: 200, body: copy(result) }; }
       catch (error) { return { status: error.status || 400, body: { error: error.message, code: "demo_error" } }; }
     } };
   }

@@ -326,3 +326,19 @@ dialog:has(.sidebar-art-preview) { width: min(760px, calc(100vw - 28px)); }
   .preview-toolbar { gap: 10px; }
   .preview-actions { margin-left: auto; }
 }
+
+/* The artwork consumes only remaining height; navigation may scroll independently. */
+@media (min-width: 721px) {
+  .sidebar { height: 100dvh; overflow: hidden; }
+  .workspace-sidebar { height: 100%; min-height: 0; box-sizing: border-box; }
+  .workspace-sidebar > .workspace-nav { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #b8c2d8 transparent; }
+  .workspace-sidebar > .sidebar-art-shell { flex: 1 9999 300px; height: auto; min-height: 44px; max-height: 300px; overflow: hidden; }
+  .workspace-sidebar > .settings-button { flex: 0 0 auto; margin-top: 4px; }
+  .workspace-sidebar > .sidebar-identity, .workspace-sidebar > .nav-label { flex-shrink: 0; }
+  .sidebar-art img { max-height: 100%; }
+}
+.sidebar-art-status { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; color: #68718a; pointer-events: none; }
+.sidebar-art-notice { flex-shrink: 0; font-size: 11px; padding: 4px; color: #9b4f3e; }
+.sidebar-art-notice[hidden], .sync-notice[hidden] { display: none; }
+.platform-help { display: block; margin-top: 6px; font-size: 11px; line-height: 1.6; color: #68718a; }
+.sync-notice { padding: 10px 22px; background: #fff2d7; color: #705214; font-size: 12px; }

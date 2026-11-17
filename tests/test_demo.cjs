@@ -144,7 +144,9 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
     assert.equal(sourceImage.readUInt32BE(16), 938);
     assert.equal(sourceImage.readUInt32BE(20), 1670);
-    assert.ok(html.includes('src="/AlgoArchive/sidebar-art-blended.webp?v=20261115-art229"'));
+    assert.ok(html.includes('/AlgoArchive/app.js?v=20261117-local2210'));
+    assert.ok(!/<img[^>]+src="[^" ]*sidebar-art-blended/.test(html), 'initial markup must not fetch art before preferences are known');
+    assert.ok(fs.readFileSync(path.join(out,'app.js'),'utf8').includes("?v=20261117-local2210"));
     for (const file of ["sidebar-art-blended.webp", "sidebar-art-debug.png", "sidebar-art-thinking.png", "sidebar-art-debug-blended.webp", "sidebar-art-thinking-blended.webp", "platform-icons/leetcode.png", "platform-icons/poj.png"]) {
       assert.ok(fs.existsSync(path.join(out, file)), file);
     }
@@ -185,4 +187,24 @@ test("legacy demo fixtures receive six colors without changing source data", () 
     assert.deepEqual(state[collection].slice(0,6).map(item=>item.card_color),["blue","cyan","green","amber","rose","violet"]);
   }
   assert.deepEqual(fixture,original);
+});
+
+
+test("platform orders mirror versioning, membership and independent art reads",()=>{
+  const fixture=createFixture();fixture.problems=[];fixture.contests=[];fixture.algorithms=[];
+  const store=createStore(fixture),request=(method,url,body)=>store.request(method,url,body);
+  assert.deepEqual(request('GET','/api/settings/sidebar-art').body.sidebar_art,{image:'celebration',hidden:false});
+  const ids=[];for(let i=0;i<3;i++)ids.push(request('POST','/api/problems',{name:'p'+i,platform:'Codeforces',url:'note',language:'cpp',code:''}).body.problem.id);
+  let order=request('GET','/api/state').body.platform_problem_orders.codeforces;
+  assert.deepEqual(order.problem_ids,ids);
+  const body={version:order.version,problem_ids:[...ids].reverse()};
+  assert.equal(request('PUT','/api/platforms/codeforces/problems/order',body).status,200);
+  assert.equal(request('PUT','/api/platforms/codeforces/problems/order',body).status,409);
+  order=request('GET','/api/state').body.platform_problem_orders.codeforces;
+  assert.equal(request('PUT','/api/platforms/codeforces/problems/order',{version:order.version,problem_ids:[ids[0],ids[0],ids[1]]}).status,400);
+  const p=request('GET','/api/problems/'+ids[0]).body.problem;
+  request('PUT','/api/problems/'+p.id,{version:p.version,platform:'AtCoder',name:'moved'});
+  const state=request('GET','/api/state').body;
+  assert.deepEqual(state.platform_problem_orders.codeforces.problem_ids,[ids[2],ids[1]]);
+  assert.deepEqual(state.platform_problem_orders.atcoder.problem_ids,[ids[0]]);
 });
