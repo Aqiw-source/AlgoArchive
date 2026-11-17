@@ -57,6 +57,7 @@ Source: "{#PackageRoot}\THIRD_PARTY.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\LICENSE-PENDING.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\ACM-ICPC-Windows.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\SHA256SUMS.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\build-info.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PackageRoot}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PackageRoot}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs

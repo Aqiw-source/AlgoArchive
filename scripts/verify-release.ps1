@@ -52,6 +52,7 @@ try {
         "README.md",
         "使用说明.txt",
         "SHA256SUMS.txt"
+        "build-info.json"
     )
     foreach ($name in $required) {
         if (-not ($entries -contains $name)) {
