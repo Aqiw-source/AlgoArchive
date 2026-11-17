@@ -118,7 +118,13 @@ class CardColorTests(unittest.TestCase):
         self.assertEqual(self.color_map(), original)
         self.repo.restore_backup(backup["name"], confirmed=True)
         self.assertEqual(self.color_map(), original)
-        self.assertEqual(self.without_colors(self.repo.state()), before)
+        restored = self.without_colors(self.repo.state())
+        # Restoring preserves business data and order, while invalidating
+        # platform-order versions held by browser windows before the restore.
+        for key, order in before["platform_problem_orders"].items():
+            self.assertGreater(restored["platform_problem_orders"][key]["version"], order["version"])
+            restored["platform_problem_orders"][key]["version"] = order["version"]
+        self.assertEqual(restored, before)
         self.assertEqual(self.create("algorithm", 9).get("card_color"), "cyan")
 
     def test_clients_cannot_replace_assigned_color(self):

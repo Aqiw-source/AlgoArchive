@@ -29,7 +29,7 @@ import time
 import zipfile
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit, urlunsplit, unquote
+from urllib.parse import urlsplit, urlunsplit, unquote, parse_qs
 from urllib.request import urlopen
 import uuid
 import webbrowser
@@ -825,6 +825,14 @@ def platform_identity(value):
     return PROBLEM_PLATFORM_ALIASES.get(platform, platform).casefold()
 
 
+def platform_workspace_key(value):
+    # Match the browser's platformKey, including its built-in Chinese aliases.
+    key = str(value or "").strip().lower()
+    identity = PROBLEM_PLATFORM_ALIASES.get(key, key).lower()
+    return {"洛谷": "luogu", "牛客": "niuke", "蓝桥杯": "lanqiao",
+            "码蹄集": "matiji", "力扣": "leetcode"}.get(identity, identity)
+
+
 def expand_schemeless_url(value):
     """Add HTTPS to a domain-only link without changing notes or file names."""
     if not SCHEMELESS_URL_PATTERN.fullmatch(value):
@@ -1184,6 +1192,71 @@ class Repository:
         self._flush_pending()
         self._migrate_profile_avatar()
         self._initialize_card_colors()
+        with self.db:
+            self._sync_platform_orders(initialize=True)
+
+    def _platform_orders(self):
+        orders = {key: {"version": 1, "problem_ids": []} for key in
+                  ("codeforces", "atcoder", "acwing", "luogu", "niuke",
+                   "lanqiao", "hdu", "matiji", "leetcode", "poj")}
+        for row in self.db.execute(
+            "SELECT key,value FROM settings WHERE key GLOB 'platform_problem_order:*'"
+        ):
+            orders[row[0].split(":", 1)[1]] = json.loads(row[1])
+        return orders
+
+    def _write_platform_order(self, key, order):
+        self.db.execute("INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)",
+                        ("platform_problem_order:" + key, json.dumps(order)))
+
+    def _sync_platform_orders(self, initialize=False):
+        """Reconcile membership inside the caller's transaction; retain manual order.
+
+        A schema-10 database without these settings starts in its previous
+        updated_at order. Later members append, and empty groups retain their
+        versions so delete/recreate cannot silently accept an old client order.
+        """
+        saved = {row[0].split(":", 1)[1]: json.loads(row[1]) for row in self.db.execute(
+            "SELECT key,value FROM settings WHERE key GLOB 'platform_problem_order:*'")}
+        members = {}
+        ordering = "updated_at DESC,id" if initialize else "global_order,id"
+        for row in self.db.execute("SELECT id,platform FROM problems ORDER BY " + ordering):
+            members.setdefault(platform_workspace_key(row["platform"]), []).append(row["id"])
+        for key in saved.keys() | members.keys():
+            current = members.get(key, [])
+            old = saved.get(key)
+            if old is None:
+                self._write_platform_order(key, {"version": 2, "problem_ids": current})
+                continue
+            current_set = set(current)
+            ids = [identifier for identifier in old["problem_ids"] if identifier in current_set]
+            kept = set(ids)
+            # Batch imports append in their insertion/global order.
+            added = current_set - kept
+            if added:
+                ids.extend(row[0] for row in self.db.execute(
+                    "SELECT id FROM problems ORDER BY global_order,id") if row[0] in added)
+            if ids != old["problem_ids"]:
+                self._write_platform_order(key, {"version": old["version"] + 1, "problem_ids": ids})
+
+    def reorder_platform_problems(self, platform, payload):
+        key = platform_workspace_key(text_value(platform, "所属平台", 100, True))
+        with self.lock:
+            self._ready()
+            current = self._platform_orders().get(key, {"version": 1, "problem_ids": []})
+            if type(payload.get("version")) is not int or payload["version"] != current["version"]:
+                raise AppError("平台题目列表已发生变化，请刷新后重试。", 409, "version_conflict")
+            ids = payload.get("problem_ids")
+            if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
+                raise AppError("题目顺序格式不正确")
+            if len(ids) != len(set(ids)):
+                raise AppError("题目顺序中不能包含重复题目")
+            if set(ids) != set(current["problem_ids"]):
+                raise AppError("题目列表已发生变化，请刷新后重试。", 409, "problem_set_changed")
+            version = current["version"] + 1
+            with self.db:
+                self._write_platform_order(key, {"version": version, "problem_ids": ids})
+            return {"platform": key, "platform_order_version": version, "problem_ids": ids}
 
     def _initialize_card_colors(self):
         with self.db:
@@ -1499,6 +1572,7 @@ class Repository:
                 )
             current_backup = self.create_backup()
             with self.lock:
+                previous_platform_orders = self._platform_orders()
                 with closing(sqlite3.connect(str(rollback_database))) as rollback:
                     self.db.backup(rollback)
                     rollback.commit()
@@ -1517,6 +1591,17 @@ class Repository:
                         source.backup(self.db)
                     self.db.commit()
                     self._flush_pending()
+                    # Restore the saved order, but invalidate all pre-restore
+                    # browser versions, including deleted/custom platforms.
+                    restored_platform_orders = self._platform_orders()
+                    with self.db:
+                        for key in previous_platform_orders.keys() | restored_platform_orders.keys():
+                            previous = previous_platform_orders.get(key, {"version": 1})
+                            restored = restored_platform_orders.get(key, {"version": 1, "problem_ids": []})
+                            self._write_platform_order(key, {
+                                "version": max(previous["version"], restored["version"]) + 1,
+                                "problem_ids": restored["problem_ids"],
+                            })
                 except Exception:
                     with closing(sqlite3.connect(str(rollback_database))) as rollback:
                         rollback.backup(self.db)
@@ -2336,6 +2421,7 @@ class Repository:
                 "algorithms": algorithms,
                 "profile": self.get_profile(),
                 "sidebar_art": self.get_sidebar_art(),
+                "platform_problem_orders": self._platform_orders(),
                 "problem_order_version": order_versions["problem_order_version"],
                 "contest_order_version": order_versions["contest_order_version"],
                 "algorithm_order_version": order_versions["algorithm_order_version"],
@@ -2445,6 +2531,7 @@ class Repository:
                 self._write_code_lock("problem", identifier, code_locked)
                 self._touch_contests([values["contest_id"]], timestamp)
                 self._touch_algorithm(values["algorithm_id"], timestamp)
+                self._sync_platform_orders()
             self._flush_pending()
             return self._problem(identifier)
 
@@ -2484,6 +2571,7 @@ class Repository:
                 self._touch_contests([old["contest_id"], values["contest_id"]], timestamp)
                 self._touch_algorithm(old["algorithm_id"], timestamp)
                 self._touch_algorithm(values["algorithm_id"], timestamp)
+                self._sync_platform_orders()
             self._flush_pending()
             return self._problem(identifier)
 
@@ -2886,6 +2974,7 @@ class Repository:
                     "WHERE key='problem_order_version'",
                     (str(next_version),),
                 )
+                self._sync_platform_orders()
             self._flush_pending()
             return {
                 "count": len(identifiers),
@@ -2907,6 +2996,7 @@ class Repository:
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", (old["code_path"],))
                 self._touch_contests([old["contest_id"]], now())
                 self._touch_algorithm(old["algorithm_id"], now())
+                self._sync_platform_orders()
             self._flush_pending()
             return {"ok": True}
 
@@ -2936,6 +3026,7 @@ class Repository:
                         self._touch_algorithm(algorithm_id, timestamp)
                 self.db.execute("DELETE FROM contests WHERE id=?", (identifier,))
                 self.db.execute("DELETE FROM settings WHERE key=?", (f"card_color:contest:{identifier}",))
+                self._sync_platform_orders()
             self._flush_pending()
             return {"ok": True, "kept_problems": payload["keep_problems"]}
 
@@ -3376,11 +3467,11 @@ class RequestHandler(BaseHTTPRequestHandler):
     server_version = f"AlgoArchive/{APP_VERSION}"
     sys_version = ""
 
-    def _headers(self, status, content_type, length):
+    def _headers(self, status, content_type, length, cache_control="no-store"):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(length))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache_control)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
@@ -3498,6 +3589,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 })
             if path == "/api/state":
                 return self._json(repo.state())
+            if path == "/api/settings/sidebar-art":
+                return self._json({"sidebar_art": repo.get_sidebar_art()})
             if path == "/api/settings":
                 return self._json({"settings": self.server.settings_payload()})
             if path == "/api/backups":
@@ -3545,7 +3638,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 ctype = "image/webp"
             if ctype.startswith("text/") or ctype in {"application/javascript", "application/json"}:
                 ctype += "; charset=utf-8"
-            self._headers(200, ctype, len(data))
+            versioned = bool(parse_qs(urlsplit(self.path).query).get("v"))
+            cache_control = "no-store"
+            if versioned and target.suffix.lower() in {
+                ".js", ".css", ".png", ".webp", ".jpg", ".jpeg", ".svg", ".ico", ".woff", ".woff2"
+            }:
+                cache_control = "public, max-age=31536000, immutable"
+            self._headers(200, ctype, len(data), cache_control)
             if self.command != "HEAD":
                 self.wfile.write(data)
             return
@@ -3693,6 +3792,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             )
         if self.command == "PUT" and path == "/api/problems/order":
             return self._json(repo.reorder_problems(body))
+        match = re.fullmatch(r"/api/platforms/([^/]+)/problems/order", path)
+        if self.command == "PUT" and match:
+            return self._json(repo.reorder_platform_problems(unquote(match[1]), body))
         if self.command == "PUT" and path == "/api/contests/order":
             return self._json(repo.reorder_contests(body))
         if self.command == "PUT" and path == "/api/algorithms/order":
@@ -3774,6 +3876,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             status = 0
         method = str(self.command or "").upper()
+        if (method == "PUT" and 200 <= status < 300
+                and urlsplit(self.path).path == "/api/settings/sidebar-art"):
+            return
         is_write = method in {"POST", "PUT", "PATCH", "DELETE"}
         if status < 400 and not is_write:
             return
