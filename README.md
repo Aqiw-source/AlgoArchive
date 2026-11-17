@@ -1,5 +1,8 @@
 # AlgoArchive · 算法档案
 
+> 本地维护版本：**2.2.10（2026-11-17）**。本次补丁仅在本机构建和升级，未发布到 GitHub。
+> 下文 Release 下载说明保留已发布版本号；本地变更和验证范围见 `CHANGELOG.md`、`TEST_REPORT.md`。
+
 **本地优先的竞赛题解、比赛与算法模板管理工具**
 
 作者：**Aqiw** · [GitHub 仓库](https://github.com/Aqiw-source/AlgoArchive) ·

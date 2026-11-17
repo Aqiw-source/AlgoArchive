@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.2.9",
+    [string]$Version = "2.2.10",
     [string]$OutputRoot
 )
 
@@ -121,6 +121,22 @@ New-Item -ItemType Directory -Path (Join-Path $staging "scripts") | Out-Null
 Copy-Item -LiteralPath $shortcutScript -Destination (Join-Path $staging "scripts")
 
 $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+$sourceRevision = (& git -C $projectRoot rev-parse HEAD 2>$null | Out-String).Trim()
+$sourceDirty = [bool]((& git -C $projectRoot status --porcelain 2>$null | Out-String).Trim())
+$indexText = [System.IO.File]::ReadAllText((Join-Path $staging "web\index.html"))
+$assetVersion = [regex]::Match($indexText, 'app\.js\?v=([^"\s]+)').Groups[1].Value
+$buildInfo = [ordered]@{
+    version = $Version
+    built_at_utc = [DateTime]::UtcNow.ToString("o")
+    source_revision = $sourceRevision
+    source_dirty = $sourceDirty
+    asset_version = $assetVersion
+}
+[System.IO.File]::WriteAllText(
+    (Join-Path $staging "build-info.json"),
+    ($buildInfo | ConvertTo-Json),
+    (New-Object System.Text.UTF8Encoding($false))
+)
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $lfExtensions = @(".py", ".js", ".cjs", ".mjs", ".css", ".html")
 Get-ChildItem -LiteralPath $staging -Recurse -File |

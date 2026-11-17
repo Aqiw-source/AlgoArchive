@@ -1,6 +1,6 @@
 #define MyAppName "算法档案"
 #define MyAppEnglishName "AlgoArchive"
-#define MyAppVersion "2.2.9"
+#define MyAppVersion "2.2.10"
 #define MyAppPublisher "Aqiw"
 #define MyAppExeName "AlgoArchive.exe"
 #define PackageRoot "..\dist\AlgoArchive-" + MyAppVersion + "-Windows-x64"
