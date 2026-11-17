@@ -36,8 +36,10 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     const nextField=await page.locator('input[name="url"]').evaluate(e=>e.closest('.field').getBoundingClientRect().toJSON());
     assert.ok(geometry.rect.bottom<=nextField.top+1,`${label}: expanded menu must push the next field down`);
     const hint=await page.locator('.platform-help').evaluate(e=>({rect:e.getBoundingClientRect().toJSON(),color:getComputedStyle(e).color,visibility:getComputedStyle(e).visibility}));
-    assert.equal(await page.locator('.platform-help').textContent(),'（可选择当前内置的平台，也可以自行输入其他的平台进行保存）');
-    assert.ok(hint.rect.top>=nextField.bottom-1,'platform hint has its own row below the form fields');assert.equal(hint.visibility,'visible');assert.equal(hint.color,'rgb(180, 35, 53)');
+    assert.equal(await page.locator('.platform-help').textContent(),'可选择当前内置的平台，也可自行输入其他平台。');
+    assert.ok(hint.rect.bottom<=(await input.boundingBox()).y+1,'short platform hint stays beside the label and above the input');assert.equal(hint.visibility,'visible');assert.equal(hint.color,'rgb(180, 35, 53)');
+    if(height>=600)assert.ok(Math.abs(geometry.rect.height-146)<=1,'normal viewport shows four platform rows');
+    if(label.startsWith('contest')&&width>720){const title=await page.locator('#contest-form input[name="title"]').boundingBox();assert.ok(Math.abs(title.y-(await input.boundingBox()).y)<=1,'contest inputs remain aligned with the short side hint');}
     const list=page.locator('.platform-options:not([hidden])'),box=await list.boundingBox();
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.wheel(0,900);await delay(100);
     const wheel=await list.evaluate(e=>({top:e.scrollTop,full:e.scrollHeight,height:e.clientHeight,modal:document.querySelector('#modal').scrollTop}));

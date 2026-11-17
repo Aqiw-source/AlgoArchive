@@ -20,7 +20,10 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
   await put('/api/settings/sidebar-art',{image:'thinking',hidden:false});await page.reload();await page.locator('#profile-avatar.has-image').waitFor();
   const before=await get();
   for(const [width,height] of [[1440,1000],[1100,600],[390,844]]){
-   await page.setViewportSize({width,height});await page.locator('[data-open-avatar]').click();await page.locator('.image-preview img').waitFor();
+   await page.setViewportSize({width,height});await page.waitForFunction(()=>document.querySelector('.sidebar-art img').naturalWidth>0);
+   const sidebar=await page.locator('.sidebar-art-shell').boundingBox(),arrow=await page.locator('.sidebar-art-arrow.next').boundingBox();
+   if(arrow.y-12>sidebar.y){await page.mouse.click(arrow.x+arrow.width/2,arrow.y-12);assert.equal(await page.locator('#modal').evaluate(e=>e.open),false,'blank space above sidebar arrow must not open an image');}
+   await page.locator('[data-open-avatar]').click();await page.locator('.image-preview img').waitFor();
    await page.waitForFunction(()=>document.querySelector('.image-preview img').naturalWidth>0);
    assert.equal(await page.locator('.image-preview img').getAttribute('src'),before.profile.avatar);
    assert.deepEqual(Buffer.from(await fetch(base+before.profile.avatar).then(r=>r.arrayBuffer())),avatar,'avatar uses original bytes');
@@ -38,6 +41,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
    await stage.dispatchEvent('pointerdown',{pointerId:2,pointerType:'touch',clientX:150,clientY:100});await stage.dispatchEvent('pointerup',{pointerId:2,pointerType:'touch',clientX:155,clientY:250});assert.match(await img.getAttribute('src'),/sidebar-art\.png/,'vertical gesture does not switch');
    const box=await stage.boundingBox();await page.mouse.move(box.x+box.width*.7,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width*.3,box.y+box.height/2,{steps:6});await page.mouse.up();assert.match(await img.getAttribute('src'),/sidebar-art-debug\.png/,'mouse swipe switches preview');
    await page.waitForFunction(()=>document.querySelector('.sidebar-art-preview img').naturalWidth>0);
+   assert.equal(await img.evaluate(e=>{const r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect();return r.top>=p.top-1&&r.bottom<=p.bottom+1&&r.left>=p.left-1&&r.right<=p.right+1;}),true,'full image box stays inside canvas without clipping');
    const fit=await page.locator('#modal').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight+1&&r.left>=0&&r.right<=innerWidth+1&&e.scrollWidth<=e.clientWidth;});assert.ok(fit,'viewer fits viewport');
    await page.screenshot({path:path.join(temp,`art-${width}.png`)});
    assert.equal(await page.locator('.sidebar-art img').getAttribute('data-art-image'),'thinking');assert.deepEqual((await get()).sidebar_art,before.sidebar_art);
@@ -45,7 +49,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
    await page.locator('[data-open-sidebar-art]').click();assert.match(await img.getAttribute('src'),/sidebar-art-thinking\.png/,'reopening starts from saved sidebar selection');await page.locator('[data-close-modal]').click();
   }
   assert.deepEqual(writes,[],'preview must not write settings or profile');assert.deepEqual(errors,[]);
-  await page.locator('.identity-copy[data-nav="home"]').click();await page.waitForURL(/#home$/);
+  await page.locator('.identity-copy').click();assert.match(page.url(),/#algorithms$/,'identity text does not navigate');await page.locator('.workspace-nav [data-nav="home"]').click();await page.waitForURL(/#home$/);
   console.log(JSON.stringify({passed:true,viewports:['1440x1000','1100x600','390x844'],writes:0,artifacts:temp},null,2));
  }finally{await browser?.close();child.kill();fs.writeFileSync(path.join(temp,'server.log'),logs);}
 })().catch(error=>{console.error(error);process.exitCode=1;});
