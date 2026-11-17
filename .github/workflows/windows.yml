@@ -49,6 +49,12 @@ jobs:
         run: node tests/test_platform_art.cjs
       - name: Online demo tests
         run: node --test tests/test_demo.cjs
+      - name: Local upgrade and background sync regression
+        env:
+          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
+        run: |
+          node tests/test_local_upgrade.cjs
+          node tests/test_background_sync.cjs
       - name: Verify native launcher dependencies
         run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Build portable package
