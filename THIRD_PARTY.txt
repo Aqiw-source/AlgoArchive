@@ -31,3 +31,9 @@ judging workflow. The compiler and execution code in cph_runner.py is an
 independent Python implementation; no CPH TypeScript source is bundled.
 The CPH name, original author, repository, reference commit, and license are
 shown in the test panel and the About/Diagnostics settings page.
+
+AlgoArchive original code and documentation: MIT License (see LICENSE).
+Platform names/logos, supplied illustrations and third-party software retain
+their original rights and licenses; they are not relicensed by AlgoArchive.
+No platform or CPH affiliation, endorsement, or official support is claimed.
+See DISCLAIMER.md and web/ASSETS.md for scope and provenance.

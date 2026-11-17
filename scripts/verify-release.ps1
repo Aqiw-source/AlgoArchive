@@ -17,7 +17,6 @@ try {
         "app.py",
         "cph_runner.py",
         "run.py",
-        "LOCAL_FIXES.md",
         "AlgoArchive.exe",
         "start.bat",
         "自检.bat",
@@ -53,6 +52,8 @@ try {
         "使用说明.txt",
         "SHA256SUMS.txt"
         "build-info.json"
+        "LICENSE"
+        "DISCLAIMER.md"
     )
     foreach ($name in $required) {
         if (-not ($entries -contains $name)) {

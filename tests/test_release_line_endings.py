@@ -12,7 +12,7 @@ import zipfile
 PROJECT = Path(__file__).resolve().parents[1]
 POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 REQUIRED = (
-    "app.py", "cph_runner.py", "run.py", "LOCAL_FIXES.md", "AlgoArchive.exe",
+    "app.py", "cph_runner.py", "run.py", "AlgoArchive.exe",
     "start.bat", "自检.bat", "self_check.py", "web/index.html", "web/app.js",
     "web/style.css", "web/codex-theme.css", "web/mobile.css",
     "web/workspace-updates.css", "web/sidebar-art.png", "web/sidebar-art-blended.webp",
@@ -25,7 +25,7 @@ REQUIRED = (
     "web/platform-icons/hdu.png", "web/platform-icons/matiji.png",
     "web/platform-icons/leetcode.png", "web/platform-icons/poj.png",
     "web/platform-icons/SOURCES.md", "runtime/python313._pth", "runtime/python.exe",
-    "README.md", "使用说明.txt", "SHA256SUMS.txt",
+    "README.md", "使用说明.txt", "SHA256SUMS.txt", "build-info.json", "LICENSE", "DISCLAIMER.md",
 )
 
 

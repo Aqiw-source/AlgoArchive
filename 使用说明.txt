@@ -174,5 +174,6 @@ node --check web/app.js
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。
 
-项目许可证尚未由维护者确定，详见 LICENSE-PENDING.md。第三方组件许可证详见
-THIRD_PARTY.txt 和 runtime\LICENSE.txt。
+项目自有代码和自有文档采用 MIT 许可证开源，详见 LICENSE。算法平台、CPH、图标和插画的
+权利边界及本地评测说明见 DISCLAIMER.md；第三方组件保留原许可，详见 THIRD_PARTY.txt
+和 runtime\LICENSE.txt。本项目独立维护，不表示平台或 CPH 官方授权、合作或背书。

@@ -52,9 +52,9 @@ Source: "{#PackageRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\TEST_REPORT.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#PackageRoot}\LOCAL_FIXES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\THIRD_PARTY.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#PackageRoot}\LICENSE-PENDING.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\DISCLAIMER.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\ACM-ICPC-Windows.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\SHA256SUMS.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\build-info.json"; DestDir: "{app}"; Flags: ignoreversion

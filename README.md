@@ -366,7 +366,8 @@ AlgoArchive/
 ├─ .github/workflows/windows.yml
 ├─ CHANGELOG.md
 ├─ TEST_REPORT.md
-├─ LICENSE-PENDING.md
+├─ LICENSE
+├─ DISCLAIMER.md
 └─ THIRD_PARTY.txt
 ```
 
@@ -448,6 +449,9 @@ Windows CI 会执行后端测试、前端语法检查、启动器 PE 依赖检�
 
 ## 许可证
 
-项目维护者尚未选择发行许可证。详见
-[LICENSE-PENDING.md](LICENSE-PENDING.md)。第三方运行环境和语言文件保留各自
-许可，记录于 [THIRD_PARTY.txt](THIRD_PARTY.txt)。
+项目自有源代码和自有文档完全开源，采用 [MIT 许可证](LICENSE)，版权归 Aqiw 所有。
+平台商标、图标、插画、题目和第三方软件保留各自权利与许可；它们不被重新授予 MIT。
+
+本项目为独立本地工具，不隶属于任何算法平台或 CPH 官方，不表示合作或背书。
+CPH 兼容运行器由本项目独立实现，本地测试通过不等于在线评测 Accepted。
+详见 [免责声明](DISCLAIMER.md)、[第三方声明](THIRD_PARTY.txt) 和 [资源说明](web/ASSETS.md)。
