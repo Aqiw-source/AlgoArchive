@@ -342,3 +342,13 @@ dialog:has(.sidebar-art-preview) { width: min(760px, calc(100vw - 28px)); }
 .sidebar-art-notice[hidden], .sync-notice[hidden] { display: none; }
 .platform-help { display: block; margin-top: 6px; font-size: 11px; line-height: 1.6; color: #68718a; }
 .sync-notice { padding: 10px 22px; background: #fff2d7; color: #705214; font-size: 12px; }
+
+/* A modal makes background controls inert, but scrolling needs its own lock. */
+html { scrollbar-gutter: stable; }
+html:has(#modal[open]), body:has(#modal[open]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body:has(#modal[open]) .workspace-sidebar,
+body:has(#modal[open]) .workspace-nav { overflow: hidden; }
+#modal { overscroll-behavior: contain; }

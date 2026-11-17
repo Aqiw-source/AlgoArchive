@@ -114,7 +114,7 @@
   function currentSidebarArt(){
     return sidebarArtImages.find(image=>image.id===state.sidebarArt.image)||sidebarArtImages[2];
   }
-  const artURL = file => new URL(file+'?v=20261117-local2210',appAssetBase).href;
+  const artURL = file => new URL(file+'?v=20261117-local2210-r2',appAssetBase).href;
   function acceptSidebarArt(preference,revision,read){
     if(revision!==sidebarArtRevision||sidebarArtSaving||read<sidebarArtAppliedRead||!preference)return false;
     sidebarArtAppliedRead=read;state.sidebarArt=preference;sidebarArtKnown=true;sidebarArtPreferenceError='';cacheSidebarArt();renderSidebarArt();return true;
