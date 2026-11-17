@@ -144,7 +144,12 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
     assert.equal(sourceImage.readUInt32BE(16), 938);
     assert.equal(sourceImage.readUInt32BE(20), 1670);
-    assert.ok(html.includes('/AlgoArchive/app.js?v=20261117-local2210-r7'));
+    const sourceHtml = fs.readFileSync(path.join(__dirname, "../web/index.html"), "utf8");
+    for (const asset of ["app.js", "workspace-updates.css"]) {
+      const sourceUrl = sourceHtml.match(new RegExp(`(?:src|href)="(/${asset.replaceAll('.', '\\.')}\\?v=[^"]+)"`))?.[1];
+      assert.ok(sourceUrl, `${asset} has an explicit cache version`);
+      assert.ok(html.includes(`/AlgoArchive${sourceUrl}`), `${asset} keeps its source version under the demo subpath`);
+    }
     assert.ok(!/<img[^>]+src="[^" ]*sidebar-art-blended/.test(html), 'initial markup must not fetch art before preferences are known');
     assert.ok(fs.readFileSync(path.join(out,'app.js'),'utf8').includes("?v=20261117-local2210-r7"));
     for (const file of ["sidebar-art-blended.webp", "sidebar-art-debug.png", "sidebar-art-thinking.png", "sidebar-art-debug-blended.webp", "sidebar-art-thinking-blended.webp", "platform-icons/leetcode.png", "platform-icons/poj.png"]) {
