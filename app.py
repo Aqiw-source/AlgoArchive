@@ -1241,7 +1241,9 @@ class Repository:
                 self._write_platform_order(key, {"version": old["version"] + 1, "problem_ids": ids})
 
     def reorder_platform_problems(self, platform, payload):
-        key = platform_workspace_key(text_value(platform, "所属平台", 100, True))
+        # Unicode lowercase can expand each character (for example U+0130).
+        # Platform names remain limited to 100; this endpoint accepts their keys.
+        key = platform_workspace_key(text_value(platform, "平台标识", 200, True))
         with self.lock:
             self._ready()
             current = self._platform_orders().get(key, {"version": 1, "problem_ids": []})

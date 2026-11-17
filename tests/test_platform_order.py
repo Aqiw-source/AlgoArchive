@@ -122,6 +122,24 @@ class PlatformOrderTests(unittest.TestCase):
         custom = self.problem("unicode", "Straße OJ")
         self.assertEqual(self.order("straße oj")["problem_ids"], [custom["id"]])
 
+    def test_expanded_unicode_keys_accept_maximum_length_platform_names(self):
+        for length in (51, 100):
+            with self.subTest(length=length):
+                name = "İ" * length
+                key = name.lower()
+                a = self.problem("expanded-a-" + str(length), name)
+                b = self.problem("expanded-b-" + str(length), name)
+                self.assertEqual(len(key), length * 2)
+                saved = self.order(key)
+                result = self.repo.reorder_platform_problems(key, dict(
+                    version=saved["version"], problem_ids=[b["id"], a["id"]]))
+                self.assertEqual(result["platform"], key)
+                self.assertEqual(self.order(key)["problem_ids"], [b["id"], a["id"]])
+        with self.assertRaises(app.AppError):
+            self.problem("name-too-long", "İ" * 101)
+        with self.assertRaises(app.AppError):
+            self.repo.reorder_platform_problems("i" * 201, dict(version=1, problem_ids=[]))
+
     def test_empty_platform_rejects_boolean_version(self):
         with self.assertRaises(app.AppError):
             self.repo.reorder_platform_problems("poj", dict(version=True, problem_ids=[]))

@@ -344,8 +344,13 @@
   function mergeSavedProblem(problem){
     const index=state.problems.findIndex(p=>p.id===problem.id);
     if(index<0)state.problems.push(problem);else state.problems[index]=problem;
-    state.contests.forEach(c=>c.problem_count=state.problems.filter(p=>p.contest_id===c.id).length);
-    state.algorithms.forEach(a=>a.problem_count=state.problems.filter(p=>p.algorithm_id===a.id).length);
+    const contestCounts=new Map(),algorithmCounts=new Map();
+    for(const item of state.problems){
+      if(item.contest_id)contestCounts.set(item.contest_id,(contestCounts.get(item.contest_id)||0)+1);
+      if(item.algorithm_id)algorithmCounts.set(item.algorithm_id,(algorithmCounts.get(item.algorithm_id)||0)+1);
+    }
+    state.contests.forEach(c=>c.problem_count=contestCounts.get(c.id)||0);
+    state.algorithms.forEach(a=>a.problem_count=algorithmCounts.get(a.id)||0);
     renderCounts();
   }
   function showSyncError(message){$('#sync-notice').hidden=false;$('#sync-error').textContent=message;}
@@ -356,10 +361,32 @@
   const syncChannel=typeof BroadcastChannel==='function'?new BroadcastChannel('algoarchive.data.v1'):null;
   function notifyOtherWindows(){syncChannel?.postMessage('changed');}
   let externalRefreshTimer;
+  async function refreshCurrentView(){
+    const route=state.route,seq=renderNumber;
+    if(!await loadState()||route!==state.route||seq!==renderNumber||state.editor)return;
+    // Snapshot after the read: typing and scrolling can continue while it is pending.
+    const filter={...state.filter},values=new Map();
+    for(const element of main.querySelectorAll('[id^="filter-"],#contest-search,#contest-platform,#algorithm-search,#algorithm-category'))values.set(element.id,element.value);
+    const active=document.activeElement;
+    const focus=main.contains(active)&&active.id?{id:active.id,start:active.selectionStart,end:active.selectionEnd,direction:active.selectionDirection}:null;
+    const x=window.scrollX,y=window.scrollY;
+    if(!await renderRoute(route,false)||route!==state.route||renderNumber!==seq+1)return;
+    state.filter=filter;
+    for(const [id,value] of values){const element=document.getElementById(id);if(element){
+      // Keep a selected filter even when its last matching record was removed.
+      if(element.tagName==='SELECT'&&value&&!Array.from(element.options).some(o=>o.value===value))element.add(new Option(value,value));
+      element.value=value;
+    }}
+    if($('#problem-table'))updateTable();
+    if($('#contest-list'))updateContests();
+    if($('#algorithm-list'))updateAlgorithms();
+    if(focus){const element=document.getElementById(focus.id);if(element){element.focus({preventScroll:true});if(focus.start!=null&&typeof element.setSelectionRange==='function')element.setSelectionRange(focus.start,focus.end,focus.direction);}}
+    window.scrollTo(x,y);
+  }
   if(syncChannel)syncChannel.onmessage=()=>{
     clearTimeout(externalRefreshTimer);externalRefreshTimer=setTimeout(async()=>{
       if(state.busy){syncChannel.onmessage();return;}
-      try{if(state.editor){await loadState();}else await renderRoute(state.route);}
+      try{await refreshCurrentView();}
       catch(error){showSyncError('其他窗口已修改数据，刷新失败：'+error.message);}
     },100);
   };
@@ -1354,7 +1381,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   function settingsAboutHTML(){
     const settings=state.settings||{};
     const cph=settings.cph||{};
-    return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>应用作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div></div><div class="settings-section"><div class="settings-section-head"><div><h3>CPH 第三方声明</h3><p>测试用例格式与本地评测行为兼容 CPH；运行器由算法档案独立实现。</p></div></div><dl class="settings-diagnostics"><dt>原作者</dt><dd>${esc(cph.author||'Divyanshu Agrawal')}</dd><dt>上游仓库</dt><dd><a href="${esc(cph.repository||'https://github.com/agrawal-d/cph')}" target="_blank" rel="noopener noreferrer">${esc(cph.repository||'https://github.com/agrawal-d/cph')}</a></dd><dt>许可证</dt><dd>${esc(cph.license||'GPL-3.0-or-later')}</dd><dt>参考提交</dt><dd><code>${esc(cph.reference_commit||'')}</code></dd></dl><div class="settings-note">程序目录中的 THIRD_PARTY.txt 与 licenses/CPH-GPL-3.0.txt 保留完整来源和许可证说明。</div></div><div class="settings-section"><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
+    return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>应用作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div></div><div class="settings-section"><div class="settings-section-head"><div><h3>开源许可与第三方声明</h3><p>自有源码采用 MIT 许可证；完整条款见程序目录 LICENSE，详细声明见 DISCLAIMER.md。第三方内容仍适用各自许可。</p><p>本项目是独立的本地整理工具；平台名称、图标与链接仅标识来源，不表示平台官方出品、合作或背书。相关商标和内容归各自权利人所有。</p><h3>CPH 兼容功能</h3><p>运行器由算法档案独立实现，不属于 CPH 官方产品，也不代表上游维护、支持或背书。本地测试通过不等同于在线评测 Accepted。</p></div></div><dl class="settings-diagnostics"><dt>原作者</dt><dd>${esc(cph.author||'Divyanshu Agrawal')}</dd><dt>上游仓库</dt><dd><a href="${esc(cph.repository||'https://github.com/agrawal-d/cph')}" target="_blank" rel="noopener noreferrer">${esc(cph.repository||'https://github.com/agrawal-d/cph')}</a></dd><dt>许可证</dt><dd>${esc(cph.license||'GPL-3.0-or-later')}</dd><dt>参考提交</dt><dd><code>${esc(cph.reference_commit||'')}</code></dd></dl><div class="settings-note">程序目录中的 THIRD_PARTY.txt 与 licenses/CPH-GPL-3.0.txt 保留完整来源和许可证说明。</div></div><div class="settings-section"><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
   }
   function shortcutSettingsHTML(){
     return `<div class="settings-section"><div class="settings-section-head"><div><h3>快捷方式</h3><p>普通启动不会创建或恢复快捷方式。需要时可在这里明确创建桌面和开始菜单入口。</p></div><button type="button" class="btn" id="create-desktop-shortcut">创建快捷方式</button></div><div id="shortcut-settings-status" class="settings-hint" aria-live="polite">创建后可从桌面或开始菜单直接启动当前程序；固定到开始屏幕需在系统中手动完成。</div></div>`;
