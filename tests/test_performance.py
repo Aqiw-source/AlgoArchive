@@ -1,7 +1,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import app
 from app import Repository
 
 
@@ -42,6 +44,18 @@ class RepositoryPerformanceTests(unittest.TestCase):
         self.assertEqual(1, len(small_state["algorithms"]))
         self.assertEqual(13, len(large_state["algorithms"]))
         self.assertEqual(small_query_count, large_query_count)
+
+    def test_platform_statistics_normalize_each_problem_once(self):
+        values = ['codeforces', 'Codeforces', 'AtCoder', 'acwing', 'luogu', '洛谷', 'nowcoder', 'CustomJudge']
+        for index, platform in enumerate(values):
+            self.repo.create_problem({'platform': platform, 'name': str(index),
+                                     'url': 'https://example.com/' + str(index),
+                                     'language': 'cpp', 'code': ''})
+        with mock.patch('app.platform_identity', wraps=app.platform_identity) as normalize:
+            stats = self.repo.state()['stats']
+        self.assertEqual([stats[key + '_count'] for key in ('codeforces', 'atcoder', 'acwing', 'luogu', 'niuke')], [2, 1, 1, 2, 1])
+        self.assertEqual(stats['problem_count'], 8)
+        self.assertLessEqual(normalize.call_count, len(values) + 5)
 
 
 if __name__ == "__main__":

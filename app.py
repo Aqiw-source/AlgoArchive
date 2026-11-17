@@ -6,6 +6,7 @@ import argparse
 import base64
 import binascii
 import codecs
+from collections import Counter
 from contextlib import closing
 import getpass
 import hashlib
@@ -2408,6 +2409,7 @@ class Repository:
                 row["snippets"] = snippets_by_algorithm.get(identifier, [])
                 row["problem_count"] = problem_counts.get(identifier, 0)
             snippet_count = sum(len(item["snippets"]) for item in algorithms)
+            platform_counts = Counter(platform_identity(p["platform"]) for p in problems)
             order_versions = {
                 row["key"]: int(row["value"])
                 for row in self.db.execute(
@@ -2430,8 +2432,7 @@ class Repository:
                     "problem_count": len(problems),
                     "algorithm_count": len(algorithms),
                     "snippet_count": snippet_count,
-                    **{key + "_count": sum(platform_identity(p["platform"]) == platform_identity(key)
-                                            for p in problems)
+                    **{key + "_count": platform_counts[platform_identity(key)]
                        for key in ("codeforces", "atcoder", "acwing", "luogu", "niuke")},
                 },
             }
