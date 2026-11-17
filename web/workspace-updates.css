@@ -359,6 +359,8 @@ dialog:has(.sidebar-art-preview) { width: min(760px, calc(100vw - 28px)); }
 .cards-toolbar select,
 .algorithm-toolbar select,
 .filters select { min-width: 0; max-width: 100%; }
+.search-field > span, .algorithm-toolbar .search-field > span { top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 16px; height: 16px; pointer-events: none; }
+.search-field > span svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .sync-notice { padding: 10px 22px; background: #fff2d7; color: #705214; font-size: 12px; }
 
 /* A modal makes background controls inert, but scrolling needs its own lock. */

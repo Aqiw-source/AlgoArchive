@@ -114,7 +114,7 @@
   function currentSidebarArt(){
     return sidebarArtImages.find(image=>image.id===state.sidebarArt.image)||sidebarArtImages[2];
   }
-  const artURL = file => new URL(file+'?v=20261117-local2210-r3',appAssetBase).href;
+  const artURL = file => new URL(file+'?v=20261117-local2210-r4',appAssetBase).href;
   function acceptSidebarArt(preference,revision,read){
     if(revision!==sidebarArtRevision||sidebarArtSaving||read<sidebarArtAppliedRead||!preference)return false;
     sidebarArtAppliedRead=read;state.sidebarArt=preference;sidebarArtKnown=true;sidebarArtPreferenceError='';cacheSidebarArt();renderSidebarArt();return true;
@@ -170,7 +170,7 @@
     await saveSidebarArt({...state.sidebarArt,image:sidebarArtImages[(index+step+sidebarArtImages.length)%sidebarArtImages.length].id});
   }
   function platformInputHTML(id,value){
-    return `<div class="field platform-field"><div class="platform-field-heading"><label for="${id}">所属平台</label><small id="${id}-help" class="platform-help">可选择平台，也可直接输入名称</small></div><div class="platform-picker"><div class="platform-input-line"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" aria-describedby="${id}-help" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div></div>`;
+    return `<div class="field platform-field"><div class="platform-field-heading"><label for="${id}">所属平台</label><small id="${id}-help" class="platform-help">（可选择当前内置的平台，也可以自行输入其他的平台进行保存）</small></div><div class="platform-picker"><div class="platform-input-line"><input name="platform" id="${id}" required maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options" aria-describedby="${id}-help" placeholder="选择或填写平台" value="${esc(platformLabel(value))}"><button type="button" data-toggle-platforms title="选择平台" aria-label="选择平台" aria-controls="${id}-options" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div><div class="platform-options" id="${id}-options" role="listbox" aria-label="内置平台" hidden></div></div></div>`;
   }
   let openPlatformPicker=null;
   document.addEventListener('click',event=>{
@@ -485,7 +485,7 @@
   }
   function filtersHTML() {
     const f=state.filter, ctx=state.context;
-    return `<div class="filters"><label class="search-field"><span aria-hidden="true">⌕</span><input id="filter-query" aria-label="搜索题目" placeholder="搜索题目、编号或比赛…" value="${esc(f.q)}"></label>${ctx.platform?'':`<select id="filter-platform" aria-label="平台筛选">${option('','全部平台',f.platform)}${problemPlatformOptions().map(([k,v])=>option(k,v,f.platform)).join('')}</select>`}${ctx.contest?'':`<select id="filter-contest" aria-label="比赛筛选">${option('','全部比赛',f.contest)}${option('none','未关联比赛',f.contest)}${state.contests.filter(c=>!(ctx.platform||f.platform)||platformKey(c.platform)===platformKey(ctx.platform||f.platform)).map(c=>option(c.id,c.title,f.contest)).join('')}</select>`}<select id="filter-language" aria-label="代码语言筛选">${option('','全部语言',f.language)}${Object.entries(languages).map(([k,v])=>option(k,v,f.language)).join('')}</select></div>`;
+    return `<div class="filters"><label class="search-field"><span aria-hidden="true">${icon('search')}</span><input id="filter-query" aria-label="搜索题目" placeholder="搜索题目、编号或比赛…" value="${esc(f.q)}"></label>${ctx.platform?'':`<select id="filter-platform" aria-label="平台筛选">${option('','全部平台',f.platform)}${problemPlatformOptions().map(([k,v])=>option(k,v,f.platform)).join('')}</select>`}${ctx.contest?'':`<select id="filter-contest" aria-label="比赛筛选">${option('','全部比赛',f.contest)}${option('none','未关联比赛',f.contest)}${state.contests.filter(c=>!(ctx.platform||f.platform)||platformKey(c.platform)===platformKey(ctx.platform||f.platform)).map(c=>option(c.id,c.title,f.contest)).join('')}</select>`}<select id="filter-language" aria-label="代码语言筛选">${option('','全部语言',f.language)}${Object.entries(languages).map(([k,v])=>option(k,v,f.language)).join('')}</select></div>`;
   }
   function filteredProblems() {
     const f=state.filter, ctx=state.context, q=f.q.trim().toLocaleLowerCase();
@@ -659,7 +659,7 @@
     state.context={};
     const categories=[...new Set(state.algorithms.map(a=>a.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
     main.innerHTML=pageHeader('算法模板','在一个算法下管理题目、多份代码和多条参考链接。',addAlgorithmButton(),'ALGORITHMS / 算法积累')+
-      `<div class="cards-toolbar algorithm-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="algorithm-search" aria-label="搜索算法" placeholder="搜索算法、分类或代码模板…"></label><select id="algorithm-category" aria-label="算法分类筛选">${option('','全部分类','')}${categories.map(value=>option(value,value,'')).join('')}</select><span id="algorithm-count" class="count-label"></span></div><div id="algorithm-list"></div>`;
+      `<div class="cards-toolbar algorithm-toolbar"><label class="search-field"><span aria-hidden="true">${icon('search')}</span><input id="algorithm-search" aria-label="搜索算法" placeholder="搜索算法、分类或代码模板…"></label><select id="algorithm-category" aria-label="算法分类筛选">${option('','全部分类','')}${categories.map(value=>option(value,value,'')).join('')}</select><span id="algorithm-count" class="count-label"></span></div><div id="algorithm-list"></div>`;
     updateAlgorithms();
   }
   function updateAlgorithms() {
@@ -1460,8 +1460,6 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
         state.profile=result.profile;renderProfile(state.profile);setModalBusy(false);closeModal();toast('头像和用户名已保存。');
       }catch(e){setModalBusy(false);error.textContent=e.message;}
     });
-    nameInput.focus();
-    nameInput.select();
   }
   function readBrowserSettingsForm(){
     const form=$('#browser-settings-form');

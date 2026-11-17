@@ -21,7 +21,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
    const page=await browser.newPage({viewport:{width,height}}),errors=[];page.setDefaultTimeout(8000);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('dialog',d=>d.accept());
    let navigation=0;
    const go=async route=>{await page.goto(base+'/?qa='+(++navigation)+'#'+route);await page.locator('#main h1').waitFor();};
-   const checkPage=async label=>{const geometry=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert.ok(geometry.scroll<=geometry.width+1,`${label}: page horizontal overflow ${JSON.stringify(geometry)}`);};
+   const checkPage=async label=>{const geometry=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert.ok(geometry.scroll<=geometry.width+1,`${label}: page horizontal overflow ${JSON.stringify(geometry)}`);for(const field of await page.locator('.search-field').all()){const offset=await field.evaluate(e=>{const i=e.querySelector('input').getBoundingClientRect(),s=e.querySelector('span').getBoundingClientRect();return Math.abs((i.top+i.bottom-s.top-s.bottom)/2);});assert.ok(offset<=0.75,`${label}: search icon is not centered (${offset}px)`);}};
    const checkMenu=async(label,selector)=>{
     const input=page.locator(selector);await input.click();await page.locator('.platform-options:not([hidden])').waitFor();
     const geometry=await page.locator('.platform-options:not([hidden])').evaluate(list=>{
@@ -36,6 +36,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     const nextField=await page.locator('input[name="url"]').evaluate(e=>e.closest('.field').getBoundingClientRect().toJSON());
     assert.ok(geometry.rect.bottom<=nextField.top+1,`${label}: expanded menu must push the next field down`);
     const hint=await page.locator('.platform-help').evaluate(e=>({rect:e.getBoundingClientRect().toJSON(),color:getComputedStyle(e).color,visibility:getComputedStyle(e).visibility}));
+    assert.equal(await page.locator('.platform-help').textContent(),'（可选择当前内置的平台，也可以自行输入其他的平台进行保存）');
     assert.ok(hint.rect.bottom<=(await input.boundingBox()).y+1,'platform hint stays above the menu');assert.equal(hint.visibility,'visible');assert.equal(hint.color,'rgb(180, 35, 53)');
     const list=page.locator('.platform-options:not([hidden])'),box=await list.boundingBox();
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.wheel(0,900);await delay(100);
@@ -55,6 +56,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     await go('new-problem');await checkMenu('problem-create','#editor-platform');
     for(const route of ['home','platform/codeforces','platform/atcoder','platform/acwing','platform/luogu','platform/niuke','problems','contests','contest/'+contest.id,'algorithms','algorithm/'+algorithm.id,'problem/'+problem.id,'new-problem','compiler','new-snippet?algorithm='+algorithm.id,'contest/'+longContest.id,'algorithm/'+longAlgorithm.id]){await go(route);await checkPage(route);await page.screenshot({path:path.join(temp,`view-${route.replace(/[^a-z0-9-]/gi,'_')}-${width}.png`)});}
     await go('home');await page.locator('#open-profile-settings').click();
+    await page.locator('#profile-name-input').waitFor();assert.equal(await page.locator('#profile-name-input').evaluate(e=>document.activeElement!==e&&e.selectionStart===e.selectionEnd),true,'settings must not select the username on open');
     for(const tab of ['profile','art','browser','compiler','data','about']){await page.locator(`[data-settings-tab="${tab}"]`).click();await page.locator(`[data-settings-tab="${tab}"].active`).waitFor();await page.locator('#settings-content > :first-child').waitFor();await checkPage('settings/'+tab);const fit=await page.locator('#settings-content').evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert.ok(fit.scroll<=fit.client+1,`settings/${tab}: content overflow ${JSON.stringify(fit)}`);await page.screenshot({path:path.join(temp,`settings-${tab}-${width}.png`)});}
     await page.locator('[data-close-modal]').first().click();
     await go('problems');await page.locator('[data-import-problems]').click();await page.locator('#modal[open]').waitFor();await checkPage('problem import');await page.locator('[data-close-modal]').first().click();
