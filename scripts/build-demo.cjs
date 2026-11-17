@@ -27,6 +27,8 @@ function buildDemo(output, base = "/AlgoArchive/") {
   for (const [src, name] of [["store.js", "demo-store.js"], ["browser.js", "demo.js"], ["demo.css", "demo.css"]]) fs.copyFileSync(path.join(root, "demo", src), path.join(out, name));
   fs.writeFileSync(path.join(out, "demo-data.js"), `"use strict";\nwindow.__DEMO_VERSION__=${JSON.stringify(version)};\nwindow.__DEMO_FIXTURE__=${JSON.stringify(createFixture()).replaceAll("<", "\\u003c")};\n`);
   fs.copyFileSync(path.join(root, "demo", "SOURCES.md"), path.join(out, "DEMO-SOURCES.md"));
+  for (const name of ["LICENSE", "DISCLAIMER.md", "THIRD_PARTY.txt"]) fs.copyFileSync(path.join(root, name), path.join(out, name));
+  fs.cpSync(path.join(root, "licenses"), path.join(out, "licenses"), { recursive: true });
   fs.writeFileSync(path.join(out, ".nojekyll"), "");
   const files = fs.readdirSync(out, { recursive: true }).map(String);
   if (files.some(name => /\.py$|sqlite|config\.json$|runtime[\\/]|codes[\\/]/i.test(name))) throw new Error("Unsafe demo output");

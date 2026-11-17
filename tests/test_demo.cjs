@@ -151,6 +151,8 @@ test("static build supports project subpaths without shipping local data", () =>
       assert.ok(fs.existsSync(path.join(out, file)), file);
     }
     const files = fs.readdirSync(out, { recursive: true }).map(String);
+    assert.ok(files.includes('LICENSE') && files.includes('DISCLAIMER.md') && files.includes('THIRD_PARTY.txt'));
+    assert.match(fs.readFileSync(path.join(out, 'LICENSE'), 'utf8'), /MIT License/);
     assert.ok(files.every(p => !/\.py$|sqlite|config\.json$|runtime[\\/]|codes[\\/]/i.test(p)));
     assert.ok(!fs.readFileSync(path.join(out, "app.js"), "utf8").includes('src="/platform-icons/'));
     assert.ok(fs.readFileSync(path.join(out, "app.js"), "utf8").includes("document.title='AlgoArchive · 在线演示';"));
