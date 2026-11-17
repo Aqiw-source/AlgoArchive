@@ -2,6 +2,7 @@
 
 > 本地维护版本：**2.2.10（2026-11-17）**。本次补丁仅在本机构建和升级，未发布到 GitHub。
 > 下文 Release 下载说明保留已发布版本号；本地变更和验证范围见 `CHANGELOG.md`、`TEST_REPORT.md`。
+> 本地构建文件名为 `AlgoArchive-2.2.10-Windows-x64.zip` 和 `AlgoArchive-2.2.10-Windows-x64-Setup.exe`，位于构建目录 `dist/`，不代表它们已在远程 Release 上线。
 
 **本地优先的竞赛题解、比赛与算法模板管理工具**
 
