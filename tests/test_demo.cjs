@@ -144,9 +144,9 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
     assert.equal(sourceImage.readUInt32BE(16), 938);
     assert.equal(sourceImage.readUInt32BE(20), 1670);
-    assert.ok(html.includes('/AlgoArchive/app.js?v=20261117-local2210-r4'));
+    assert.ok(html.includes('/AlgoArchive/app.js?v=20261117-local2210-r5'));
     assert.ok(!/<img[^>]+src="[^" ]*sidebar-art-blended/.test(html), 'initial markup must not fetch art before preferences are known');
-    assert.ok(fs.readFileSync(path.join(out,'app.js'),'utf8').includes("?v=20261117-local2210-r4"));
+    assert.ok(fs.readFileSync(path.join(out,'app.js'),'utf8').includes("?v=20261117-local2210-r5"));
     for (const file of ["sidebar-art-blended.webp", "sidebar-art-debug.png", "sidebar-art-thinking.png", "sidebar-art-debug-blended.webp", "sidebar-art-thinking-blended.webp", "platform-icons/leetcode.png", "platform-icons/poj.png"]) {
       assert.ok(fs.existsSync(path.join(out, file)), file);
     }

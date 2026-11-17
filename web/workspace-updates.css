@@ -341,10 +341,10 @@ dialog:has(.sidebar-art-preview) { width: min(760px, calc(100vw - 28px)); }
 .sidebar-art-status { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; color: #68718a; pointer-events: none; }
 .sidebar-art-notice { flex-shrink: 0; font-size: 11px; padding: 4px; color: #9b4f3e; }
 .sidebar-art-notice[hidden], .sync-notice[hidden] { display: none; }
-.platform-field-heading { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; }
-.platform-field-heading label { color: #58647a; font-size: 12px; font-weight: 600; }
-.platform-field .platform-help { visibility: hidden; font-size: 11px; line-height: 1.6; color: #b42335; }
-.platform-field:focus-within .platform-help { visibility: visible; }
+.platform-help-row { grid-column: 1 / -1; min-width: 0; }
+.platform-help-row .platform-help { display: block; visibility: hidden; font-size: 11px; line-height: 1.6; color: #b42335; }
+.form-grid:has(.platform-picker:focus-within) .platform-help,
+.contest-form-grid:has(.platform-picker:focus-within) .platform-help { visibility: visible; }
 /* Suggestions occupy their own row; the dialog actions remain reachable. */
 #modal:has(.contest-form) { overflow: hidden; }
 .contest-form { display: flex; flex-direction: column; max-height: calc(90dvh - 2px); }
