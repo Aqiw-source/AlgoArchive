@@ -183,7 +183,7 @@ async function main() {
       if (kind === "contest") await page.locator("[data-close-modal]").first().click();
     }
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, url: base, viewports: ["1440x1000", "390x844"], output, browser: "Playwright Edge; Browser plugin not available" }));
+    console.log(JSON.stringify({ passed: true, url: base, viewports: ["1440x1000", "390x844"], output, browser: { version: browser.version(), executable: process.env.PLAYWRIGHT_EXECUTABLE_PATH || "msedge" } }));
   } finally {
     await browser?.close();
     if(child){

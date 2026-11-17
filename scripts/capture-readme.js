@@ -38,7 +38,7 @@ async function main() {
     assert.equal(await page.locator(".demo-notice").count(), 0);
     assert.equal(await page.locator('meta[name="csrf-token"]').getAttribute("content"), "isolated-online-demo");
     const art = page.locator(".sidebar-art img");
-    assert.deepEqual(await art.evaluate(img => ({width: img.naturalWidth, height: img.naturalHeight})), {width: 938, height: 1670});
+    assert.deepEqual(await art.evaluate(img => ({width: img.naturalWidth, height: img.naturalHeight})), {width: 337, height: 600}, "sidebar uses the optimized thumbnail");
     await page.locator("[data-open-sidebar-art]").click();
     const fullArt = page.locator(".sidebar-art-preview img");
     await page.waitForFunction(() => { const image = document.querySelector(".sidebar-art-preview img"); return image?.complete && image.naturalWidth === 938 && image.naturalHeight === 1670; });
@@ -83,7 +83,7 @@ async function main() {
     assert.equal(savedDraft.code, draft);
     assert.equal(savedDraft.code_locked, true);
     await page.locator("#save-problem").click();
-    await page.getByText("题目、代码与测试用例已保存，所有页面已同步。", { exact: true }).last().waitFor();
+    await page.getByText("题目、代码与测试用例已保存。", { exact: true }).last().waitFor();
     await page.locator("[data-select-code]").click();
     assert.ok(await area.evaluate(e => e.selectionEnd === e.value.length));
     await page.locator("[data-copy-code]").click();
