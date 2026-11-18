@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 const { createFixture } = require("../demo/fixture.cjs");
 const root = path.resolve(__dirname, "..");
 
@@ -11,7 +12,9 @@ function buildDemo(output, base = "/AlgoArchive/") {
   fs.mkdirSync(out, { recursive: true });
   fs.cpSync(path.join(root, "web"), out, { recursive: true });
   const version = fs.readFileSync(path.join(root, "app.py"), "utf8").match(/APP_VERSION = "([\d.]+)"/)[1];
-  const scripts = `<script src="${base}demo-store.js" defer></script>\n<script src="${base}demo-data.js" defer></script>\n<script src="${base}demo.js" defer></script>\n<link rel="stylesheet" href="${base}demo.css">\n`;
+  const demoData = `"use strict";\nwindow.__DEMO_VERSION__=${JSON.stringify(version)};\nwindow.__DEMO_FIXTURE__=${JSON.stringify(createFixture()).replaceAll("<", "\\u003c")};\n`;
+  const dataVersion = createHash("sha256").update(demoData).digest("hex").slice(0, 16);
+  const scripts = `<script src="${base}demo-store.js" defer></script>\n<script src="${base}demo-data.js?v=${dataVersion}" defer></script>\n<script src="${base}demo.js" defer></script>\n<link rel="stylesheet" href="${base}demo.css">\n`;
   let html = fs.readFileSync(path.join(out, "index.html"), "utf8")
     .replaceAll('__CSRF_TOKEN__', 'isolated-online-demo')
     .replaceAll('__USER_NAME__', 'Aqiw · 演示题库')
@@ -25,7 +28,7 @@ function buildDemo(output, base = "/AlgoArchive/") {
     .replaceAll('src="/', `src="${base}`).replaceAll('href="/', `href="${base}`)
     .replace("document.title='算法档案';", "document.title='AlgoArchive · 在线演示';"));
   for (const [src, name] of [["store.js", "demo-store.js"], ["browser.js", "demo.js"], ["demo.css", "demo.css"]]) fs.copyFileSync(path.join(root, "demo", src), path.join(out, name));
-  fs.writeFileSync(path.join(out, "demo-data.js"), `"use strict";\nwindow.__DEMO_VERSION__=${JSON.stringify(version)};\nwindow.__DEMO_FIXTURE__=${JSON.stringify(createFixture()).replaceAll("<", "\\u003c")};\n`);
+  fs.writeFileSync(path.join(out, "demo-data.js"), demoData);
   fs.copyFileSync(path.join(root, "demo", "SOURCES.md"), path.join(out, "DEMO-SOURCES.md"));
   for (const name of ["LICENSE", "DISCLAIMER.md", "THIRD_PARTY.txt"]) fs.copyFileSync(path.join(root, name), path.join(out, name));
   fs.cpSync(path.join(root, "licenses"), path.join(out, "licenses"), { recursive: true });

@@ -13,7 +13,7 @@
 [浏览演示比赛](https://aqiw-source.github.io/AlgoArchive/#contests) ·
 [体验算法模板](https://aqiw-source.github.io/AlgoArchive/#algorithms)
 
-在线演示使用独立数据：13 场比赛或练习选编、104 道题、12 类算法、21 份 C++ 模板，
+在线演示使用独立数据：15 场比赛或练习选编、113 道题、12 类算法、21 份 C++ 模板，
 另有 7 道题目包含完整示例程序和测试。可以在当前页面编辑、保存和锁定代码，刷新后重置。
 编译运行、备份和系统操作需下载本地版；不会连接或修改你的本地题库。
 数据来源见 [演示数据说明](https://github.com/Aqiw-source/AlgoArchive/blob/main/demo/SOURCES.md)。

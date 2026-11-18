@@ -50,6 +50,33 @@ test("substantial public demo data keeps ICPC and Lanqiao separate", () => {
   assert.ok(data.problems.every(p => /^https:\/\//.test(p.url)));
 });
 
+test("AcWing and Nowcoder contest archives contain browsable problems without code files", () => {
+  const store = createStore(createFixture());
+  const state = store.request("GET", "/api/state").body;
+  for (const [platform, expectedNumbers] of [["AcWing", ["6098", "6099", "6100"]], ["牛客", ["A", "B", "C", "D", "F", "G"]]]) {
+    const contest = state.contests.find(c => c.platform === platform);
+    assert.ok(contest, `${platform} has a contest in its workspace`);
+    const problems = state.problems.filter(p => p.contest_id === contest.id);
+    assert.equal(contest.problem_count, expectedNumbers.length);
+    assert.deepEqual(problems.map(p => p.number), expectedNumbers);
+    for (const p of problems) {
+      const response = store.request("GET", `/api/problems/${p.id}`);
+      assert.equal(response.status, 200);
+      const problem = response.body.problem;
+      assert.equal(problem.platform, platform);
+      assert.equal(new URL(problem.url).hostname, new URL(contest.url).hostname);
+      assert.equal(problem.code, "");
+      assert.ok(!problem.code_path);
+      assert.deepEqual(problem.tests, []);
+    }
+  }
+  assert.deepEqual(state.problems.filter(p => p.platform === "AcWing").map(p => p.url), [
+    "https://www.acwing.com/problem/content/6101/",
+    "https://www.acwing.com/problem/content/6102/",
+    "https://www.acwing.com/problem/content/6103/",
+  ]);
+});
+
 test("state and details are isolated copies; a fresh store resets edits", () => {
   const fixture = createFixture();
   const store = createStore(fixture);

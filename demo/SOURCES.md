@@ -12,6 +12,8 @@
 | 蓝桥杯 2023-2025 省赛、国赛 C/C++ B 组题目选编 | 洛谷公开镜像题单 https://www.luogu.com.cn/problem/list ，严格按 `[蓝桥杯 年份 省/国 B]` 前缀筛选 |
 | HDU 1000-1005 | https://acm.hdu.edu.cn/showproblem.php?pid=1000 等官方题目标题 |
 | 洛谷八道模板题 | https://www.luogu.com.cn/problem/P3374 等官方题目标题 |
+| AcWing 第 163 场周赛，A–C（6098–6100） | https://www.acwing.com/activity/content/4066/ ，题名以该场题目列表为准；原题需登录 AcWing |
+| 牛客周赛 Round 100 题目选编，A–D、F–G | https://ac.nowcoder.com/acm/contest/112576 的官方原题 |
 
 蓝桥杯平台标识表示题目来源；其原题按钮明确跳转洛谷镜像，不冒充蓝桥官网。
 省赛、国赛题单是选编，可能把同届填空题合为一个镜像条目，不声称完整题号对应。

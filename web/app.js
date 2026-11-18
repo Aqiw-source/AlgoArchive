@@ -1366,10 +1366,14 @@
       const originAction=origin==='#'
         ? '<button type="button" class="btn" data-problem-origin-unavailable>原题链接不可用</button>'
         : `<a class="btn" href="${origin}" target="_blank" rel="noopener noreferrer">打开原题 ↗</a>`;
-      state.preview={code:problem.code||''};
-      modal.innerHTML=`${dialogHeader(problemName(problem))}<div class="modal-body problem-code-preview"><div class="preview-toolbar"><div class="preview-meta">${badge(problem.platform)}<span>${esc(languages[problem.language]||problem.language)}</span><span>最近修改 ${time(problem.updated_at)}</span>${problem.code_locked?'<span class="code-lock-status">代码已锁定</span>':''}</div><div class="preview-actions"><button type="button" class="btn small" data-select-preview-code>${icon('document')}全选</button><button type="button" class="btn small" data-copy-preview-code>${icon('copy')}复制代码</button></div></div><pre class="preview-code" tabindex="0" aria-label="代码预览"><code>${highlightSource(problem.code||'',problem.language).replace(/\n$/,'')}</code></pre></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>关闭</button>${originAction}</div>`;
+      const code=problem.code||'';
+      const hasCode=!!code.trim();
+      state.preview=hasCode?{code}:null;
+      const actions=hasCode?`<div class="preview-actions"><button type="button" class="btn small" data-select-preview-code>${icon('document')}全选</button><button type="button" class="btn small" data-copy-preview-code>${icon('copy')}复制代码</button></div>`:'';
+      const content=hasCode?`<pre class="preview-code" tabindex="0" aria-label="代码预览"><code>${highlightSource(code,problem.language).replace(/\n$/,'')}</code></pre>`:'<div>暂无代码</div>';
+      modal.innerHTML=`${dialogHeader(problemName(problem))}<div class="modal-body problem-code-preview"><div class="preview-toolbar"><div class="preview-meta">${badge(problem.platform)}${hasCode?`<span>${esc(languages[problem.language]||problem.language)}</span>`:''}<span>最近修改 ${time(problem.updated_at)}</span>${problem.code_locked?'<span class="code-lock-status">代码已锁定</span>':''}</div>${actions}</div>${content}</div><div class="modal-actions"><button type="button" class="btn" data-close-modal>关闭</button>${originAction}</div>`;
       modal.showModal();
-      $('.preview-code',modal).focus({preventScroll:true});
+      $('.preview-code',modal)?.focus({preventScroll:true});
     }catch(error){
       toast(error.message,true);
     }

@@ -386,6 +386,20 @@ function createFixture() {
   addContest("hdu-practice", "HDU", "HDU · 入门练习选编", "https://acm.hdu.edu.cn/listproblem.php?vol=1", hdu.map((name, i) => [String(1000 + i), name, `https://acm.hdu.edu.cn/showproblem.php?pid=${1000 + i}`]));
   const luogu = [["P3374", "【模板】树状数组 1", "fenwick"], ["P3367", "【模板】并查集", "dsu"], ["P3375", "【模板】KMP", "kmp"], ["P3383", "【模板】线性筛素数", "number"], ["P3384", "【模板】重链剖分 / 树链剖分", "segment"], ["P3372", "【模板】线段树 1", "segment"], ["P3373", "【模板】线段树 2", "segment"], ["P3385", "【模板】负环", "graph"]];
   addContest("luogu-templates", "洛谷", "洛谷 · 数据结构与图论模板选编", "https://www.luogu.com.cn/problem/list", luogu.map(([number, name, a]) => [number, name, `https://www.luogu.com.cn/problem/${number}`, `a-${a}`]));
+  addContest("acwing-weekly-163", "AcWing", "AcWing · 第 163 场周赛", "https://www.acwing.com/activity/content/4066/", [
+    ["6098", "A. 局部最小值", "https://www.acwing.com/problem/content/6101/"],
+    ["6099", "B. 座位", "https://www.acwing.com/problem/content/6102/"],
+    ["6100", "C. 奶牛选美", "https://www.acwing.com/problem/content/6103/"],
+  ]);
+  const nowcoder = "https://ac.nowcoder.com/acm/contest/112576";
+  addContest("nowcoder-weekly-100", "牛客", "牛客周赛 Round 100 · 题目选编", nowcoder, [
+    ["A", "小红的双排列"],
+    ["B", "小红的双排列拆分"],
+    ["C", "小红的双排列删除"],
+    ["D", "小红的双排列权值"],
+    ["F", "小红的双排列期望（easy）"],
+    ["G", "小红的双排列期望（hard）"],
+  ].map(([number, name]) => [number, `${number}. ${name}`, `${nowcoder}/${number}`]));
   const feature = problems.find(p => p.number === "P3374");
   feature.code = fenwickCode;
   feature.tests = [{ ordinal: 0, input: "5 3\n1 2 3 4 5\n2 2 4\n1 3 2\n2 1 3\n", output: "9\n8\n" }];
