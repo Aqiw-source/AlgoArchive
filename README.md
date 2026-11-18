@@ -45,8 +45,20 @@ Codeforces、AtCoder、AcWing、洛谷和牛客提供固定工作空间；平台
 题目和比赛的“所属平台”均可展开这 10 个内置平台，搜索或点击填入，也可以手动填写其他平台。
 
 演示中 ICPC 2025 横滨区域赛收录在 Codeforces；蓝桥杯 2023-2025 省赛、国赛选编收录在蓝桥杯。
+AcWing 第 163 场周赛和牛客周赛 Round 100 选编只收录题目和原题链接，未附代码文件。
 
 [![比赛归档](docs/screenshots/contests.png)](docs/screenshots/contests.png)
+
+<details>
+<summary>展开 AcWing 与牛客比赛预览</summary>
+
+[![AcWing 第 163 场周赛](docs/screenshots/acwing-contest.png)](docs/screenshots/acwing-contest.png)
+
+[![牛客周赛 Round 100 题目选编](docs/screenshots/nowcoder-contest.png)](docs/screenshots/nowcoder-contest.png)
+
+[![未附代码时仍可打开原题](docs/screenshots/problem-without-code.png)](docs/screenshots/problem-without-code.png)
+
+</details>
 
 <details>
 <summary>展开 Codeforces 与蓝桥杯比赛预览</summary>

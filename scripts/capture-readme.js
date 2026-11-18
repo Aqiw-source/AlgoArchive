@@ -60,6 +60,20 @@ async function main() {
     assert.equal(await page.locator('.workspace-nav a[data-nav^="platform/"]').count(), 5);
     assert.equal(await page.locator("#nav-problems").textContent(), String(fixture.problems.length));
     await capture("contests", ".contest-card", "contests.png");
+    for (const [id, count, file] of [
+      ["acwing-weekly-163", 3, "acwing-contest.png"],
+      ["nowcoder-weekly-100", 6, "nowcoder-contest.png"],
+    ]) {
+      await capture(`contest/${id}`, ".problem-row-preview", file);
+      assert.equal(await page.locator(".problem-row-preview").count(), count);
+    }
+    await page.goto(base + "#contest/acwing-weekly-163");
+    await page.locator('[data-problem-preview="p-acwing-weekly-163-6098"]').press("Enter");
+    const emptyPreview = page.locator("dialog[open]");
+    await emptyPreview.getByText("暂无代码", { exact: true }).waitFor();
+    assert.equal(await emptyPreview.getByRole("link", { name: /打开原题/ }).getAttribute("href"), "https://www.acwing.com/problem/content/6101/");
+    await page.screenshot({ path: path.join(screenshots, "problem-without-code.png") }); files.push("problem-without-code.png");
+    await emptyPreview.locator(".modal-close").click();
     await capture("platform/codeforces", ".platform-page", "codeforces-workspace.png");
     await capture("contest/lanqiao-2024-national", ".problem-table", "lanqiao-contest.png");
     assert.ok((await page.locator("#main").textContent()).includes("国赛"));

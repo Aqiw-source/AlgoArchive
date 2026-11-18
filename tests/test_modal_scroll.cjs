@@ -1,14 +1,24 @@
 'use strict';
-const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {spawn}=require('node:child_process'),{chromium}=require('playwright');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
  const root=path.resolve(process.env.ALGOARCHIVE_QA_ROOT||path.join(__dirname,'..')),temp=fs.mkdtempSync(path.join(os.tmpdir(),'algo-modal-scroll-'));
- const listener=http.createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const port=listener.address().port;await new Promise(r=>listener.close(r));const base=`http://127.0.0.1:${port}`;
- const child=spawn(process.env.ALGOARCHIVE_TEST_PYTHON||'python',['-X','utf8',path.join(root,'app.py'),'--port',String(port),'--data-dir',path.join(temp,'data'),'--config-path',path.join(temp,'config.json'),'--no-browser'],{cwd:root,windowsHide:true,stdio:'pipe'});
- let browser,logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
+ const child=spawn(process.env.ALGOARCHIVE_TEST_PYTHON||'python',['-X','utf8',path.join(root,'app.py'),'--port','0','--data-dir',path.join(temp,'data'),'--config-path',path.join(temp,'config.json'),'--no-browser'],{cwd:root,windowsHide:true,stdio:'pipe'});
+ let browser,logs='',stdout='',spawnError;
+ child.on('error',error=>{spawnError=error;logs+=`${error.message}\n`;});
+ child.stdout.on('data',b=>{stdout+=b;logs+=b;});child.stderr.on('data',b=>logs+=b);
  try{
-  let token;for(let i=0;i<100;i++){try{token=(await fetch(base).then(r=>r.text())).match(/name="csrf-token" content="([^"]+)"/)?.[1];if(token)break;}catch{}await delay(100);}assert.ok(token,logs);
+  // Let the OS assign a port to the app itself; do not release a probe port before startup.
+  let base;
+  for(let i=0;i<150&&!spawnError&&child.exitCode===null;i++){
+   base=stdout.match(/(http:\/\/127\.0\.0\.1:\d+)\r?\n/)?.[1];
+   if(base)break;
+   await delay(100);
+  }
+  assert.ok(base,`Local service did not report its listening address:\n${logs}`);
+  const token=(await fetch(base,{signal:AbortSignal.timeout(5000)}).then(r=>r.text())).match(/name="csrf-token" content="([^"]+)"/)?.[1];
+  assert.ok(token,`No CSRF token from ${base}:\n${logs}`);
   for(let i=0;i<35;i++){const response=await fetch(base+'/api/problems',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':token},body:JSON.stringify({platform:'Codeforces',name:'Scroll test '+i,url:'https://example.com/'+i,language:'cpp',code:''})});assert.ok(response.ok);}
   browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH}:{channel:'msedge'})});
   const results=[];
