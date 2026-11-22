@@ -1,4 +1,6 @@
 "use strict";
+const fs = require("node:fs");
+const path = require("node:path");
 
 const fenwickCode = `#include <bits/stdc++.h>
 using namespace std;
@@ -363,6 +365,13 @@ function createFixture() {
     const letter = String.fromCharCode(65 + i);
     return [letter, name, `https://codeforces.com/gym/106268/problem/${letter}`];
   }));
+  for (const letter of "ABCDEF") {
+    const problem = problems.find(p => p.id === `p-icpc-yokohama-${letter}`);
+    const base = path.join(__dirname, "solutions", `yokohama-${letter.toLowerCase()}`);
+    problem.code = fs.readFileSync(base + ".cpp", "utf8").replace(/\r\n/g, "\n");
+    problem.tests = JSON.parse(fs.readFileSync(base + ".json", "utf8"))
+      .map(({ input, output }, ordinal) => ({ ordinal, input, output }));
+  }
   const lanqiao = [
     [2023, "省", [["P9239", "填空问题"], ["P9240", "冶炼金属"], ["P9241", "飞机降落"], ["P9242", "接龙数列"], ["P9243", "岛屿个数"], ["P9244", "子串简写"], ["P9245", "景区导游"], ["P9246", "砍树"], ["P12085", "整数删除"]]],
     [2023, "国", [["P9420", "子 2023 / 双子数"], ["P9421", "班级活动"], ["P9422", "合并数列"], ["P9423", "数三角"], ["P9424", "删边问题"], ["P9425", "AB 路线"], ["P9426", "抓娃娃"], ["P9427", "拼数字"], ["P9428", "逃跑"]]],

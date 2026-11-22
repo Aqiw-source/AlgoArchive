@@ -50,6 +50,23 @@ test("substantial public demo data keeps ICPC and Lanqiao separate", () => {
   assert.ok(data.problems.every(p => /^https:\/\//.test(p.url)));
 });
 
+test("all six recent problems on the demo home page open their own C++ programs", () => {
+  const store = createStore(createFixture());
+  const recent = store.request("GET", "/api/state").body.problems
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
+  assert.deepEqual(recent.map(p => p.id), [..."ABCDEF"].map(letter => `p-icpc-yokohama-${letter}`));
+  for (const p of recent) {
+    const { status, body } = store.request("GET", `/api/problems/${p.id}`);
+    assert.equal(status, 200);
+    const { code, language, tests } = body.problem;
+    const file = path.join(__dirname, "../demo/solutions", `yokohama-${p.number.toLowerCase()}.cpp`);
+    assert.equal(code, fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+    assert.match(code, /\b(?:int|signed) main\s*\(/);
+    assert.equal(language, "cpp");
+    assert.ok(tests.length && tests.every(t => t.input && t.output));
+  }
+});
+
 test("AcWing and Nowcoder contest archives contain browsable problems without code files", () => {
   const store = createStore(createFixture());
   const state = store.request("GET", "/api/state").body;

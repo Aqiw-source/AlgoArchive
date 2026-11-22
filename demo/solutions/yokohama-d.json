@@ -1,0 +1,5 @@
+[
+  {"input":"2\n","output":"11\n"},
+  {"input":"109\n","output":"9910\n"},
+  {"input":"111\n","output":"11100\n"}
+]

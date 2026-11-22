@@ -1,0 +1,5 @@
+[
+  {"input":"1\n3 3 6\n15\n","output":"3 2\n"},
+  {"input":"1\n1 1 7\n8\n","output":"7 8\n"},
+  {"input":"2\n17 9 14\n1\n9 9 9\n27\n","output":"9 1\n3 1\n"}
+]
