@@ -1,4 +1,6 @@
-算法档案 · AlgoArchive 2.2.10
+算法档案 · AlgoArchive 2.3.0
+
+本地版右上角可打开离线使用手册。编辑题目可标记「未做／待补／已完成」、填写错因、关联多个算法；首页可按比赛查看待补清单。全部题目的批量导入先预览，已有题目默认跳过。五个平台标题旁可打开或复制官网链接。
 
 算法和比赛模块分别按蓝、青、绿、琥珀、玫红、紫六色循环分配。
 每次新建时确定颜色，改名、分类、筛选、拖动、刷新或重启不改变已分配颜色。
@@ -8,7 +10,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.2.10-Windows-x64-Setup.exe。安装程序可选择是否创建
+安装版：运行 AlgoArchive-2.3.0-Windows-x64-Setup.exe。安装程序可选择是否创建
 桌面快捷方式，默认不勾选。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -16,7 +18,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.2.10-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.3.0-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 AlgoArchive.exe。普通启动不会创建或恢复快捷方式；
@@ -93,9 +95,7 @@ AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runt
 - 算法模板下可关联多道题目、保存多份代码和多个参考链接。
 - 全部题目、算法详情、算法卡片和比赛卡片支持鼠标拖动排序；全部题目支持一键逆序。
 - 题目名称打开原题；有效链接可在“编辑 / 原题”旁复制；点击题目行空白区域只读预览代码。
-- JSON 导入单次最多 200 道题。tests 数组会随题目保存，每项使用文本 input 和
-  output；任一题目或用例无效会使整次导入停止，不会部分覆盖。未识别的顶层
-  字段会显示提示。
+- JSON 导入单次最多 200 道题。预览后可逐条决定新增、跳过或更新；已有题默认跳过。只更新资料会保留现有源码和用例。无效行或匹配冲突只能跳过，确认后的变更一起保存，更新已有题前自动创建完整备份。
 
 代码编辑支持 Ctrl+S 保存、Tab 缩进、回车自动缩进和复制代码。C++ 保存为
 .cpp，Python 为 .py，Java 为 .java，其他语言为 .txt。单份代码上限 2 MiB。
@@ -169,7 +169,7 @@ python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.2.10
+.\scripts\build-release.ps1 -Version 2.3.0
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。

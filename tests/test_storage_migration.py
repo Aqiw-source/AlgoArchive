@@ -461,7 +461,7 @@ class StorageMigrationTests(unittest.TestCase):
             schema = repo.db.execute(
                 "SELECT value FROM settings WHERE key='schema_version'"
             ).fetchone()[0]
-            self.assertEqual(schema, "10")
+            self.assertEqual(schema, str(app_module.DATABASE_SCHEMA_VERSION))
             restored = repo.get_problem(problem["id"])
             self.assertEqual(restored["name"], "旧版备份")
             self.assertEqual(restored["tests"], [])
@@ -517,7 +517,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "10")
+        self.assertEqual(version, str(app_module.DATABASE_SCHEMA_VERSION))
         self.assertEqual(repo.state()["contests"][0]["title"], "保留比赛")
         self.assertEqual(repo.state()["problems"][0]["name"], "保留题目")
         self.assertEqual(
@@ -571,7 +571,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "10")
+        self.assertEqual(version, str(app_module.DATABASE_SCHEMA_VERSION))
         problem = repo.create_problem({
             "platform": "洛谷",
             "number": "P3374",
@@ -598,7 +598,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "10")
+        self.assertEqual(version, str(app_module.DATABASE_SCHEMA_VERSION))
         contest_sql = repo.db.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='contests'"
         ).fetchone()[0]
@@ -637,7 +637,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "10")
+        self.assertEqual(version, str(app_module.DATABASE_SCHEMA_VERSION))
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["algorithm_order"],
@@ -667,7 +667,7 @@ class StorageMigrationTests(unittest.TestCase):
         version = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(version, "10")
+        self.assertEqual(version, str(app_module.DATABASE_SCHEMA_VERSION))
         problems = sorted(
             repo.state()["problems"],
             key=lambda item: item["global_order"],

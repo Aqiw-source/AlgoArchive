@@ -45,12 +45,12 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.2.10"
+APP_VERSION = "2.3.0"
 CARD_COLORS = ("blue", "cyan", "green", "amber", "rose", "violet")
 SIDEBAR_ART_IMAGES = ("debug", "thinking", "celebration")
 ROOT = Path(__file__).resolve().parent
-DATABASE_SCHEMA_VERSION = 10
-SUPPORTED_DATABASE_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+DATABASE_SCHEMA_VERSION = 11
+SUPPORTED_DATABASE_VERSIONS = set(range(1, DATABASE_SCHEMA_VERSION + 1))
 PROBLEM_PLATFORM_ALIASES = {
     "codeforces": "Codeforces",
     "atcoder": "AtCoder",
@@ -801,10 +801,11 @@ def text_value(value, label, limit, required=False):
     return value
 
 
-def multiline_text_value(value, label, limit, required=False):
+def multiline_text_value(value, label, limit, required=False, *, trim=True):
     if not isinstance(value, str):
         raise AppError(f"{label}必须是文本")
-    value = value.strip()
+    if trim:
+        value = value.strip()
     if required and not value:
         raise AppError(f"请填写{label}")
     if len(value) > limit or any(ord(c) < 32 and c not in {"\n", "\t"} for c in value):
@@ -956,7 +957,12 @@ def database_needs_upgrade(database):
             columns = {
                 item[1] for item in db.execute("PRAGMA table_info(problems)")
             }
-            return not {"algorithm_order", "global_order", "contest_order"} <= columns
+            has_tags = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='problem_algorithms'"
+            ).fetchone()
+            return not has_tags or not {
+                "algorithm_order", "global_order", "contest_order", "study_status", "mistake_note"
+            } <= columns
     except (sqlite3.Error, TypeError, ValueError):
         return False
 
@@ -1003,6 +1009,7 @@ class Repository:
         self.avatar_dir = self.data_dir / "avatar"
         self.avatar_dir.mkdir(exist_ok=True)
         self.lock = threading.RLock()
+        self._import_preview_key = secrets.token_bytes(32)
         self.maintenance = False
         self._migration_owner = None
         self.db = sqlite3.connect(str(self.data_dir / "archive.sqlite3"), check_same_thread=False, timeout=30)
@@ -1013,6 +1020,8 @@ class Repository:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            -- The base tables below are schema 10. The study migration records
+            -- schema 11 only after its columns, tag rows and indexes all exist.
             INSERT OR IGNORE INTO settings VALUES ('schema_version', '10');
             INSERT OR IGNORE INTO settings VALUES ('problem_order_version', '1');
             INSERT OR IGNORE INTO settings VALUES ('contest_order_version', '1');
@@ -1170,11 +1179,7 @@ class Repository:
             self._initialize_entity_orders("algorithms")
         if int(schema_version) < 10 or contest_problem_order_added:
             self._initialize_contest_problem_orders()
-        if schema_version != "10":
-            with self.db:
-                self.db.execute(
-                    "UPDATE settings SET value='10' WHERE key='schema_version'"
-                )
+        self._initialize_problem_study(schema_version)
         self.db.executescript("""
             CREATE INDEX IF NOT EXISTS problems_contest ON problems(contest_id);
             CREATE INDEX IF NOT EXISTS problems_contest_order
@@ -1195,6 +1200,37 @@ class Repository:
         self._initialize_card_colors()
         with self.db:
             self._sync_platform_orders(initialize=True)
+
+    def _initialize_problem_study(self, schema_version):
+        columns = {r["name"] for r in self.db.execute("PRAGMA table_info(problems)")}
+        has_tags = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='problem_algorithms'"
+        ).fetchone()
+        if int(schema_version) == DATABASE_SCHEMA_VERSION and has_tags and {"study_status", "mistake_note"} <= columns:
+            return
+        with self.db:
+            self.db.execute("BEGIN")
+            if "study_status" not in columns:
+                self.db.execute(
+                    "ALTER TABLE problems ADD COLUMN study_status TEXT NOT NULL DEFAULT 'unseen' "
+                    "CHECK(study_status IN ('unseen','todo','done'))"
+                )
+            if "mistake_note" not in columns:
+                self.db.execute("ALTER TABLE problems ADD COLUMN mistake_note TEXT NOT NULL DEFAULT ''")
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS problem_algorithms (
+                    problem_id TEXT NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+                    algorithm_id TEXT NOT NULL REFERENCES algorithms(id) ON DELETE CASCADE,
+                    tag_order INTEGER NOT NULL, problem_order INTEGER NOT NULL,
+                    PRIMARY KEY(problem_id, algorithm_id)
+                )""")
+            self.db.execute("CREATE INDEX IF NOT EXISTS problem_algorithms_order "
+                            "ON problem_algorithms(algorithm_id, problem_order)")
+            self.db.execute("""
+                INSERT OR IGNORE INTO problem_algorithms(problem_id,algorithm_id,tag_order,problem_order)
+                SELECT id,algorithm_id,0,algorithm_order FROM problems WHERE algorithm_id IS NOT NULL""")
+            self.db.execute("UPDATE settings SET value=? WHERE key='schema_version'",
+                            (str(DATABASE_SCHEMA_VERSION),))
 
     def _platform_orders(self):
         orders = {key: {"version": 1, "problem_ids": []} for key in
@@ -2052,6 +2088,7 @@ class Repository:
             "SELECT name FROM algorithms WHERE id=?", (row["algorithm_id"],)
         ).fetchone()
         row["algorithm_name"] = algorithm[0] if algorithm else None
+        self._attach_problem_tags([row], identifier)
         if with_code:
             try:
                 row["code"] = self._path(row["code_path"]).read_bytes().decode("utf-8")
@@ -2059,6 +2096,22 @@ class Repository:
                 raise AppError("代码文件缺失或无法读取，请检查 data/codes 或恢复备份。原记录已保留。", 500, "code_unavailable") from exc
         row["tests"] = self._problem_tests(identifier)
         return row
+
+    def _attach_problem_tags(self, problems, identifier=None):
+        by_id = {p["id"]: p for p in problems}
+        for p in problems:
+            p["algorithm_ids"] = []
+            p["algorithm_orders"] = {}
+        sql = "SELECT problem_id,algorithm_id,problem_order FROM problem_algorithms"
+        params = ()
+        if identifier is not None:
+            sql += " WHERE problem_id=?"
+            params = (identifier,)
+        for problem_id, algorithm_id, order in self.db.execute(
+                sql + " ORDER BY problem_id,tag_order", params):
+            p = by_id[problem_id]
+            p["algorithm_ids"].append(algorithm_id)
+            p["algorithm_orders"][algorithm_id] = order
 
     def _problem_tests(self, identifier):
         return [
@@ -2105,7 +2158,9 @@ class Repository:
                     (timestamp, identifier),
                 )
                 self._touch_contests([old["contest_id"]], timestamp)
-                self._touch_algorithm(old["algorithm_id"], timestamp)
+                self.db.execute("UPDATE algorithms SET updated_at=? WHERE id IN "
+                                "(SELECT algorithm_id FROM problem_algorithms WHERE problem_id=?)",
+                                (timestamp, identifier))
             return self._problem_tests(identifier)
 
     def _algorithm_links(self, identifier):
@@ -2135,7 +2190,7 @@ class Repository:
         row["links"] = self._algorithm_links(identifier)
         row["snippets"] = self._algorithm_snippets(identifier)
         row["problem_count"] = self.db.execute(
-            "SELECT COUNT(*) FROM problems WHERE algorithm_id=?", (identifier,)
+            "SELECT COUNT(*) FROM problem_algorithms WHERE algorithm_id=?", (identifier,)
         ).fetchone()[0]
         return row
 
@@ -2215,8 +2270,8 @@ class Repository:
         if identifier is None:
             return 0
         row = self.db.execute(
-            "SELECT COALESCE(MAX(algorithm_order),-1)+1 "
-            "FROM problems WHERE algorithm_id=?",
+            "SELECT COALESCE(MAX(problem_order),-1)+1 "
+            "FROM problem_algorithms WHERE algorithm_id=?",
             (identifier,),
         ).fetchone()
         return int(row[0])
@@ -2244,6 +2299,40 @@ class Repository:
         ).fetchone()
         return int(row[0])
 
+    @staticmethod
+    def _problem_edit_payload(old, patch):
+        merged = {**old, **patch}
+        if "algorithm_ids" not in patch and "algorithm_id" in patch:
+            # Legacy forms know only the primary tag. They may replace or clear
+            # it, but must never drop the additional tags they could not see.
+            primary = patch["algorithm_id"]
+            extra = old["algorithm_ids"][1:]
+            merged["algorithm_ids"] = ([] if primary in (None, "") else [primary]) + [
+                tag for tag in extra if tag != primary
+            ]
+        return merged
+
+    def _write_study_fields(self, identifier, values):
+        """Persist an already validated selection inside the caller's transaction."""
+        current = dict(self.db.execute(
+            "SELECT algorithm_id,problem_order FROM problem_algorithms "
+            "WHERE problem_id=? ORDER BY tag_order", (identifier,)))
+        ids = values["algorithm_ids"]
+        if list(current) != ids:
+            self.db.executemany("DELETE FROM problem_algorithms WHERE problem_id=? AND algorithm_id=?",
+                                ((identifier, tag) for tag in current.keys() - set(ids)))
+            for ordinal, tag in enumerate(ids):
+                if tag in current:
+                    self.db.execute("UPDATE problem_algorithms SET tag_order=? WHERE problem_id=? AND algorithm_id=?",
+                                    (ordinal, identifier, tag))
+                else:
+                    current[tag] = self._next_algorithm_order(tag)
+                    self.db.execute("INSERT INTO problem_algorithms(problem_id,algorithm_id,tag_order,problem_order) "
+                                    "VALUES (?,?,?,?)", (identifier, tag, ordinal, current[tag]))
+        primary = ids[0] if ids else None
+        self.db.execute("UPDATE problems SET algorithm_id=?,algorithm_order=?,study_status=?,mistake_note=? WHERE id=?",
+                        (primary, current.get(primary, 0), values["study_status"], values["mistake_note"], identifier))
+
     def _validate_problem(self, payload):
         platform = editable_platform_value(payload.get("platform"))
         number = text_value(payload.get("number", ""), "题目编号", 50)
@@ -2265,13 +2354,24 @@ class Repository:
             contest = self._row("contests", contest_id)
             if platform_identity(contest["platform"]) != platform_identity(platform):
                 raise AppError("题目与所属比赛必须来自同一平台")
-        algorithm_id = payload.get("algorithm_id")
-        if algorithm_id == "":
-            algorithm_id = None
-        if algorithm_id is not None:
-            if not isinstance(algorithm_id, str):
-                raise AppError("所属算法不正确")
-            self._row("algorithms", algorithm_id)
+        if "algorithm_ids" in payload:
+            ids = payload["algorithm_ids"]
+        else:
+            primary = payload.get("algorithm_id")
+            ids = [] if primary in (None, "") else [primary]
+        if not isinstance(ids, list) or not all(isinstance(tag, str) and tag for tag in ids):
+            raise AppError("算法标签必须是算法 ID 列表")
+        if len(ids) != len(set(ids)):
+            raise AppError("算法标签不能重复")
+        for tag in ids:
+            self._row("algorithms", tag)
+        status = payload.get("study_status", "unseen")
+        if status not in ("unseen", "todo", "done"):
+            raise AppError("学习状态必须是 unseen、todo 或 done")
+        note = payload.get("mistake_note", "")
+        if isinstance(note, str):
+            note = note.replace("\r\n", "\n").replace("\r", "\n")
+        note = multiline_text_value(note, "错题笔记", 10000, trim=False)
         code = payload.get("code", "")
         if not isinstance(code, str):
             raise AppError("代码必须是文本")
@@ -2282,7 +2382,8 @@ class Repository:
         if len(encoded) > MAX_CODE_BYTES:
             raise AppError("单道题目的代码不能超过 2 MiB", 413, "too_large")
         return dict(platform=platform, number=number, name=name, url=url, normalized_url=url,
-                    language=language, contest_id=contest_id, algorithm_id=algorithm_id), encoded
+                    language=language, contest_id=contest_id, algorithm_id=ids[0] if ids else None,
+                    algorithm_ids=ids, study_status=status, mistake_note=note), encoded
 
     def _validate_algorithm(self, payload):
         name = text_value(payload.get("name"), "算法名称", 200, True)
@@ -2362,6 +2463,7 @@ class Repository:
                 LEFT JOIN contests c ON p.contest_id=c.id
                 LEFT JOIN algorithms a ON p.algorithm_id=a.id
                 ORDER BY p.updated_at DESC,p.id""")]
+            self._attach_problem_tags(problems)
             algorithms = [
                 dict(row)
                 for row in self.db.execute(
@@ -2377,7 +2479,7 @@ class Repository:
                     item["card_color"] = colors.get(f"card_color:{kind}:{item['id']}")
             links_by_algorithm = {}
             snippets_by_algorithm = {}
-            problem_counts = {}
+            problem_counts = Counter(tag for p in problems for tag in p["algorithm_ids"])
             if algorithms:
                 for row in self.db.execute(
                     "SELECT id,algorithm_id,title,url,normalized_url "
@@ -2398,13 +2500,6 @@ class Repository:
                     snippets_by_algorithm.setdefault(row["algorithm_id"], []).append(
                         dict(row)
                     )
-                problem_counts = {
-                    row["algorithm_id"]: row["problem_count"]
-                    for row in self.db.execute(
-                        "SELECT algorithm_id,COUNT(*) AS problem_count FROM problems "
-                        "WHERE algorithm_id IS NOT NULL GROUP BY algorithm_id"
-                    )
-                }
             for row in algorithms:
                 identifier = row["id"]
                 row["links"] = links_by_algorithm.get(identifier, [])
@@ -2519,21 +2614,22 @@ class Repository:
             tests = self._validated_tests(payload) if "tests" in payload else []
             self._duplicate(values)
             identifier, timestamp = uuid.uuid4().hex, now()
-            algorithm_order = self._next_algorithm_order(values["algorithm_id"])
             contest_order = self._next_contest_order(values["contest_id"])
             global_order = self._next_problem_global_order()
             path = f"codes/{identifier}{EXTENSIONS[values['language']]}"
             with self.db:
                 self.db.execute("""INSERT INTO problems
-                    (id,platform,number,name,url,normalized_url,language,contest_id,algorithm_id,algorithm_order,global_order,contest_order,code_path,created_at,updated_at,version)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""", (identifier, values["platform"], values["number"], values["name"],
+                    (id,platform,number,name,url,normalized_url,language,contest_id,global_order,contest_order,code_path,created_at,updated_at,version)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)""", (identifier, values["platform"], values["number"], values["name"],
                     values["url"], values["normalized_url"], values["language"], values["contest_id"],
-                    values["algorithm_id"], algorithm_order, global_order, contest_order, path, timestamp, timestamp))
+                    global_order, contest_order, path, timestamp, timestamp))
+                self._write_study_fields(identifier, values)
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (path, encoded))
                 self._write_problem_tests(identifier, tests, timestamp)
                 self._write_code_lock("problem", identifier, code_locked)
                 self._touch_contests([values["contest_id"]], timestamp)
-                self._touch_algorithm(values["algorithm_id"], timestamp)
+                for tag in values["algorithm_ids"]:
+                    self._touch_algorithm(tag, timestamp)
                 self._sync_platform_orders()
             self._flush_pending()
             return self._problem(identifier)
@@ -2544,14 +2640,9 @@ class Repository:
             old = self._problem(identifier)
             self._version(old, payload)
             self._guard_code_lock(old, payload)
-            values, encoded = self._validate_problem({**old, **payload})
+            values, encoded = self._validate_problem(self._problem_edit_payload(old, payload))
             tests = self._validated_tests(payload) if "tests" in payload else None
             self._duplicate(values, identifier)
-            algorithm_order = (
-                old["algorithm_order"]
-                if values["algorithm_id"] == old["algorithm_id"]
-                else self._next_algorithm_order(values["algorithm_id"])
-            )
             contest_order = (
                 old["contest_order"]
                 if values["contest_id"] == old["contest_id"]
@@ -2561,10 +2652,10 @@ class Repository:
             timestamp = now()
             with self.db:
                 self.db.execute("""UPDATE problems SET platform=?,number=?,name=?,url=?,normalized_url=?,language=?,
-                    contest_id=?,algorithm_id=?,algorithm_order=?,contest_order=?,code_path=?,updated_at=?,version=version+1 WHERE id=?""",
+                    contest_id=?,contest_order=?,code_path=?,updated_at=?,version=version+1 WHERE id=?""",
                     (values["platform"], values["number"], values["name"], values["url"], values["normalized_url"],
-                     values["language"], values["contest_id"], values["algorithm_id"], algorithm_order,
-                     contest_order, path, timestamp, identifier))
+                     values["language"], values["contest_id"], contest_order, path, timestamp, identifier))
+                self._write_study_fields(identifier, values)
                 if tests is not None:
                     self._write_problem_tests(identifier, tests, timestamp)
                 if encoded != old["code"].encode("utf-8") or path != old["code_path"]:
@@ -2572,8 +2663,8 @@ class Repository:
                 if path != old["code_path"]:
                     self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", (old["code_path"],))
                 self._touch_contests([old["contest_id"], values["contest_id"]], timestamp)
-                self._touch_algorithm(old["algorithm_id"], timestamp)
-                self._touch_algorithm(values["algorithm_id"], timestamp)
+                for tag in set(old["algorithm_ids"]) | set(values["algorithm_ids"]):
+                    self._touch_algorithm(tag, timestamp)
                 self._sync_platform_orders()
             self._flush_pending()
             return self._problem(identifier)
@@ -2593,7 +2684,7 @@ class Repository:
             current_ids = [
                 row[0]
                 for row in self.db.execute(
-                    "SELECT id FROM problems WHERE algorithm_id=?",
+                    "SELECT problem_id FROM problem_algorithms WHERE algorithm_id=?",
                     (identifier,),
                 )
             ]
@@ -2605,13 +2696,15 @@ class Repository:
                 )
             timestamp = now()
             with self.db:
+                ordered = [(order, problem_id, identifier) for order, problem_id in enumerate(problem_ids)]
+                self.db.executemany(
+                    "UPDATE problem_algorithms SET problem_order=? WHERE problem_id=? AND algorithm_id=?",
+                    ordered,
+                )
                 self.db.executemany(
                     "UPDATE problems SET algorithm_order=? "
                     "WHERE id=? AND algorithm_id=?",
-                    [
-                        (order, problem_id, identifier)
-                        for order, problem_id in enumerate(problem_ids)
-                    ],
+                    ordered,
                 )
                 self.db.execute(
                     "UPDATE algorithms SET updated_at=?,version=version+1 "
@@ -2769,222 +2862,271 @@ class Repository:
                 "problem_ids": problem_ids,
             }
 
+    @staticmethod
+    def _import_keys(item):
+        """Only a web URL is a global identity. An offline note is not one."""
+        platform = platform_identity(item.get("platform"))
+        number = item.get("number", "")
+        keys = []
+        if platform and isinstance(number, str) and number.strip():
+            keys.append(("number", platform, number.strip().casefold()))
+        raw_url = item.get("url")
+        if not isinstance(raw_url, str) or not raw_url.strip():
+            return keys
+        raw_url = expand_schemeless_url(raw_url.strip())
+        try:
+            parsed = urlsplit(raw_url)
+            if parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username is not None:
+                raise ValueError()
+            port = parsed.port
+            if port == (443 if parsed.scheme == "https" else 80):
+                port = None
+            # Paths, queries, nondefault ports and fragment routes may identify different problems.
+            keys.append(("url", parsed.scheme, parsed.hostname.lower(), port, parsed.path or "/",
+                         parsed.query, parsed.fragment))
+        except ValueError:
+            if platform:
+                keys.append(("reference", platform, raw_url))
+        return keys
+
+    def _import_fields(self, raw, warnings):
+        if not isinstance(raw, dict):
+            raise AppError("题目必须是 JSON 对象")
+        fields = {"platform", "number", "name", "url", "language", "code", "contest_id",
+                  "algorithm_id", "algorithm_ids", "study_status", "mistake_note", "tests", "code_locked"}
+        item = {key: value for key, value in raw.items() if key in fields}
+        aliases = {"contest", "contest_title", "algorithm", "algorithm_name"}
+        unknown = sorted(set(raw) - fields - aliases)
+        if unknown:
+            warnings.append("未识别字段：" + ", ".join(unknown))
+        for field, alias, table, column, label in (
+                ("contest_id", ("contest", "contest_title"), "contests", "title", "比赛"),
+                ("algorithm_id", ("algorithm", "algorithm_name"), "algorithms", "name", "算法")):
+            reference = raw.get(alias[0], raw.get(alias[1]))
+            if item.get(field) not in (None, ""):
+                if not isinstance(item[field], str):
+                    raise AppError(f"{field} 必须是文本")
+                relation = self._row(table, item[field])
+            elif reference not in (None, ""):
+                name = text_value(reference, label, 300 if table == "contests" else 200, True)
+                matches = self.db.execute(f"SELECT * FROM {table} WHERE {column}=? COLLATE NOCASE", (name,)).fetchall()
+                if len(matches) != 1:
+                    raise AppError(f"引用的{label}不存在：{name}" if not matches
+                                   else f"{label}名称不唯一，请改用 {field}")
+                relation = matches[0]
+                item[field] = relation["id"]
+            else:
+                continue
+            if field == "contest_id" and not item.get("platform"):
+                item["platform"] = relation["platform"]
+        return item
+
+    def _problem_import_plan(self, items):
+        if not isinstance(items, list) or not items:
+            raise AppError("导入文件必须包含至少一道题目")
+        if len(items) > 200:
+            raise AppError("单次最多导入 200 道题目", 413, "too_large")
+        indexed, by_id = {}, {}
+        for existing in self.db.execute("SELECT id,platform,number,name,url,version FROM problems ORDER BY id"):
+            summary = dict(existing)
+            by_id[summary["id"]] = summary
+            for key in self._import_keys(summary):
+                indexed.setdefault(key, []).append(summary["id"])
+
+        rows, prepared, conflicts, warnings, previous = [], [], [], [], {}
+        for i, raw in enumerate(items):
+            row = dict(index=i, name="", platform="", number="", url="", actions=["skip"], default_action="skip",
+                       matches=[], warnings=[], reason="", changes=[])
+            rows.append(row)
+            prepared.append(None)
+            conflicts.append(None)
+            try:
+                item = self._import_fields(raw, row["warnings"])
+                for field in ("name", "platform", "number", "url"):
+                    row[field] = item.get(field, "") if isinstance(item.get(field, ""), str) else ""
+                keys = self._import_keys(item)
+                reasons = {}
+                for key in keys:
+                    for target in indexed.get(key, ()):
+                        reasons.setdefault(target, []).append(key[0])
+                row["match_count"] = len(reasons)
+                row["matches"] = [dict(by_id[target], by=why) for target, why in sorted(reasons.items())[:5]]
+                # Two rows may hit the same saved record via different keys.
+                batch_keys = keys + [("target", target) for target in reasons]
+                earlier = {previous[k] + 1 for k in batch_keys if k in previous}
+                if len(reasons) > 1:
+                    row.update(status="conflict", reason="链接和题号命中多条本地记录，请核对后重新选文件。")
+                    continue
+                if earlier:
+                    row.update(status="batch_duplicate", reason="与文件中第 " +
+                               "、".join(map(str, sorted(earlier))) + " 条重复；本条跳过。")
+                    continue
+                target = next(iter(reasons), None)
+                if target and reasons[target] == ["reference"]:
+                    row.update(status="conflict", reason="同平台的链接备注相同，未找到可确认的题号或网页链接。")
+                    continue
+                old = self._problem(target) if target else None
+                tests = self._validated_tests(item) if "tests" in item else None
+                lock = self._validated_code_lock(item)
+                if old:
+                    patch = {k: v for k, v in item.items() if k not in ("tests", "code_locked") and v not in ("", None, [])}
+                    code = item.get("code", "")
+                    if not isinstance(code, str):
+                        raise AppError("代码必须是文本")
+                    if not code.strip():
+                        patch.pop("code", None)
+                        patch.pop("language", None)
+                    if not tests or not any(t["input"] or t["output"] for t in tests):
+                        tests = None
+                    # Keep the existing language if the file contains source without a language.
+                    values, encoded = self._validate_problem(self._problem_edit_payload(old, patch))
+                    # Omitted fields survive an update. Their combined identity can collide
+                    # even when the fields explicitly present in the file had just one match.
+                    projected = [k for k in self._import_keys(values) if k not in keys]
+                    for key in projected:
+                        for other in indexed.get(key, ()):
+                            if other != target:
+                                reasons.setdefault(other, []).append("merged_" + key[0])
+                    if len(reasons) > 1:
+                        row.update(status="conflict", match_count=len(reasons),
+                                   matches=[dict(by_id[t], by=why) for t, why in sorted(reasons.items())[:5]],
+                                   reason="保留未提供的字段后会与其他本地题目冲突。")
+                        continue
+                    if any(k in previous for k in projected):
+                        row.update(status="batch_duplicate", reason="保留未提供的字段后与文件中其他题目重复。")
+                        continue
+                    batch_keys.extend(projected)
+                    lock_error = None
+                    try:
+                        self._guard_code_lock(old, {**patch, **({"code_locked": lock} if "code_locked" in item else {})})
+                    except AppError as exc:
+                        lock_error = str(exc)
+                    code_changed = encoded != old["code"].encode("utf-8") or values["language"] != old["language"]
+                    old_tests = [{"input": t["input"], "output": t["output"]} for t in old["tests"]]
+                    if tests == old_tests:
+                        tests = None
+                    changes = [k for k in ("platform", "number", "name", "url", "contest_id",
+                                           "algorithm_ids", "study_status", "mistake_note", "language")
+                               if values[k] != old[k]]
+                    metadata_changed = any(k != "language" for k in changes)
+                    if code_changed:
+                        changes.append("code")
+                    if tests is not None:
+                        changes.append("tests")
+                    # Include file contents as users can edit a source file outside the application.
+                    row["source_revision"] = hashlib.sha256(old["code"].encode("utf-8")).hexdigest()
+                    row.update(status="existing", reason=lock_error or ("所选字段将更新。" if changes else "已有记录内容相同。"),
+                               actions=["skip"] if lock_error or not changes else ["skip", "update"], changes=changes)
+                    if metadata_changed and (code_changed or tests is not None or lock_error):
+                        row["actions"].insert(1, "update_metadata")
+                    op = {"old": {k: old[k] for k in ("id", "contest_id", "contest_order", "algorithm_ids", "code_path", "language")},
+                          "encoded": encoded if code_changed else None}
+                else:
+                    values, encoded = self._validate_problem({"language": "cpp", **item})
+                    row.update(status="new", reason="题库中没有匹配项。", actions=["create", "skip"], default_action="create")
+                    op = {"old": None, "encoded": encoded}
+                row["preserve_code"] = bool(old and not code_changed)
+                row["preserve_tests"] = bool(old and tests is None)
+                op.update(values=values, tests=tests, lock=lock)
+                prepared[i] = op
+                for key in batch_keys:
+                    previous[key] = i
+            except AppError as exc:
+                if exc.status >= 500:
+                    raise
+                row.update(status="invalid", reason=str(exc))
+                conflicts[i] = exc
+            finally:
+                warnings.extend(f"第 {i + 1} 道题目{w}" for w in row["warnings"])
+        # Bind decisions to this input and its actual match/versions, including references resolved by name.
+        bindings = [op["values"] if op else None for op in prepared]
+        snapshot = json.dumps([items, rows, bindings], sort_keys=True, separators=(",", ":")).encode("utf-8")
+        token = hashlib.blake2b(snapshot, key=self._import_preview_key, digest_size=32).hexdigest()
+        for row in rows:
+            row.pop("source_revision", None)
+        return {"rows": rows, "warnings": warnings, "preview_token": token}, prepared, conflicts
+
+    def preview_problem_import(self, payload):
+        with self.lock:
+            # Recovery is a write: leave the outbox untouched even after a failed file flush.
+            if self.maintenance or self.db.execute("SELECT 1 FROM pending_files LIMIT 1").fetchone():
+                raise AppError("数据正在迁移或等待源码写回，请稍后再预览。", 503, "storage_pending")
+            return self._problem_import_plan(payload.get("problems"))[0]
+
     def import_problems(self, payload):
         with self.lock:
             self._ready()
-            items = payload.get("problems")
-            if not isinstance(items, list) or not items:
-                raise AppError("导入文件必须包含至少一道题目")
-            if len(items) > 200:
-                raise AppError(
-                    "单次最多导入 200 道题目",
-                    413,
-                    "too_large",
-                )
-            prepared = []
-            seen = set()
-            algorithm_counters = {}
-            contest_counters = {}
-            warnings = []
-            global_start = self._next_problem_global_order()
-            for index, raw_item in enumerate(items):
-                if not isinstance(raw_item, dict):
-                    raise AppError(f"第 {index + 1} 道题目格式不正确")
-                item = dict(raw_item)
-                contest_name = item.pop("contest", item.pop("contest_title", None))
-                algorithm_name = item.pop(
-                    "algorithm", item.pop("algorithm_name", None)
-                )
-                known_fields = {
-                    "platform",
-                    "number",
-                    "name",
-                    "url",
-                    "language",
-                    "code",
-                    "contest_id",
-                    "algorithm_id",
-                    "tests",
-                    "code_locked",
-                }
-                ignored_fields = sorted(set(item) - known_fields)
-                if ignored_fields:
-                    warnings.append(
-                        f"第 {index + 1} 道题目未识别字段："
-                        + ", ".join(ignored_fields)
-                    )
-                contest = None
-                contest_id = item.get("contest_id")
-                if contest_id is not None and contest_id != "":
-                    if not isinstance(contest_id, str):
-                        raise AppError(
-                            f"第 {index + 1} 道题目的 contest_id 不正确"
-                        )
-                    contest = self._row("contests", contest_id)
-                elif contest_name is not None and contest_name != "":
-                    title = text_value(contest_name, "比赛标题", 300, True)
-                    matches = self.db.execute(
-                        "SELECT * FROM contests WHERE title=? COLLATE NOCASE",
-                        (title,),
-                    ).fetchall()
-                    if not matches:
-                        raise AppError(
-                            f"第 {index + 1} 道题目引用的比赛不存在：{title}"
-                        )
-                    if len(matches) > 1:
-                        raise AppError(
-                            f"第 {index + 1} 道题目的比赛标题不唯一，请改用 contest_id"
-                        )
-                    contest = dict(matches[0])
-                if contest is not None:
-                    item["contest_id"] = contest["id"]
-                    if not item.get("platform"):
-                        item["platform"] = contest["platform"]
-
-                algorithm_id = item.get("algorithm_id")
-                if algorithm_id is not None and algorithm_id != "":
-                    if not isinstance(algorithm_id, str):
-                        raise AppError(
-                            f"第 {index + 1} 道题目的 algorithm_id 不正确"
-                        )
-                    self._row("algorithms", algorithm_id)
-                elif algorithm_name is not None and algorithm_name != "":
-                    name = text_value(algorithm_name, "算法名称", 200, True)
-                    matches = self.db.execute(
-                        "SELECT * FROM algorithms WHERE name=? COLLATE NOCASE",
-                        (name,),
-                    ).fetchall()
-                    if not matches:
-                        raise AppError(
-                            f"第 {index + 1} 道题目引用的算法不存在：{name}"
-                        )
-                    if len(matches) > 1:
-                        raise AppError(
-                            f"第 {index + 1} 道题目的算法名称不唯一，请改用 algorithm_id"
-                        )
-                    item["algorithm_id"] = matches[0]["id"]
-
-                item.setdefault("language", "cpp")
-                item.setdefault("code", "")
-                try:
-                    values, encoded = self._validate_problem(item)
-                    tests = self._validated_tests(item) if "tests" in item else []
-                    self._duplicate(values)
-                except AppError as exc:
-                    raise AppError(
-                        f"第 {index + 1} 道题目：{exc}",
-                        exc.status,
-                        exc.code,
-                        **exc.details,
-                    ) from None
-                key = (values["platform"], values["normalized_url"])
-                if key in seen:
-                    raise AppError(
-                        f"第 {index + 1} 道题目与导入文件中的其他题目重复"
-                    )
-                seen.add(key)
-                algorithm_id = values["algorithm_id"]
-                if algorithm_id is None:
-                    algorithm_order = 0
-                else:
-                    if algorithm_id not in algorithm_counters:
-                        algorithm_counters[algorithm_id] = (
-                            self._next_algorithm_order(algorithm_id)
-                        )
-                    algorithm_order = algorithm_counters[algorithm_id]
-                    algorithm_counters[algorithm_id] += 1
-                contest_id = values["contest_id"]
-                contest_order = 0
-                if contest_id is not None:
-                    if contest_id not in contest_counters:
-                        contest_counters[contest_id] = self._next_contest_order(contest_id)
-                    contest_order = contest_counters[contest_id]
-                    contest_counters[contest_id] += 1
-                prepared.append(
-                    {
-                        "values": values,
-                        "encoded": encoded,
-                        "tests": tests,
-                        "code_locked": self._validated_code_lock(item),
-                        "algorithm_order": algorithm_order,
-                        "contest_order": contest_order,
-                    }
-                )
-
-            current_version = int(
-                self.db.execute(
-                    "SELECT value FROM settings WHERE key='problem_order_version'"
-                ).fetchone()[0]
-            )
-            next_version = current_version + 1
+            preview, prepared, errors = self._problem_import_plan(payload.get("problems"))
+            rows = preview["rows"]
+            if "preview_token" in payload or "decisions" in payload:
+                token = payload.get("preview_token")
+                if not isinstance(token, str) or token != preview["preview_token"]:
+                    raise AppError("预览后题库或文件已变化，请重新预览再确认。", 409, "import_preview_changed")
+                decisions = payload.get("decisions")
+                if not isinstance(decisions, list) or len(decisions) != len(rows):
+                    raise AppError("请为预览中的每一条题目选择处理方式")
+                for row, action in zip(rows, decisions):
+                    if action not in row["actions"]:
+                        raise AppError(f"第 {row['index'] + 1} 条不能执行所选操作：{row['reason']}")
+            else:
+                # Older clients can insert an entirely new batch; they cannot authorize overwrites.
+                for row, error in zip(rows, errors):
+                    if error:
+                        raise AppError(f"第 {row['index'] + 1} 道题目：{error}", error.status, error.code)
+                    if row["status"] != "new":
+                        raise AppError("导入文件含有重复题目或冲突；请先预览再确认。", 409, "import_preview_required")
+                decisions = ["create"] * len(rows)
+            updates = decisions.count("update") + decisions.count("update_metadata")
+            backup = self.create_backup()["name"] if updates else None
+            ids, contests, algorithms = [], set(), set()
             timestamp = now()
-            identifiers = []
             with self.db:
-                for offset, prepared_item in enumerate(prepared):
-                    values = prepared_item["values"]
-                    identifier = uuid.uuid4().hex
-                    path = (
-                        f"codes/{identifier}"
-                        f"{EXTENSIONS[values['language']]}"
-                    )
-                    identifiers.append(identifier)
-                    self.db.execute(
-                        "INSERT INTO problems "
-                        "(id,platform,number,name,url,normalized_url,language,"
-                        "contest_id,algorithm_id,algorithm_order,global_order,contest_order,"
-                        "code_path,created_at,updated_at,version) "
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
-                        (
-                            identifier,
-                            values["platform"],
-                            values["number"],
-                            values["name"],
-                            values["url"],
-                            values["normalized_url"],
-                            values["language"],
-                            values["contest_id"],
-                            values["algorithm_id"],
-                            prepared_item["algorithm_order"],
-                            global_start + offset,
-                            prepared_item["contest_order"],
-                            path,
-                            timestamp,
-                            timestamp,
-                        ),
-                    )
-                    self.db.execute(
-                        "INSERT INTO pending_files(action,path,content) "
-                        "VALUES ('write',?,?)",
-                        (path, prepared_item["encoded"]),
-                    )
-                    self._write_problem_tests(
-                        identifier,
-                        prepared_item["tests"],
-                        timestamp,
-                    )
-                    self._write_code_lock("problem", identifier, prepared_item["code_locked"])
-                contest_ids = {
-                    item["values"]["contest_id"] for item in prepared
-                } - {None}
-                algorithm_ids = {
-                    item["values"]["algorithm_id"] for item in prepared
-                } - {None}
-                self._touch_contests(contest_ids, timestamp)
-                for algorithm_id in algorithm_ids:
-                    self._touch_algorithm(algorithm_id, timestamp)
-                self.db.execute(
-                    "UPDATE settings SET value=? "
-                    "WHERE key='problem_order_version'",
-                    (str(next_version),),
-                )
-                self._sync_platform_orders()
+                for action, op in zip(decisions, prepared):
+                    if action == "skip":
+                        continue
+                    v, old = op["values"], op["old"]
+                    keep_source = action == "update_metadata"
+                    if keep_source:
+                        v = {**v, "language": old["language"]}
+                    identifier = old["id"] if old else uuid.uuid4().hex
+                    ids.append(identifier)
+                    path = f"codes/{identifier}{EXTENSIONS[v['language']]}"
+                    order = old["contest_order"] if old and old["contest_id"] == v["contest_id"] else self._next_contest_order(v["contest_id"])
+                    params = {**v, "id": identifier, "path": path, "ts": timestamp, "contest_order": order}
+                    if old:
+                        self.db.execute("""UPDATE problems SET platform=:platform,number=:number,name=:name,url=:url,
+                            normalized_url=:normalized_url,language=:language,contest_id=:contest_id,contest_order=:contest_order,
+                            updated_at=:ts,code_path=:path,version=version+1 WHERE id=:id""", params)
+                        contests.add(old["contest_id"])
+                        algorithms.update(old["algorithm_ids"])
+                    else:
+                        params["global_order"] = self._next_problem_global_order()
+                        self.db.execute("""INSERT INTO problems
+                            (id,platform,number,name,url,normalized_url,language,contest_id,contest_order,global_order,
+                             code_path,created_at,updated_at) VALUES (:id,:platform,:number,:name,:url,:normalized_url,
+                             :language,:contest_id,:contest_order,:global_order,:path,:ts,:ts)""", params)
+                        self._write_code_lock("problem", identifier, op["lock"])
+                    self._write_study_fields(identifier, v)
+                    if not keep_source and op["encoded"] is not None:
+                        self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (path, op["encoded"]))
+                    if old and old["code_path"] != path:
+                        self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", (old["code_path"],))
+                    if not keep_source and op["tests"] is not None:
+                        self._write_problem_tests(identifier, op["tests"], timestamp)
+                    contests.add(v["contest_id"])
+                    algorithms.update(v["algorithm_ids"])
+                if ids:
+                    self._touch_contests(contests, timestamp)
+                    for algorithm in algorithms:
+                        self._touch_algorithm(algorithm, timestamp)
+                    if "create" in decisions:
+                        self.db.execute("UPDATE settings SET value=CAST(value AS INTEGER)+1 WHERE key='problem_order_version'")
+                    self._sync_platform_orders()
             self._flush_pending()
-            return {
-                "count": len(identifiers),
-                "problem_ids": identifiers,
-                "problem_order_version": next_version,
-                "warnings": warnings,
-            }
+            version = int(self.db.execute("SELECT value FROM settings WHERE key='problem_order_version'").fetchone()[0])
+            return {"count": len(ids), "created": decisions.count("create"), "updated": updates,
+                    "skipped": decisions.count("skip"), "backup": backup, "problem_ids": ids,
+                    "problem_order_version": version, "warnings": preview["warnings"]}
 
     def delete_problem(self, identifier, payload):
         with self.lock:
@@ -2994,11 +3136,14 @@ class Repository:
             if payload.get("confirmed") is not True:
                 raise AppError("删除题目会同时删除代码文件，请再次确认", 400, "confirmation_required")
             with self.db:
+                tags = self.db.execute("SELECT algorithm_id FROM problem_algorithms WHERE problem_id=?", (identifier,)).fetchall()
                 self.db.execute("DELETE FROM problems WHERE id=?", (identifier,))
                 self._write_code_lock("problem", identifier, False)
                 self.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", (old["code_path"],))
                 self._touch_contests([old["contest_id"]], now())
-                self._touch_algorithm(old["algorithm_id"], now())
+                timestamp = now()
+                for (tag,) in tags:
+                    self._touch_algorithm(tag, timestamp)
                 self._sync_platform_orders()
             self._flush_pending()
             return {"ok": True}
@@ -3014,10 +3159,9 @@ class Repository:
                 if payload["keep_problems"]:
                     self.db.execute("UPDATE problems SET contest_id=NULL,updated_at=?,version=version+1 WHERE contest_id=?", (now(), identifier))
                 else:
-                    rows = self.db.execute(
-                        "SELECT code_path,algorithm_id FROM problems WHERE contest_id=?",
-                        (identifier,),
-                    ).fetchall()
+                    rows = self.db.execute("SELECT code_path FROM problems WHERE contest_id=?", (identifier,)).fetchall()
+                    tags = self.db.execute("SELECT DISTINCT t.algorithm_id FROM problem_algorithms t "
+                                           "JOIN problems p ON p.id=t.problem_id WHERE p.contest_id=?", (identifier,)).fetchall()
                     self.db.executemany("INSERT INTO pending_files(action,path,content) VALUES ('delete',?,NULL)", [(r[0],) for r in rows])
                     self.db.execute(
                         "DELETE FROM settings WHERE key IN (SELECT 'code_lock:problem:' || id FROM problems WHERE contest_id=?)",
@@ -3025,7 +3169,7 @@ class Repository:
                     )
                     self.db.execute("DELETE FROM problems WHERE contest_id=?", (identifier,))
                     timestamp = now()
-                    for algorithm_id in {r[1] for r in rows} - {None}:
+                    for (algorithm_id,) in tags:
                         self._touch_algorithm(algorithm_id, timestamp)
                 self.db.execute("DELETE FROM contests WHERE id=?", (identifier,))
                 self.db.execute("DELETE FROM settings WHERE key=?", (f"card_color:contest:{identifier}",))
@@ -3086,17 +3230,23 @@ class Repository:
             self._version(old, payload)
             if payload.get("confirmed") is not True:
                 raise AppError(
-                    "删除算法会同时删除全部代码文件，请再次确认",
+                    "删除算法会删除此算法的代码模板；关联题目和题目代码会保留，请再次确认",
                     400,
                     "confirmation_required",
                 )
             snippets = self._algorithm_snippets(identifier)
             with self.db:
-                self.db.execute(
-                    "UPDATE problems SET algorithm_id=NULL,updated_at=?,version=version+1 "
-                    "WHERE algorithm_id=?",
-                    (now(), identifier),
-                )
+                # The first surviving tag becomes the legacy primary. Mark even
+                # secondary-only removals as edits, so stale forms cannot undo them.
+                self.db.execute("""
+                    UPDATE problems SET
+                        algorithm_id=(SELECT t.algorithm_id FROM problem_algorithms t WHERE
+                            t.problem_id=problems.id AND t.algorithm_id<>? ORDER BY t.tag_order LIMIT 1),
+                        algorithm_order=COALESCE((SELECT t.problem_order FROM problem_algorithms t WHERE
+                            t.problem_id=problems.id AND t.algorithm_id<>? ORDER BY t.tag_order LIMIT 1),0),
+                        updated_at=?, version=version+1
+                    WHERE id IN (SELECT problem_id FROM problem_algorithms WHERE algorithm_id=?)
+                """, (identifier, identifier, now(), identifier))
                 self.db.executemany(
                     "INSERT INTO pending_files(action,path,content) "
                     "VALUES ('delete',?,NULL)",
@@ -3561,7 +3711,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._guard(mutation)
         path = urlsplit(self.path).path
         # Run/stop need independent threads; persistent mutations share the migration barrier.
-        if mutation and not path.endswith(("/run", "/run/stop")):
+        if mutation and path != "/api/problems/import/preview" and not path.endswith(("/run", "/run/stop")):
             with self.server.repo.lock:
                 self.server.repo._ready()
                 return self._dispatch_request()
@@ -3761,6 +3911,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             return self._json({"contest": repo.create_contest(body)}, 201)
         if self.command == "POST" and path == "/api/problems":
             return self._json({"problem": repo.create_problem(body)}, 201)
+        if self.command == "POST" and path == "/api/problems/import/preview":
+            return self._json(repo.preview_problem_import(body))
         if self.command == "POST" and path == "/api/problems/import":
             return self._json(repo.import_problems(body), 201)
         match = re.fullmatch(r"/api/(problems|algorithm-snippets)/([a-f0-9]{32})/code-lock", path)
@@ -3879,6 +4031,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             status = 0
         method = str(self.command or "").upper()
+        if method == "POST" and status < 400 and urlsplit(self.path).path == "/api/problems/import/preview":
+            return
         if (method == "PUT" and 200 <= status < 300
                 and urlsplit(self.path).path == "/api/settings/sidebar-art"):
             return

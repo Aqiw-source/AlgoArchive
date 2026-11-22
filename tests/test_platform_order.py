@@ -70,7 +70,7 @@ class PlatformOrderTests(unittest.TestCase):
             self.repo.reorder_platform_problems("acwing", saved)
         self.assertEqual(raised.exception.code, "version_conflict")
 
-    def test_existing_schema_10_initializes_from_updated_time_once(self):
+    def test_missing_platform_settings_initialize_from_updated_time_once(self):
         a, b = self.problem("a"), self.problem("b")
         with self.repo.db:
             self.repo.db.execute("DELETE FROM settings WHERE key GLOB 'platform_problem_order:*'")
@@ -79,7 +79,8 @@ class PlatformOrderTests(unittest.TestCase):
         self.repo.close()
         self.repo = app.Repository(self.path)
         self.assertEqual(self.order()["problem_ids"], [b["id"], a["id"]])
-        self.assertEqual(self.repo.db.execute("SELECT value FROM settings WHERE key='schema_version'").fetchone()[0], "10")
+        self.assertEqual(self.repo.db.execute("SELECT value FROM settings WHERE key='schema_version'").fetchone()[0],
+                         str(app.DATABASE_SCHEMA_VERSION))
 
     def test_aliases_custom_platforms_import_and_backup_restore(self):
         a = self.problem("a", "洛谷")

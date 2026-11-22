@@ -54,7 +54,7 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
         run: |
-          foreach ($test in @("test_local_upgrade", "test_background_sync", "test_modal_scroll", "test_view_layout", "test_image_preview")) {
+          foreach ($test in @("test_local_upgrade", "test_background_sync", "test_modal_scroll", "test_view_layout", "test_image_preview", "test_study_ui")) {
               node "tests/$test.cjs"
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }

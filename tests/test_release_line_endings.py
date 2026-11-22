@@ -15,7 +15,7 @@ REQUIRED = (
     "app.py", "cph_runner.py", "run.py", "AlgoArchive.exe",
     "start.bat", "自检.bat", "self_check.py", "web/index.html", "web/app.js",
     "web/style.css", "web/codex-theme.css", "web/mobile.css",
-    "web/workspace-updates.css", "web/sidebar-art.png", "web/sidebar-art-blended.webp",
+    "web/manual.html", "web/manual.css", "web/workspace-updates.css", "web/sidebar-art.png", "web/sidebar-art-blended.webp",
     "web/sidebar-art-debug.png", "web/sidebar-art-thinking.png",
     "web/sidebar-art-debug-blended.webp", "web/sidebar-art-thinking-blended.webp",
     "web/nav-icons/home.png", "web/nav-icons/SOURCES.md",

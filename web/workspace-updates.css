@@ -396,3 +396,50 @@ html:has(#modal[open]), body:has(#modal[open]) {
 body:has(#modal[open]) .workspace-sidebar,
 body:has(#modal[open]) .workspace-nav { overflow: hidden; }
 #modal { overscroll-behavior: contain; }
+
+#modal:has(#problem-import-preview:not([hidden])) { width: min(700px, calc(100vw - 24px)); }
+#problem-import-form { display: flex; flex-direction: column; max-height: min(86dvh, 840px); }
+#problem-import-form .modal-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+#problem-import-form :is(.modal-header,.modal-actions) { flex-shrink: 0; }
+#problem-import-preview h3 { margin: 18px 0 4px; font-size: 15px; }
+#problem-import-summary { font-size: 13px; }
+.import-preview-rows { padding-left: 24px; margin: 10px 0 0; font-size: 13px; }
+.import-preview-rows li { border-top: 1px solid var(--line); padding: 10px 0; overflow-wrap: anywhere; }
+.import-preview-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.import-preview-line span { color: var(--primary-dark); }
+.import-preview-rows small { display: block; line-height: 1.6; }
+.import-preview-rows .import-overwrite { background: #fff1d2; color: #703e08; padding: 4px 8px; margin: 4px 0; }
+.import-preview-rows label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.import-preview-rows select { max-width: 100%; }
+
+.study-badge { display:inline-block; margin-top:3px; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:600; white-space:nowrap; line-height:1.45; }
+.study-unseen { color:#545d69; background:#edf0f4; }
+.study-todo { color:#815212; background:#fbefd7; }
+.study-done { color:#226349; background:#e7f3ed; }
+.study-queue .section-head { flex-wrap:wrap; gap:8px 16px; }
+.study-queue-filter { display:flex; min-width:0; max-width:100%; align-items:center; gap:8px; color:#606575; font-size:12px; white-space:nowrap; }
+.study-queue-filter select { min-width:0; max-width:20em; width:clamp(9em,18vw,20em); padding:6px 9px; border:1px solid #d9dee6; border-radius:7px; background:#fff; color:inherit; font:inherit; }
+.study-queue-count,.study-queue-empty { margin:0; padding:12px 16px; color:#616575; font-size:12px; }
+.study-queue ul { list-style:none; max-height:min(18rem,55vh); overflow:auto; margin:0; padding:0 16px; }
+.study-queue li { display:flex; gap:8px 16px; align-items:baseline; justify-content:space-between; padding:9px 0; border-top:1px solid #e8eaf0; }
+.study-queue li button,.study-queue li span { min-width:0; overflow-wrap:anywhere; }
+.study-queue li button { text-align:left; white-space:normal; }
+.study-queue li span { max-width:45%; color:#606575; text-align:right; font-size:11px; }
+.problem-algorithm-tags { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+.study-tags { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
+.study-tags:empty { display:none; }
+.study-tag { display:inline-flex; align-items:center; gap:6px; max-width:100%; min-width:0; padding:4px 8px; border:1px solid #d9e2f0; border-radius:6px; background:#eff4fa; color:#3a526c; font:inherit; font-size:12px; cursor:pointer; }
+.study-tag > span { overflow-wrap:anywhere; }
+.study-tag:hover,.study-tag:focus-visible { border-color:#8199b5; }
+#editor-mistake-note { min-height:4.5em; resize:vertical; }
+.study-preview-note { margin:0 0 14px; padding:10px 12px; background:#f4f6fa; border-radius:7px; }
+.study-preview-note p { margin:6px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; }
+
+.platform-heading,.platform-site-links{display:flex;align-items:center;flex-wrap:wrap}
+.platform-heading{gap:.4rem .95rem}
+.platform-site-links{gap:.35rem}
+.platform-site-links .text-link{display:inline-flex;align-items:center;gap:.3rem;min-height:30px;padding:.15rem .45rem;border-radius:6px;color:#435ba7;text-decoration:none}
+.platform-site-links .text-link:hover,.platform-site-links .text-link:focus-visible{background:#edf0ff}
+.platform-site-links svg{width:15px;height:15px;flex:none}
+.manual-link{white-space:nowrap}
+@media(max-width:520px){.workspace-topbar{height:auto;min-height:48px;flex-wrap:wrap;padding-block:6px}.topbar-meta{flex-wrap:wrap}}

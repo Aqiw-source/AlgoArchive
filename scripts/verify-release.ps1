@@ -26,6 +26,8 @@ try {
         "web/style.css",
         "web/codex-theme.css",
         "web/mobile.css",
+        "web/manual.html",
+        "web/manual.css",
         "web/workspace-updates.css",
         "web/sidebar-art.png",
         "web/sidebar-art-blended.webp",

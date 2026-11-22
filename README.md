@@ -1,6 +1,6 @@
 # AlgoArchive · 算法档案
 
-> 当前版本：**2.2.10**。本次更新集中修复前端布局、保存同步与图片预览，并采用 MIT 开源许可证。
+> 当前版本：**2.3.0**。本地版支持补题清单、错因笔记、多算法标签和导入预览。点右上角「使用手册」即可离线查阅。
 > 下载与升级说明见下文，具体变更和验证范围见 [CHANGELOG.md](CHANGELOG.md)、[TEST_REPORT.md](TEST_REPORT.md)。
 
 **本地优先的竞赛题解、比赛与算法模板管理工具**
@@ -24,8 +24,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.2.10-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.2.10-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.3.0-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.3.0-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -37,6 +37,19 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 ### 本地工作空间
 
 [![算法档案首页](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)
+
+<details>
+<summary>展开 2.3.0 本地版：补题清单、导入预览与离线手册</summary>
+
+以下截图来自单独创建的示例题库。首页可按比赛查待补题；遇到重复导入时，默认跳过已有题。
+
+[![首页按比赛查看待补题](docs/screenshots/local-study.png)](docs/screenshots/local-study.png)
+
+[![逐条查看导入匹配和处理方式](docs/screenshots/local-import.png)](docs/screenshots/local-import.png)
+
+[![随程序提供的离线使用手册](docs/screenshots/local-manual.png)](docs/screenshots/local-manual.png)
+
+</details>
 
 ### 比赛归档
 
@@ -134,6 +147,10 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | 侧栏插画 | 三张内置图手动切换、隐藏或恢复默认；本地保存选择，无自定义上传 |
 | 比赛归档 | 平台可自由输入，支持 Codeforces、AtCoder、AcWing、洛谷、牛客和其他完整比赛 |
 | 统一题库 | 比赛题目与独立题目共享同一记录和同一份源代码，支持复制原题链接 |
+| 补题与复盘（本地） | 手动标记未做、待补或已完成；记录错因，首页按比赛查看待补题 |
+| 多算法标签（本地） | 一题可同时出现在多个算法题单，代码、用例和总题数不重复 |
+| 导入预览（本地） | 导入前识别重复，已有题默认跳过，核对后逐条决定是否更新 |
+| 官网与使用手册（本地） | 平台标题旁打开或复制官网；右上角打开离线手册 |
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
 | 排序与导入 | 全局题目和算法内题目独立排序，支持逆序和 JSON 批量导入 |
 | 代码工作台 | VS Code 风格配色、语法高亮、行号、自动缩进和 `Ctrl+S` 保存 |
@@ -155,7 +172,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.2.10-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.3.0-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -262,9 +279,9 @@ data/
 
 ### JSON 批量导入
 
-单次最多导入 200 道题目。`tests` 数组会与题目一起保存；每个测试用例必须包含
-文本类型的 `input` 和 `output`。整批题目先完成校验，任一题目或测试用例无效时
-不会写入部分数据。无法识别的顶层字段会通过导入结果提示，不会被当作已保存。
+单次最多 200 题。选择 JSON 后先预览：没有匹配的题默认新增，已有题默认跳过。可逐条选择只更新资料，保留现有代码及用例；需要替换时请核对预览列出的变化。更新已有题前会自动创建完整备份。已被其他窗口修改时，需要重新预览。格式无效、批内重复或匹配不唯一的行只可跳过；其余选中变更一起提交。旧客户端直接导入时，整批必须有效且全新。
+
+测试用例的 `input` 和 `output` 均为文本；不识别的顶层字段会提示。
 
 ```json
 {
@@ -408,13 +425,13 @@ node --test tests/test_demo.cjs
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.2.10
+.\scripts\build-portable.ps1 -Version 2.3.0
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.2.10
+.\scripts\build-release.ps1 -Version 2.3.0
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、

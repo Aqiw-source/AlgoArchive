@@ -68,7 +68,7 @@ class CphRunnerTests(unittest.TestCase):
         schema = repo.db.execute(
             "SELECT value FROM settings WHERE key='schema_version'"
         ).fetchone()[0]
-        self.assertEqual(schema, "10")
+        self.assertEqual(schema, str(app_module.DATABASE_SCHEMA_VERSION))
         self.assertEqual(
             repo.db.execute(
                 "SELECT COUNT(*) FROM problem_tests WHERE problem_id=?",

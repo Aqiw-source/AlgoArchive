@@ -14,6 +14,13 @@ test('actual save helper adds to empty state and renders counts',()=>{
   const state={problems:[],contests:[],algorithms:[]},helper=actualHelper(state);
   helper.save({id:'first'});assert.equal(state.problems.length,1);assert.equal(helper.renders(),1);
 });
+test('a shared problem counts once per tag and explicit removal clears legacy primary membership',()=>{
+  const state={problems:[{id:'old',algorithm_id:'a'}],contests:[],algorithms:[{id:'a'},{id:'b'}]},helper=actualHelper(state);
+  helper.save({id:'new',algorithm_id:'a',algorithm_ids:['a','b','b']});
+  assert.deepEqual(state.algorithms.map(a=>a.problem_count),[2,1]);
+  helper.save({id:'new',algorithm_id:'a',algorithm_ids:[]});
+  assert.deepEqual(state.algorithms.map(a=>a.problem_count),[1,0]);
+});
 test('missing, null, empty and dangling associations do not inflate existing groups',()=>{
   const state={problems:[{id:'missing'},{id:'null',contest_id:null,algorithm_id:null},{id:'empty',contest_id:'',algorithm_id:''},{id:'dangling',contest_id:'gone',algorithm_id:'gone'}],contests:[{id:'c',problem_count:99}],algorithms:[{id:'a',problem_count:99}]};
   actualHelper(state).save({id:'new'});

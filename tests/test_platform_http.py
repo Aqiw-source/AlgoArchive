@@ -62,6 +62,17 @@ class PlatformHttpTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.request(path)[1]["Cache-Control"], expected)
 
+    def test_import_preview_never_replays_pending_source_writes(self):
+        repo = self.server.repo
+        source = "codes/" + "a" * 32 + ".cpp"
+        with repo.lock, repo.db:
+            repo.db.execute("INSERT INTO pending_files(action,path,content) VALUES ('write',?,?)", (source, b"later"))
+        status, _, raw = self.request("/api/problems/import/preview", "POST", {"problems": [
+            {"platform": "HDU", "number": "1", "url": "https://oj.example/p1"}]})
+        self.assertEqual((status, json.loads(raw)["code"]), (503, "storage_pending"))
+        self.assertFalse((repo.data_dir / source).exists())
+        self.assertEqual(repo.db.execute("SELECT COUNT(*) FROM pending_files").fetchone()[0], 1)
+
     def test_only_artwork_success_is_quiet(self):
         self.assertEqual(self.request("/api/settings/sidebar-art", "PUT", {"image": "debug", "hidden": False})[0], 200)
         self.assertNotIn("PUT /api/settings/sidebar-art", self.logs.getvalue())

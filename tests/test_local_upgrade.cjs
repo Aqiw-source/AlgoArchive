@@ -68,7 +68,30 @@ async function main(){
     await go(route);const first=await page.locator('[data-drag-algorithm-problem]').first().getAttribute('data-drag-algorithm-problem'),next=await page.locator('[data-drag-algorithm-problem]').nth(1).getAttribute('data-drag-algorithm-problem');const platformsBefore=(await get()).platform_problem_orders;
     await page.locator('[data-drag-algorithm-problem]').first().press('Alt+ArrowDown');await page.waitForFunction(id=>document.querySelector('[data-drag-algorithm-problem]')?.dataset.dragAlgorithmProblem===id,next);assert.equal(await page.locator('[data-drag-algorithm-problem]').nth(1).getAttribute('data-drag-algorithm-problem'),first);assert.deepEqual((await get()).platform_problem_orders,platformsBefore);
   }checks.push('global/contest/algorithm keyboard sorts retained and independent from platform orders');
-  await go('problems');await page.locator('[data-import-problems]').click();await page.locator('#problem-import-file').setInputFiles({name:'isolated-import.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({problems:[{platform:'POJ',name:'imported live',url:'https://example.com/import-live',language:'cpp',code:''}]}))});await page.locator('#problem-import-form button[type=submit]').click();await page.locator('#problem-table .title-link').filter({hasText:'imported live'}).waitFor();assert.equal(await page.locator('#sync-notice').evaluate(e=>e.hidden),true);checks.push('JSON import refreshes visible list and clears sync notice');
+  await go('problems');
+  const importNew={platform:'POJ',name:'imported live',url:'https://example.com/import-live',language:'cpp',code:'// keep',tests:[{input:'a',output:'b'}]};
+  const startPreview=async items=>{
+    await page.locator('[data-import-problems]').click();
+    await page.locator('#problem-import-file').setInputFiles({name:'isolated-import.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({problems:items}))});
+    await page.getByRole('button',{name:'预览导入',exact:true}).click();
+    await page.locator('#problem-import-summary').waitFor();
+  };
+  await startPreview([importNew]);assert.equal((await get()).problems.some(p=>p.url===importNew.url),false);
+  await page.getByRole('button',{name:'确认导入',exact:true}).click();
+  await page.locator('#problem-table .title-link').filter({hasText:'imported live'}).waitFor();assert.equal(await page.locator('#sync-notice').evaluate(e=>e.hidden),true);
+  const importedId=(await get()).problems.find(p=>p.url===importNew.url).id, importDetail=()=>fetch(base+'/api/problems/'+importedId).then(r=>r.json()).then(r=>r.problem);
+  const revisions=[{...importNew,name:'Revised import title',code:'// replace',tests:[{input:'x',output:'y'}]}];
+  await startPreview(revisions);
+  const choose=page.locator('[data-import-decision="0"]');
+  assert.equal(await choose.inputValue(),'skip');assert.match(await page.locator('.import-overwrite').innerText(),/源码和测试用例/);
+  await choose.selectOption('update_metadata');
+  await send('/api/problems/'+importedId,{version:(await importDetail()).version,name:'edited elsewhere'},'PUT');
+  await page.getByRole('button',{name:'确认导入',exact:true}).click();await page.getByRole('button',{name:'重新预览',exact:true}).waitFor();
+  assert.equal((await importDetail()).name,'edited elsewhere');await page.getByRole('button',{name:'重新预览',exact:true}).click();
+  assert.equal(await choose.inputValue(),'skip');await choose.selectOption('update_metadata');await page.getByRole('button',{name:'确认导入',exact:true}).click();
+  await page.locator('#problem-table .title-link').filter({hasText:'Revised import title'}).waitFor();
+  const importedDetail=await importDetail();assert.equal(importedDetail.code,'// keep');assert.equal(importedDetail.tests[0].output,'b');
+  checks.push('JSON preview is read-only, defaults to skip, flags replacements, rejects stale commits and keeps code/tests on metadata-only updates');
   // CSS viewport dimensions model browser zoom layout (actual personal Chrome profile not touched).
   for(const [width,height] of [[1440,1000],[1100,600],[880,480],[733,400],[390,844]]){await page.setViewportSize({width,height});const rect=await page.locator('#open-profile-settings').boundingBox();assert.ok(rect&&rect.y+rect.height<=height+1,`${width}x${height}: settings bottom ${rect?.y+rect?.height}`);await page.screenshot({path:path.join(temp,`layout-${width}-${height}.png`)});}checks.push('settings visible at desktop, short, 125%/150% equivalent viewport and mobile');
   assert.deepEqual(errors,[]);assert.ok(consoleErrors.every(e=>/503|500|409|ERR_FAILED/.test(e)),consoleErrors.join('\n'));
