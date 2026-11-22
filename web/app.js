@@ -37,7 +37,7 @@
   const languages = {cpp: 'C++', python: 'Python', java: 'Java', other: '其他'};
   // The demo bootstrap consumes its fixture before app.js, but retains the version marker.
   const localStudy = !window.__DEMO_VERSION__;
-  const studyLabels = {unseen:'未做', todo:'待补', done:'已完成'};
+  const studyLabels = {unseen:'未做', todo:'待补', done:'已通过'};
   const studyStatus = p => Object.hasOwn(studyLabels,p.study_status) ? p.study_status : 'unseen';
   const extensions = {cpp: '.cpp', python: '.py', java: '.java', other: '.txt'};
   const fileLikeDomainSuffixes = new Set(['c','cc','cfg','cpp','css','csv','dll','exe','h','hpp','htm','html','ico','ini','java','jpeg','jpg','js','json','jsx','log','md','pdf','png','py','rar','svg','toml','ts','tsx','txt','webp','yaml','yml','zip','7z']);

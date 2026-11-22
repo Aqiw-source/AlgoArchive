@@ -17,6 +17,28 @@ import run
 
 
 class BrowserLauncherTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows desktop console")
+    def test_only_one_status_console_waits_for_the_background_service(self):
+        import _winapi
+        with tempfile.TemporaryDirectory() as data:
+            owner = app.desktop_console_lock(data)
+            try:
+                with mock.patch("_winapi.OpenProcess") as opened:
+                    app.watch_background_console(data, os.getpid())
+                    opened.assert_not_called()
+            finally:
+                owner.close()
+            with mock.patch("_winapi.WaitForSingleObject", side_effect=[
+                _winapi.WAIT_TIMEOUT, _winapi.WAIT_OBJECT_0
+            ]) as wait, mock.patch("builtins.print"):
+                app.watch_background_console(data, os.getpid())
+            self.assertEqual(wait.call_count, 2)
+            reopened = app.desktop_console_lock(data)
+            try:
+                self.assertTrue(reopened.acquired)
+            finally:
+                reopened.close()
+
     def test_windows_launchers_use_saved_config_instead_of_forced_data_dir(self):
         root = Path(__file__).resolve().parents[1]
         launcher = root / "start.bat"

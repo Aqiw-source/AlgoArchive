@@ -1,6 +1,6 @@
 # AlgoArchive · 算法档案
 
-> 当前版本：**2.3.0**。本地版支持补题清单、错因笔记、多算法标签和导入预览。点右上角「使用手册」即可离线查阅。
+> 当前版本：**2.3.1**。本地版支持补题清单、错因笔记、多算法标签和导入预览。点右上角「使用手册」即可离线查阅。
 > 下载与升级说明见下文，具体变更和验证范围见 [CHANGELOG.md](CHANGELOG.md)、[TEST_REPORT.md](TEST_REPORT.md)。
 
 **本地优先的竞赛题解、比赛与算法模板管理工具**
@@ -14,7 +14,7 @@
 [体验算法模板](https://aqiw-source.github.io/AlgoArchive/#algorithms)
 
 在线演示使用独立数据：15 场比赛或练习选编、113 道题、12 类算法、21 份 C++ 模板，
-另有 7 道题目包含完整示例程序和测试。可以在当前页面编辑、保存和锁定代码，刷新后重置。
+其中 13 道题目附有完整 C++ 程序和用例。首页「最近编辑」的六道题均可点开查看代码；横滨站 F 题是交互题，附固定交互回放。可以在当前页面编辑、保存和锁定代码，刷新后重置。
 编译运行、备份和系统操作需下载本地版；不会连接或修改你的本地题库。
 数据来源见 [演示数据说明](https://github.com/Aqiw-source/AlgoArchive/blob/main/demo/SOURCES.md)。
 
@@ -24,8 +24,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.3.0-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.3.0-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.3.1-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.3.1-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -39,7 +39,7 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 [![算法档案首页](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)
 
 <details>
-<summary>展开 2.3.0 本地版：补题清单、导入预览与离线手册</summary>
+<summary>展开 2.3.1 本地版：补题清单、导入预览与离线手册</summary>
 
 以下截图来自单独创建的示例题库。首页可按比赛查待补题；遇到重复导入时，默认跳过已有题。
 
@@ -147,7 +147,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | 侧栏插画 | 三张内置图手动切换、隐藏或恢复默认；本地保存选择，无自定义上传 |
 | 比赛归档 | 平台可自由输入，支持 Codeforces、AtCoder、AcWing、洛谷、牛客和其他完整比赛 |
 | 统一题库 | 比赛题目与独立题目共享同一记录和同一份源代码，支持复制原题链接 |
-| 补题与复盘（本地） | 手动标记未做、待补或已完成；记录错因，首页按比赛查看待补题 |
+| 补题与复盘（本地） | 手动标记未做、待补或已通过；记录错因，首页按比赛查看待补题 |
 | 多算法标签（本地） | 一题可同时出现在多个算法题单，代码、用例和总题数不重复 |
 | 导入预览（本地） | 导入前识别重复，已有题默认跳过，核对后逐条决定是否更新 |
 | 官网与使用手册（本地） | 平台标题旁打开或复制官网；右上角打开离线手册 |
@@ -172,7 +172,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.3.0-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.3.1-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -425,13 +425,13 @@ node --test tests/test_demo.cjs
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.3.0
+.\scripts\build-portable.ps1 -Version 2.3.1
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.3.0
+.\scripts\build-release.ps1 -Version 2.3.1
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、

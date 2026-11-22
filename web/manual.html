@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AlgoArchive 使用手册 · 2.3.0</title><link rel="stylesheet" href="manual.css"><link rel="icon" href="favicon-32.png"></head>
-<body id="top"><a class="skip" href="#start">跳到正文</a><header><div class="wrap"><h1>使用手册</h1><p>AlgoArchive 2.3.0 · Windows 本地版</p></div></header>
+<title>AlgoArchive 使用手册 · 2.3.1</title><link rel="stylesheet" href="manual.css"><link rel="icon" href="favicon-32.png"></head>
+<body id="top"><a class="skip" href="#start">跳到正文</a><header><div class="wrap"><h1>使用手册</h1><p>AlgoArchive 2.3.1 · Windows 本地版</p></div></header>
 <div class="wrap layout"><nav aria-label="手册目录"><strong>目录</strong><div class="contents"><a href="#start">01　保存第一道题</a><a href="#review">02　补题与错因</a><a href="#tags">03　多个算法标签</a><a href="#import">04　批量导入</a><a href="#test">05　编译与用例</a><a href="#backup">06　备份与恢复</a></div></nav>
 <main><section id="start"><h2>01　保存第一道题</h2><p>在左侧选择平台，点击「添加题目」，填写题名和原题链接，再点「保存题目」。还没写代码也可以先收藏进题库。想把同一场的题放一起，先建比赛，再从比赛内添加。</p><p>平台名称右侧的「官网」会在新标签页打开该平台；「复制链接」复制的是平台官网地址。题目行里的「原题」和「复制链接」指向这道题。</p></section>
-<section id="review"><h2>02　补题与错因</h2><p>在题目编辑页，把状态标为「待补」，在错因笔记里写下卡在哪里，例如「二分找右边界时，等号放错了一侧」，然后保存。回到首页即可按比赛查看待补题。</p><p>补完后改成「已完成」并保存，题目会移出待补清单，代码和笔记都保留。在「全部题目」里可以按状态找回。已有的旧题默认「未做」；本地样例通过不会自动改状态。</p></section>
+<section id="review"><h2>02　补题与错因</h2><p>在题目编辑页，把状态标为「待补」，在错因笔记里写下卡在哪里，例如「二分找右边界时，等号放错了一侧」，然后保存。回到首页即可按比赛查看待补题。</p><p>补完后改成「已通过」并保存，题目会移出待补清单，代码和笔记都保留。在「全部题目」里可以按状态找回。已有的旧题默认「未做」；本地样例通过不会自动改状态。</p></section>
 <section id="tags"><h2>03　多个算法标签</h2><p>先在「算法模板」里创建需要的分类。编辑一道题时可以同时选「二分」和「前缀和」；保存后两个算法题单都能找到它，全部题目只算一次。</p><p>从编辑页移除某个标签只会解除该关联。再次打开题目修改代码，其他入口看到的也是同一份解答。</p></section>
 <section id="import"><h2>04　批量导入与查重</h2><ol><li>打开「全部题目 → 导入」，下载示例 JSON，按示例整理文件。每次最多 200 题。</li><li>选择文件并预览。先看哪些是新增题、哪些已经在库里。预览阶段不会写入题库。</li><li>已有题默认跳过。只想改题名、标签等信息时，选「只更新资料」，原代码和测试用例会保留。只有想用文件里的内容替换时，才选对应的更新操作，并核对预览列出的变动。无法确定匹配对象时，先跳过该行并检查题号和链接。</li><li>确认选择后再导入。若提示记录已变化，请重新预览，再决定是否更新。</li></ol></section>
 <section id="test"><h2>05　编译与用例</h2><p>在「设置 → 编译器」选择本机的 <code>g++.exe</code>。在题目下方的测试区填写输入和期望输出，选择「运行当前」或「运行全部」。用「保存用例」保留下次还想跑的数据，也可导入 CPH 的 <code>.prob</code> 文件。</p><p><kbd>Ctrl</kbd> + <kbd>S</kbd> 保存当前编辑。左侧「代码试跑」适合临时验证想法，其草稿独立于题库；本地运行不会向平台提交代码。</p></section>

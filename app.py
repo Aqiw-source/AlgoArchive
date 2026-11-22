@@ -45,7 +45,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.3.1"
 CARD_COLORS = ("blue", "cyan", "green", "amber", "rose", "violet")
 SIDEBAR_ART_IMAGES = ("debug", "thinking", "celebration")
 ROOT = Path(__file__).resolve().parent
@@ -910,13 +910,14 @@ class DataDirectoryLock:
                 stream.flush()
                 os.fsync(stream.fileno())
 
-    def read_port(self):
+    def read_owner(self):
         try:
             with self.path.open("rb") as stream:
                 stream.seek(1)
-                return json.loads(stream.read(2048)).get("port")
+                owner = json.loads(stream.read(2048))
+                return owner if isinstance(owner, dict) else {}
         except (OSError, ValueError):
-            return None
+            return {}
 
     def close(self):
         if self.acquired:
@@ -4063,6 +4064,32 @@ def create_app(data_dir=None, port=0, web_dir=None):
         raise
 
 
+def desktop_console_lock(data_dir):
+    project = hashlib.sha256(os.path.normcase(str(data_dir)).encode("utf-8")).hexdigest()
+    return DataDirectoryLock(Path(tempfile.gettempdir()) / "AlgoArchive-console" / project)
+
+
+def watch_background_console(data_dir, pid):
+    import _winapi
+    if type(pid) is not int or not 0 < pid <= 0xffffffff:
+        return
+    console = desktop_console_lock(data_dir)
+    if not console.acquired:
+        return
+    try:
+        handle = _winapi.OpenProcess(_winapi.SYNCHRONIZE, False, pid)
+        try:
+            print("后台服务正在运行。关闭此状态窗口不会停止服务；可在设置中退出程序。", flush=True)
+            while _winapi.WaitForSingleObject(handle, 1000) == _winapi.WAIT_TIMEOUT:
+                pass
+        finally:
+            _winapi.CloseHandle(handle)
+    except (OSError, KeyboardInterrupt):
+        pass
+    finally:
+        console.close()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="AlgoArchive 本地算法档案管理")
     parser.add_argument("--data-dir")
@@ -4103,13 +4130,16 @@ def main(argv=None):
                 f"data_{state['state']}",
                 path=str(data_dir),
             )
+    desktop_console = (os.name == "nt" and not args.no_browser and
+                       sys.stdin is not None and sys.stdin.isatty())
     directory_lock = DataDirectoryLock(data_dir)
     if not directory_lock.acquired:
         # The first launch may still be starting. Only trust a matching health
         # identity, and never open a browser based on arbitrary lock-file text.
         project_id = hashlib.sha256(str(data_dir).encode("utf-8")).hexdigest()
         for _ in range(15):
-            port = directory_lock.read_port()
+            owner = directory_lock.read_owner()
+            port = owner.get("port")
             if type(port) is int and 0 < port <= 65535:
                 try:
                     with urlopen(f"http://127.0.0.1:{port}/api/health", timeout=0.4) as response:
@@ -4119,14 +4149,21 @@ def main(argv=None):
                         print(f"程序已在运行: {address}", flush=True)
                         if not args.no_browser:
                             open_browser(address, config.get("browser"))
+                        if desktop_console:
+                            watch_background_console(data_dir, owner.get("pid"))
                         return 0
                 except Exception:
                     pass
             time.sleep(0.15)
         raise AppError("此数据目录已有程序在运行或正在启动，请查看原来的启动窗口。", 409, "already_running")
+    console = None
     try:
+        if desktop_console:
+            console = desktop_console_lock(data_dir)
         return _run_server(args, directory_lock)
     finally:
+        if console is not None:
+            console.close()
         directory_lock.close()
 
 
