@@ -442,6 +442,6 @@ body:has(#modal[open]) .workspace-nav { overflow: hidden; }
 .platform-site-links .text-link:hover,.platform-site-links .text-link:focus-visible{background:#edf0ff}
 .platform-site-links svg{width:15px;height:15px;flex:none}
 .manual-link{white-space:nowrap}
-.external-judge{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:12px 0 20px;font-size:.86rem;color:#555f70}
+.external-judge{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-block:12px 20px;font-size:.86rem;color:#555f70}
 .external-judge a{font-weight:650;color:#31549b;text-underline-offset:3px}
 @media(max-width:520px){.workspace-topbar{height:auto;min-height:48px;flex-wrap:wrap;padding-block:6px}.topbar-meta{flex-wrap:wrap}}
