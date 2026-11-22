@@ -34,18 +34,18 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 
 ## 界面预览
 
-### 本地工作空间
+### 首页与本地功能
 
-[![算法档案首页](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)
+[![在线演示首页](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)
 
 <details>
 <summary>展开 2.3.1 本地版：补题清单、导入预览与离线手册</summary>
 
 以下截图来自单独创建的示例题库。首页可按比赛查待补题；遇到重复导入时，默认跳过已有题。
 
-[![首页按比赛查看待补题](docs/screenshots/local-study.png)](docs/screenshots/local-study.png)
+[![首页按比赛查看待补题](web/guide/media/study.webp)](web/guide/media/study.webp)
 
-[![逐条查看导入匹配和处理方式](docs/screenshots/local-import.png)](docs/screenshots/local-import.png)
+[![逐条查看导入匹配和处理方式](web/guide/media/import.webp)](web/guide/media/import.webp)
 
 [![随程序提供的离线使用手册](docs/screenshots/local-manual.png)](docs/screenshots/local-manual.png)
 
@@ -69,17 +69,6 @@ AcWing 第 163 场周赛和牛客周赛 Round 100 选编只收录题目和原题
 
 [![牛客周赛 Round 100 题目选编](docs/screenshots/nowcoder-contest.png)](docs/screenshots/nowcoder-contest.png)
 
-[![未附代码时仍可打开原题](docs/screenshots/problem-without-code.png)](docs/screenshots/problem-without-code.png)
-
-</details>
-
-<details>
-<summary>展开 Codeforces 与蓝桥杯比赛预览</summary>
-
-[![Codeforces ICPC 工作区](docs/screenshots/codeforces-workspace.png)](docs/screenshots/codeforces-workspace.png)
-
-[![蓝桥杯国赛选编](docs/screenshots/lanqiao-contest.png)](docs/screenshots/lanqiao-contest.png)
-
 </details>
 
 ### 算法模板
@@ -87,15 +76,6 @@ AcWing 第 163 场周赛和牛客周赛 Round 100 选编只收录题目和原题
 每个算法都可以管理多道题目、多份代码和多个参考链接。
 
 [![算法模板分类](docs/screenshots/templates.png)](docs/screenshots/templates.png)
-
-<details>
-<summary>展开树状数组模板与代码预览</summary>
-
-[![树状数组算法详情](docs/screenshots/algorithm.png)](docs/screenshots/algorithm.png)
-
-[![代码预览与全选复制](docs/screenshots/preview.png)](docs/screenshots/preview.png)
-
-</details>
 
 ### 代码工作台
 
@@ -126,15 +106,10 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 侧栏左右箭头手动循环切换，不自动轮播。选择和隐藏状态在本地重启后保留，
 恢复默认会显示通过庆祝图。不提供自定义插画上传，头像上传功能不变。
 
-[![设置与诊断](docs/screenshots/settings.png)](docs/screenshots/settings.png)
-
-[![侧栏插画设置](docs/screenshots/sidebar-art-settings.png)](docs/screenshots/sidebar-art-settings.png)
-
 <details>
 <summary>展开移动端预览</summary>
 
 <img src="docs/screenshots/mobile.png" alt="移动端首页" width="390">
-<img src="docs/screenshots/mobile-contests.png" alt="移动端比赛" width="390">
 
 </details>
 
@@ -443,18 +418,7 @@ Windows CI 会执行后端测试、前端语法检查、启动器 PE 依赖检�
 
 ## 当前验证状态
 
-详见 [TEST_REPORT.md](TEST_REPORT.md)。2.2.10 发布前重新验证：
-
-- 193 项 Windows 后端测试、16 项前端单元测试通过；覆盖保存、冲突、迁移、独立排序、备份恢复、运行器及发布检查。
-- 8 套浏览器回归通过，包含五种视口（1440×1000、1100×600、880×480、733×400、390×844）、每种 17 个页面场景与 6 个设置分页。
-- 平台菜单在表单内展开，正常窗口显示四项并可滚动；提示位于平台标签右侧，下方字段不被遮挡。搜索图标居中，设置不自动选中用户名，弹窗锁定背景滚动。
-- 题目、模板与试跑编辑器均检查 81 行输入，末行和状态栏可见；长平台名、标题与说明不撑出页面。
-- 头像使用原始图片；插画预览支持按钮、方向键和横向手势，完整显示且不改变侧栏选择。自动测试中的触摸手势为合成 PointerEvent，未验收实机触屏。
-- 旧状态响应、保存后刷新失败、跨窗口筛选与草稿保护、五个平台独立排序、六色六形状和编辑锁定均有回归。
-- 实际 Chrome 扩展复核完整比赛、平台菜单、设置与原图预览；公开截图只使用独立演示题库。
-- Windows 原生缩放菜单、新建 Windows 账户和干净虚拟机未在本轮验收；安装器尚未签名。既有安装器覆盖升级证据见测试报告中的 2.2.9 记录。
-
-真实用户数据不会在自动化测试中使用。
+Windows 自动检查涵盖题库读写、导入、备份恢复、编译试跑和 Edge 界面回归。可在 [Windows 验证记录](https://github.com/Aqiw-source/AlgoArchive/actions/workflows/windows.yml) 按提交查看测试结果。历次人工验收及其覆盖范围见 [TEST_REPORT.md](TEST_REPORT.md)。
 
 ## 已知边界
 
