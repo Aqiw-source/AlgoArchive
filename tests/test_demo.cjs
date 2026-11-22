@@ -183,6 +183,14 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.ok(!html.includes("demo-notice"));
     assert.ok(html.includes('data-demo-download'));
     assert.ok(html.includes('data-demo-reset'));
+    assert.match(html, /class="topbar-github manual-link" href="\/AlgoArchive\/manual\.html" target="_blank"/);
+    const guide = fs.readFileSync(path.join(out, "manual.html"), "utf8");
+    assert.match(guide, /在线演示/);
+    const chapters = [...guide.matchAll(/href="(guide\/[a-z]+\.html)"/g)].map(m => m[1]);
+    assert.equal(new Set(chapters).size, 7);
+    for (const chapter of chapters) {
+      assert.match(fs.readFileSync(path.join(out, chapter), "utf8"), /aria-label="章节导航"/);
+    }
     assert.ok(html.indexOf('class="topbar-status"') < html.indexOf('data-demo-download'));
     const sourceImage = fs.readFileSync(path.join(out, "sidebar-art.png"));
     assert.equal(sourceImage.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");

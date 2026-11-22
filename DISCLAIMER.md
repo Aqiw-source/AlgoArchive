@@ -14,7 +14,12 @@ AlgoArchive（算法档案）的自有源代码和自有文档由 Aqiw 以 MIT �
 
 原题链接由用户保存；演示数据保留来源说明，不冒充官方比赛档案，不将演示模板或本地测试通过表述为在线评测 Accepted。
 
+### Virtual Judge 外部入口
+
+首页的 Virtual Judge 链接仅在新标签页打开 `https://vjudge.net/`。AlgoArchive 与 Virtual Judge 无隶属、合作、授权或背书关系。AlgoArchive 不代为抓取题目、登录或提交，也不通过此入口传送源码、用例或账户信息。用户自行在第三方网站操作，遵守该网站与原题平台的规则。
+
 ## CPH 兼容功能
+
 
 CPH（Competitive Programming Helper）原作者为 Divyanshu Agrawal，上游项目为 `https://github.com/agrawal-d/cph`，采用 GPL-3.0-or-later。相关来源、参考提交及许可证副本保留在 `THIRD_PARTY.txt` 与 `licenses/CPH-GPL-3.0.txt`。
 

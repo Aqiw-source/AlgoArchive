@@ -9,9 +9,26 @@ header p, footer { color: #666; font-size: .9rem; }
 header p { margin: 3px 0 0; }
 nav { padding: 18px 0; border-bottom: 1px solid #dce3e2; }
 nav strong { display: block; margin-bottom: 3px; }
-.contents { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1px 12px; font-size: .94rem; }
-.contents a { border-radius: 4px; padding: 3px 5px; text-decoration: none; }
-.contents a:hover, .contents a:focus-visible { background: #edf4f2; text-decoration: underline; }
+.edition,.num,.mode { font-size:.8rem; color:#35665e; }
+.edition { margin:8px 0; font-weight:650; }
+.index-head,.pager { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.index-head { padding-top:24px; }
+.index-head span, figcaption { color:#647079; font-size:.83rem; }
+.directory { padding:0; border:0; }
+.directory a { display:grid; grid-template-columns:2.6em minmax(0,1fr) auto 1em; gap:12px; align-items:center; padding:12px 5px; border-top:1px solid #dce3e2; text-decoration:none; color:inherit; }
+.directory a:hover,.directory a:focus-visible { background:#f1f6f5; }
+.directory small { display:block; color:#53616a; line-height:1.55; }
+.num { font:600 1.05rem Consolas,monospace; }
+.mode { color:#5c666d; }
+.arrow,.bread { color:#35665e; }
+.article { padding:12px 0 22px; }
+.article h2 { margin-top:24px; }
+.article aside { margin-top:18px; padding:12px 16px; background:#faf5e9; border-left:3px solid #ba9547; }
+.article pre { overflow-x:auto; padding:14px; background:#f2f5f6; line-height:1.5; }
+.article pre code { padding:0; }
+.article figure { margin:24px 0 0; }
+.article figure img { display:block; width:100%; height:auto; border:1px solid #dce3e2; }
+.pager { flex-wrap:wrap; border-top:1px solid #dce3e2; border-bottom:0; }
 a { color: #285d59; text-underline-offset: .19em; }
 a:hover { color: #132f50; }
 a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -29,7 +46,8 @@ footer { padding: 16px 0 30px; }
 .skip:focus { top: 4px; }
 @media (max-width: 540px) {
   .wrap { width: calc(100% - 32px); }
-  .contents { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .directory a { grid-template-columns:1.6em minmax(0,1fr) auto; gap:8px; }
+  .directory .arrow { display:none; }
   header .wrap { padding-top: 22px; }
 }
 @media print {

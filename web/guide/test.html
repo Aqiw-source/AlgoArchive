@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配置编译器与运行用例 · AlgoArchive 使用手册</title><link rel="stylesheet" href="../manual.css?v=guide-2"><link rel="icon" href="../favicon-32.png"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap"><a class="bread" href="../manual.html">‹ 使用手册</a><p class="edition">第 06 章 / 07 · 本地版</p><h1>配置编译器与运行用例</h1><p>用一个加法程序检查编译器、输入和期望输出。</p></div></header>
+<main id="main" class="wrap article"><h2>配置一次编译器</h2><p>在「设置 → 编译器」选择本机 MinGW 的 <code>bin/g++.exe</code>。下载的编译器压缩包要先完整解压；选择可执行文件后保存设置。</p><h2>运行第一组测试</h2><ol><li>在题目编辑页填入下面的 C++ 程序，或在「代码试跑」临时尝试。</li><li>添加一组用例：输入 <code>2 3</code>，期望输出 <code>5</code>。运行当前用例，查看实际输出与比较结果。</li><li>再添加输入 <code>-2 2</code>、期望输出 <code>0</code>，运行全部。题目里要保留用例时点「保存用例」；已有 CPH 数据可导入 <code>.prob</code> 文件。</li></ol><pre><code>#include &lt;iostream&gt;
+int main() {
+    int a, b;
+    std::cin &gt;&gt; a &gt;&gt; b;
+    std::cout &lt;&lt; a + b &lt;&lt; '\n';
+}</code></pre><aside><b>运行失败先看哪儿？</b>编译失败先检查编译器路径和错误行；程序能运行但结果不符，先核对输入与期望输出。真实交互题还需要交互器，固定回放只能验证那次对话。</aside></main>
+<nav class="wrap pager" aria-label="章节导航"><a rel="prev" href="import.html">‹ 上一章：批量导入与重复提醒</a><a rel="next" href="backup.html">下一章：备份、恢复与启动问题 ›</a></nav></body></html>

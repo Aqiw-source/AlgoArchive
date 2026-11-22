@@ -58,7 +58,8 @@ async function main(){
     const manualPage=page.waitForEvent('popup');await page.getByRole('link',{name:'使用手册'}).click();
     const manual=await manualPage;await manual.getByRole('heading',{name:'使用手册',exact:true}).waitFor();
     assert.equal(new URL(manual.url()).origin,base);await manual.setViewportSize({width:390,height:844});
-    await manual.locator('nav a[href="#import"]').click();assert.equal(new URL(manual.url()).hash,'#import');
+    await manual.locator('nav a[href="guide/import.html"]').click();assert.equal(new URL(manual.url()).pathname,'/guide/import.html');
+    await manual.getByRole('heading',{name:'批量导入与重复提醒',exact:true}).waitFor();
     assert.ok(await manual.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await manual.close();
     await go('new-problem?algorithm='+a);assert.equal(await page.locator('#editor-study-status').inputValue(),'unseen');
     assert.equal(await page.locator('#editor-algorithm').inputValue(),a);await page.locator('#editor-algorithm').selectOption(b);

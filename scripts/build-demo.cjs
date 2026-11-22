@@ -22,9 +22,13 @@ function buildDemo(output, base = "/AlgoArchive/") {
     .replace(`<script src="${base}app.js`, scripts + `<script src="${base}app.js`);
   const localStatus = '<div class="topbar-status"><span class="online-dot"></span>本地</div>';
   if (!html.includes(localStatus)) throw new Error("Demo topbar insertion point not found");
-  html = html.replace(/\s*<a class="topbar-github manual-link"[^>]*>使用手册<\/a>/, "");
+  html = html.replace("在新标签页打开离线使用手册", "在新标签页打开演示使用手册");
   html = html.replace(localStatus, `<div class="topbar-status" data-demo-info tabindex="0" title="改动仅在当前页面生效，刷新重置；编译运行需使用本地版。" aria-label="在线演示：改动仅在当前页面生效，刷新重置；编译运行需使用本地版。">在线演示</div><a class="topbar-github demo-download" data-demo-download href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a><button type="button" class="topbar-github demo-reset" data-demo-reset aria-label="重置演示" title="重置演示"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.5 6.2M3 4v7h7"/></svg></button>`);
   fs.writeFileSync(path.join(out, "index.html"), html);
+  const manual = path.join(out, "manual.html");
+  fs.writeFileSync(manual, fs.readFileSync(manual, "utf8")
+    .replace("Windows 本地版", "在线演示")
+    .replace("第一次使用？先收藏一道题，再试着保存代码和运行用例。", "先从第一章预览代码。演示改动仅在当前页面有效，刷新即重置；标注「本地」的功能需要 Windows 本地版。"));
   fs.writeFileSync(path.join(out, "app.js"), fs.readFileSync(path.join(out, "app.js"), "utf8")
     .replaceAll('src="/', `src="${base}`).replaceAll('href="/', `href="${base}`)
     .replace("document.title='算法档案';", "document.title='AlgoArchive · 在线演示';"));
