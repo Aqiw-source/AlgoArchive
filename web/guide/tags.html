@@ -1,6 +1,23 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>算法模板与一题多个标签 · AlgoArchive 使用手册</title><link rel="stylesheet" href="../manual.css?v=guide-4"><link rel="icon" href="../favicon-32.png"></head>
+<title>算法模板与一题多个标签 · AlgoArchive 使用手册</title><link rel="stylesheet" href="../manual.css?v=guide-5"><link rel="icon" href="../favicon-32.png"></head>
 <body><a class="skip" href="#main">跳到正文</a><header><div class="wrap"><a class="bread" href="../manual.html">‹ 使用手册</a><p class="edition">第 04 章 / 07 · 本地多标签</p><h1>算法模板与一题多个标签</h1><p>把一道题归入两类题单，代码仍只维护一份。</p></div></header>
-<main id="main" class="wrap article"><h2>先准备算法分类</h2><p>打开「算法模板」，创建或选择分类，例如「二分」和「前缀和」。分类用于整理题目，分类里的代码模板适合保存可复用的写法。</p><h2>给一道题贴两个标签</h2><ol><li>回到题目编辑页，在算法标签处勾选「二分」和「前缀和」。</li><li>保存题目，分别进入这两个算法分类，确认两边都能看到同一题。</li><li>如果后来发现分类不合适，回题目编辑页取消其中一个标签并保存。</li></ol><aside><b>不用复制题目。</b>改动源码后，两处看到的都是同一份解答。取消标签只解除分类关系，不会删除题目。</aside><p>在线演示可浏览模板、编辑示例；一题关联多个算法是 Windows 本地版功能。</p></main>
+<main id="main" class="wrap article">
+<nav class="chapter-index" aria-label="本章导航"><strong>本章导航</strong>
+<a href="#topic-1">先准备算法分类</a>
+<a href="#topic-2">给一道题贴两个标签</a>
+<a href="#topic-3">练习：用两条路径找回同一份解答</a>
+<a href="#topic-4">一份模板里适合保留什么</a>
+<a href="#topic-5">整理分类时容易混淆的操作</a>
+</nav>
+<h2 id="topic-1">先准备算法分类</h2><p>打开「算法模板」，创建或选择分类，例如「二分」和「前缀和」。分类用于整理题目，分类里的代码模板适合保存可复用的写法。</p><h2 id="topic-2">给一道题贴两个标签</h2><ol><li>回到题目编辑页，在算法标签处勾选「二分」和「前缀和」。</li><li>保存题目，分别进入这两个算法分类，确认两边都能看到同一题。</li><li>如果后来发现分类不合适，回题目编辑页取消其中一个标签并保存。</li></ol><aside><b>不用复制题目。</b>改动源码后，两处看到的都是同一份解答。取消标签只解除分类关系，不会删除题目。</aside><p>在线演示可浏览模板、编辑示例；一题关联多个算法是 Windows 本地版功能。</p>
+<h2 id="topic-3">练习：用两条路径找回同一份解答</h2>
+<p>用一道「区间计数」练习做例子。解法先算前缀和，再二分定位右端点。下次复习二分或前缀和时，你都可能想找回这份程序。</p><ol><li>准备「二分」和「前缀和」两个算法分类。在题目的算法标签区同时选中它们，保存。</li><li>从「算法模板」依次进入两个分类，各点开该题预览一次。比较题号、原题链接和代码开头。</li><li>从其中一个入口编辑题目，在笔记里补写二分边界约定并保存。从另一个入口重新打开，检查同一句笔记是否可见。</li><li>回「全部题目」搜索题名。只要归档时只创建过一次，搜索结果就是同一条题目记录。</li></ol>
+
+<h2 id="topic-4">一份模板里适合保留什么</h2>
+<p>例如在二分类中保存「第一个 ≥ x 的位置」。在模板注释写明数组是否已有序、区间是左闭右开还是两端都包含、找不到时返回什么。随后用空数组、重复元素和目标越界这三种情形检查模板。</p><p>题解里可以保留读入、输出与题目细节。模板里保留函数、参数约定和边界示例。下次复用函数时，先核对约定，再接入新题的输入输出。</p>
+
+<h2 id="topic-5">整理分类时容易混淆的操作</h2>
+<dl><dt>一道题有多个标签，该从哪里修改源码？</dt><dd>从任一分类进入该题的编辑器都可以。修改后重新打开另一个分类的预览核对。</dd><dt>两个标签都存在，但只有一个分类里看得到题目</dt><dd>回到题目编辑页检查两个标签是否都已勾选并保存。在本地程序验证多标签关联，在线演示使用单分类编辑。</dd><dt>只想把一道题移出分类</dt><dd>在题目编辑页取消这个标签，保留其他仍有用的标签。随后去原比赛列表确认题目仍在。</dd></dl>
+</main>
 <nav class="wrap pager" aria-label="章节导航"><a rel="prev" href="review.html">‹ 上一章：补题清单与错因笔记</a><a rel="next" href="import.html">下一章：批量导入与重复提醒 ›</a></nav></body></html>

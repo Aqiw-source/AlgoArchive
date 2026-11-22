@@ -1,6 +1,23 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>补题清单与错因笔记 · AlgoArchive 使用手册</title><link rel="stylesheet" href="../manual.css?v=guide-4"><link rel="icon" href="../favicon-32.png"></head>
+<title>补题清单与错因笔记 · AlgoArchive 使用手册</title><link rel="stylesheet" href="../manual.css?v=guide-5"><link rel="icon" href="../favicon-32.png"></head>
 <body><a class="skip" href="#main">跳到正文</a><header><div class="wrap"><a class="bread" href="../manual.html">‹ 使用手册</a><p class="edition">第 03 章 / 07 · 本地版</p><h1>补题清单与错因笔记</h1><p>把暂时不会做的题放进清单，补完后保留复盘记录。</p></div></header>
-<main id="main" class="wrap article"><h2>练习：记录一个二分边界问题</h2><ol><li>在题目行点「编辑」，把「补题状态」从「未做」改为「待补」。没有源码的题也可以这样标记。</li><li>在错因笔记中写下可复查的一句话，例如「找最后一个 ≤ x 的位置时，区间只剩两个数会死循环」。保存题目。</li><li>回首页，在补题清单选择所属比赛。确认这道题出现在列表里。</li></ol><h2>补完后怎么找回？</h2><p>回编辑页，把状态改为「已通过」并保存。它会移出待补队列；在「全部题目」按状态筛选，仍能找到原代码和笔记。</p><aside><b>状态由你决定。</b>运行本地用例不会替你更改状态，这个标记也不会向比赛平台提交代码。</aside><figure><a href="media/study.webp"><img src="media/study.webp" loading="lazy" alt="本地首页的待补清单和比赛筛选"></a><figcaption>本地首页的待补清单和比赛筛选 · 点击图片查看大图</figcaption></figure></main>
+<main id="main" class="wrap article">
+<nav class="chapter-index" aria-label="本章导航"><strong>本章导航</strong>
+<a href="#topic-1">练习：记录一个二分边界问题</a>
+<a href="#topic-2">补完后怎么找回？</a>
+<a href="#topic-3">怎样记下一条以后还能用的错因</a>
+<a href="#topic-4">练习：从赛后清单走完一次复盘</a>
+<a href="#topic-5">清单和预期不一样时</a>
+</nav>
+<h2 id="topic-1">练习：记录一个二分边界问题</h2><ol><li>在题目行点「编辑」，把「补题状态」从「未做」改为「待补」。没有源码的题也可以这样标记。</li><li>在错因笔记中写下可复查的一句话，例如「找最后一个 ≤ x 的位置时，区间只剩两个数会死循环」。保存题目。</li><li>回首页，在补题清单选择所属比赛。确认这道题出现在列表里。</li></ol><h2 id="topic-2">补完后怎么找回？</h2><p>回编辑页，把状态改为「已通过」并保存。它会移出待补队列；在「全部题目」按状态筛选，仍能找到原代码和笔记。</p><aside><b>状态由你决定。</b>运行本地用例不会替你更改状态，这个标记也不会向比赛平台提交代码。</aside><figure><a href="media/study.webp"><img src="media/study.webp" loading="lazy" alt="本地首页的待补清单和比赛筛选"></a><figcaption>本地首页的待补清单和比赛筛选 · 点击图片查看大图</figcaption></figure>
+<h2 id="topic-3">怎样记下一条以后还能用的错因</h2>
+<p>把笔记拆成三个信息：触发错误的输入、代码当时做了什么、修正后如何检查。这样隔一周回来，能直接开始复现。例如只写「边界错了」很难重跑；写下「数组 [2,2,5] 查最后一个 ≤ 2，右端点应是下标 1，旧程序停在 0」就保留了可执行的线索。</p><p>若缺少解法，可以先记录已知部分。如「能写出逐个枚举的办法，但不知道怎样在十万组查询内结束」。做出优化后再补上耗时最多的步骤和替代做法。</p>
+
+<h2 id="topic-4">练习：从赛后清单走完一次复盘</h2>
+<ol><li>赛后先把未写完的题收入比赛，选「待补」。在笔记里留下一个可以从头做的小动作，例如先手推最小样例。</li><li>次日回首页按比赛筛选，只打开这场的一道待补题。从笔记里的失败输入开始，把它保存成用例。</li><li>修改代码后分别跑原样例和那组失败输入。把笔记补成「原输入、原因、修正」三行。</li><li>确认完成后手动标为「已通过」。再回到所有题目按状态筛选，确认源码、笔记和反例可以一起找回。</li></ol>
+
+<h2 id="topic-5">清单和预期不一样时</h2>
+<dl><dt>刚标记的题没出现在首页</dt><dd>重新打开题目，核对状态已保存为「待补」。把首页比赛筛选调回「全部比赛」，再检查题目实际归属。</dd><dt>想看无比赛的待补题</dt><dd>选择「未关联比赛」。单独从平台收藏的题也可以复盘，后续再编辑比赛归属。</dd><dt>题目从清单里消失了</dt><dd>首页只列待补项。在「全部题目」按题名查找，再检查它是未做、待补还是已通过。</dd></dl>
+</main>
 <nav class="wrap pager" aria-label="章节导航"><a rel="prev" href="archive.html">‹ 上一章：收藏一道题，保存第一份代码</a><a rel="next" href="tags.html">下一章：算法模板与一题多个标签 ›</a></nav></body></html>
