@@ -6,6 +6,12 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function checkOldDemo(browser,temp,base){
   const demoDir=path.join(temp,'pages'),prefix='/AlgoArchive/';buildDemo(demoDir,prefix);
   const demo=await browser.newPage(),errors=[];
+  const judgeRequests=[];
+  await demo.context().route('https://vjudge.net/**',async route=>{
+    const request=route.request();
+    judgeRequests.push([request.method(),request.url(),request.postData(),(await request.allHeaders()).referer]);
+    await route.fulfill({contentType:'text/html',body:'<!doctype html><title>External navigation</title>'});
+  });
   demo.on('pageerror',e=>errors.push(e.message));
   await demo.route('**/api/**',r=>r.abort()); // The demo store must answer without a local backend.
   await demo.route('**/AlgoArchive/**',r=>{
@@ -14,6 +20,15 @@ async function checkOldDemo(browser,temp,base){
   });
   try{
     await demo.goto(base+prefix+'#home');await demo.locator('.recent-section').waitFor();
+    assert.deepEqual(judgeRequests,[]);
+    const link=demo.locator('.external-judge a');
+    assert.equal(await link.getAttribute('rel'),'noopener noreferrer');
+    const [external]=await Promise.all([demo.waitForEvent('popup'),link.click()]);
+    await external.waitForLoadState('domcontentloaded');
+    assert.deepEqual(judgeRequests,[['GET','https://vjudge.net/',null,undefined]]);
+    assert.equal(await external.evaluate(()=>window.opener),null);
+    assert.equal(demo.url(),base+prefix+'#home');
+    await external.close();
     assert.equal(await demo.locator('#study-queue-title').count(),0);
     await demo.locator('[data-new-problem]').first().click();await demo.locator('#problem-form').waitFor();
     assert.equal(await demo.locator('#editor-study-status,#editor-mistake-note,#editor-algorithm-tags').count(),0);

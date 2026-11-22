@@ -14,9 +14,15 @@ AlgoArchive（算法档案）的自有源代码和自有文档由 Aqiw 以 MIT �
 
 原题链接由用户保存；演示数据保留来源说明，不冒充官方比赛档案，不将演示模板或本地测试通过表述为在线评测 Accepted。
 
-### Virtual Judge 外部入口
+### 第三方在线评测服务：Virtual Judge
 
-首页的 Virtual Judge 链接仅在新标签页打开 `https://vjudge.net/`。AlgoArchive 与 Virtual Judge 无隶属、合作、授权或背书关系。AlgoArchive 不代为抓取题目、登录或提交，也不通过此入口传送源码、用例或账户信息。用户自行在第三方网站操作，遵守该网站与原题平台的规则。
+AlgoArchive 与 Virtual Judge（VJudge）是独立项目。双方不存在隶属、合作、赞助或授权关系；此入口不代表 Virtual Judge 官方出品或背书。
+
+AlgoArchive 只提供 [Virtual Judge 官网](https://vjudge.net/) 的外部链接。点击后会在新标签页打开官网首页。账号注册与登录、题目检索与浏览、代码上传、提交和查看评测结果均由用户在第三方网站自行操作。
+
+AlgoArchive 不代为登录、抓取题目、上传代码或提交评测，也不自动读取评测结果。该链接不包含本地题目 ID、源码、测试数据或账号凭据。用户在第三方网站上主动输入和提交的信息由该站按其规则处理。
+
+服务可用性、评测结果、使用规则及隐私政策以第三方网站公布的信息为准。用户应自行保管账号凭据，并遵守 Virtual Judge 和原题平台的相关规定。Virtual Judge 名称及相关商标归相应权利人所有。
 
 ## CPH 兼容功能
 
