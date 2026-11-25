@@ -45,7 +45,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 CARD_COLORS = ("blue", "cyan", "green", "amber", "rose", "violet")
 SIDEBAR_ART_IMAGES = ("debug", "thinking", "celebration")
 ROOT = Path(__file__).resolve().parent

@@ -7,6 +7,9 @@ const path = require("node:path");
 const { createFixture } = require("../demo/fixture.cjs");
 const { createStore } = require("../demo/store.js");
 const { buildDemo } = require("../scripts/build-demo.cjs");
+const root = path.resolve(__dirname, "..");
+const appVersion = fs.readFileSync(path.join(root, "app.py"), "utf8").match(/APP_VERSION = "([\d.]+)"/)?.[1];
+assert.ok(appVersion, "application version is available for current-release assertions");
 
 test("sidebar art preferences stay in the session and reject arbitrary images", () => {
   const s = createStore(createFixture());
@@ -188,7 +191,7 @@ test("static build supports project subpaths without shipping local data", () =>
     const guide = fs.readFileSync(path.join(out, "manual.html"), "utf8");
     assert.match(guide, /在线演示/);
     assert.match(guide, /改动仅保存在当前页面；刷新后重置/);
-    assert.match(guide, /v2\.4\.0/);
+    assert.ok(guide.includes(`v${appVersion}`));
     assert.match(guide, /原位保存题解与恢复草稿/);
     assert.match(guide, /版本冲突/);
     assert.ok(!guide.includes("本地版可离线查阅手册，题库保存在本机。"));
@@ -197,14 +200,14 @@ test("static build supports project subpaths without shipping local data", () =>
     for (const chapter of chapters) {
       const chapterHtml = fs.readFileSync(path.join(out, chapter), "utf8");
       assert.match(chapterHtml, /aria-label="章节导航"/);
-      assert.match(chapterHtml, /manual\.css\?v=handbook-2\.4\.0/);
+      assert.ok(chapterHtml.includes(`manual.css?v=handbook-${appVersion}`));
     }
     const browse = fs.readFileSync(path.join(out, "guide/browse.html"), "utf8");
     assert.match(browse, /点击题目行的空白处查看代码/);
     assert.match(browse, /<kbd>Esc<\/kbd>/);
     assert.match(browse, /回到原列表并保留搜索、筛选和滚动位置，焦点回到题目行/);
     const shortcuts = fs.readFileSync(path.join(out, "shortcuts.html"), "utf8");
-    assert.match(shortcuts, /v2\.4\.0/);
+    assert.ok(shortcuts.includes(`v${appVersion}`));
     assert.match(shortcuts, /关闭题目代码预览/);
     assert.match(shortcuts, /<kbd>Esc<\/kbd>/);
     for (const asset of ["manual.css", "manual.js", "favicon-32.png", "guide/media/manual-computer.webp"]) {

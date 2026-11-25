@@ -10,6 +10,14 @@ The distribution is bundled without binary modifications; python313._pth adds th
 
 No third-party frontend libraries, CDN assets, or fonts are required.
 
+Optional Windows C++ toolchain (separate release asset)
+MinGW-w64 GCC 8.1.0, x86_64, POSIX threads, SEH, rt_v6-rev0.
+Distribution used for this release: the unchanged compiler ZIP from
+https://github.com/Aqiw-source/AlgoArchive/releases/tag/v2.4.0
+SHA-256: 81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97
+The compiler is not inside the AlgoArchive installer or portable ZIP.
+The toolchain components retain their own copyright and license notices.
+
 Inno Setup Simplified Chinese translation
 File: installer/ChineseSimplified.isl
 Maintainer: Zhenghan Yang (Kira)

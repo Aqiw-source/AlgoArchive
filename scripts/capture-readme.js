@@ -110,8 +110,9 @@ async function main() {
     await page.locator("[data-close-modal]").first().click();
     await page.locator("#open-profile-settings").click();
     await page.locator('[data-settings-tab="about"]').click();
-    await page.locator("#create-desktop-shortcut").click();
-    await page.getByText("在线演示不执行此操作，请下载本地版使用。", { exact: true }).last().waitFor();
+    await page.getByText("桌面和开始菜单快捷方式只能由 Windows 本地版创建。", { exact: false }).waitFor();
+    assert.equal(await page.locator("#create-desktop-shortcut").count(), 0, "the online demo does not offer a system shortcut action");
+    assert.equal(await page.locator("[data-settings-anchor=shortcuts] a[href*=releases]").count(), 1, "the demo links to the Windows release");
     await page.locator('[data-settings-tab="art"]').click();
     await page.waitForFunction(() => [...document.querySelectorAll('.sidebar-art-choice img')].every(image=>image.complete&&image.naturalWidth));
     await page.locator("[data-close-modal]").first().click();

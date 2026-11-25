@@ -27,7 +27,11 @@ jobs:
       - name: Verify tag and application version
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v([0-9]+\.[0-9]+\.[0-9]+)$') {
+              throw "Release tag must use vMAJOR.MINOR.PATCH: $tag"
+          }
+          $version = $Matches[1]
           $source = Get-Content -LiteralPath ".\app.py" -Raw
           if ($source -notmatch 'APP_VERSION = "([0-9]+\.[0-9]+\.[0-9]+)"') {
               throw "Unable to read APP_VERSION from app.py"
@@ -35,6 +39,7 @@ jobs:
           if ($Matches[1] -ne $version) {
               throw "Tag version $version does not match app.py $($Matches[1])"
           }
+          "RELEASE_VERSION=$version" | Add-Content -LiteralPath $env:GITHUB_ENV
       - name: Prepare bundled Python runtime
         shell: pwsh
         run: |
@@ -50,22 +55,42 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
+      - name: Download and verify static MinGW toolchain
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip"
+          Invoke-WebRequest -Uri "https://github.com/Aqiw-source/AlgoArchive/releases/download/v2.4.0/MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip" -OutFile $archive
+          $expected = "81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97"
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "MinGW compiler archive SHA-256 mismatch: $actual" }
+          $toolchainRoot = Join-Path $env:RUNNER_TEMP "algoarchive-mingw"
+          Expand-Archive -LiteralPath $archive -DestinationPath $toolchainRoot -Force
+          $compiler = Get-ChildItem -LiteralPath $toolchainRoot -Filter "g++.exe" -Recurse -File | Select-Object -First 1
+          if (-not $compiler) { throw "Verified compiler archive has no g++.exe" }
+          $bin = $compiler.Directory.FullName
+          foreach ($name in @("windres.exe", "objdump.exe")) {
+              if (-not (Test-Path -LiteralPath (Join-Path $bin $name) -PathType Leaf)) {
+                  throw "Static toolchain is missing $name"
+              }
+          }
+          "RELEASE_GXX=$($compiler.FullName)" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "RELEASE_WINDRES=$(Join-Path $bin 'windres.exe')" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "RELEASE_MINGW_ARCHIVE=$archive" | Add-Content -LiteralPath $env:GITHUB_ENV
       - name: Build release artifacts
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
-          .\scripts\build-release.ps1 -Version $version
-      - name: Download and verify unchanged C++ compiler archive
+          .\launcher\build-launcher.ps1 `
+            -Version $env:RELEASE_VERSION `
+            -Compiler $env:RELEASE_GXX `
+            -ResourceCompiler $env:RELEASE_WINDRES
+          .\scripts\build-release.ps1 -Version $env:RELEASE_VERSION
+      - name: Add verified C++ compiler archive to release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path ".\dist" -Force | Out-Null
-          $archive = Join-Path $env:RUNNER_TEMP "MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip"
           $destination = Join-Path $env:GITHUB_WORKSPACE "dist\MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip"
-          Invoke-WebRequest -Uri "https://github.com/Aqiw-source/AlgoArchive/releases/download/v2.3.1/MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip" -OutFile $archive
-          $expected = "81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97"
-          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $expected) { throw "C++ compiler archive SHA-256 mismatch: $actual" }
-          Copy-Item -LiteralPath $archive -Destination $destination
+          $actual = (Get-FileHash -LiteralPath $env:RELEASE_MINGW_ARCHIVE -Algorithm SHA256).Hash.ToLowerInvariant()
+          Copy-Item -LiteralPath $env:RELEASE_MINGW_ARCHIVE -Destination $destination
           "$actual  MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip" |
             Set-Content -LiteralPath "$destination.sha256" -Encoding ascii
       - name: Publish release assets
@@ -74,7 +99,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $version = $tag.TrimStart("v")
+          $version = $env:RELEASE_VERSION
           $assets = @(
               "dist\AlgoArchive-$version-Windows-x64.zip",
               "dist\AlgoArchive-$version-Windows-x64.zip.sha256",

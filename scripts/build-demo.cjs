@@ -31,9 +31,19 @@ function buildDemo(output, base = "/AlgoArchive/") {
   if (!manualHtml.includes(editionNote)) throw new Error("Manual edition note insertion point not found");
   const intro = /<p class="hero-desc" data-demo-intro>[\s\S]*?<\/p>/;
   if (!intro.test(manualHtml)) throw new Error("Manual demo intro insertion point not found");
-  manualHtml = manualHtml.replace(intro, '<p class="hero-desc">在线演示使用示例题库，改动仅保存在当前页面；刷新后重置。标为「本地版」的功能需下载 Windows 版。</p>')
-    .replace(editionNote, '<div class="edition-note"><b>在线演示</b><span>示例数据和操作改动只在当前页面内存中保留。</span></div>');
+  const demoEntry = /<a class="button secondary" href="https:\/\/aqiw-source\.github\.io\/AlgoArchive\/"[\s\S]*?打开在线演示<\/a>/;
+  if (!demoEntry.test(manualHtml)) throw new Error("Manual demo entry insertion point not found");
+  const demoDownload = '<a class="button primary" href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载 Windows 本地版</a>';
+  manualHtml = manualHtml.replace(intro, '<p class="hero-desc">GitHub Pages 提供静态演示和示例题库；改动仅保存在当前页面；刷新后重置。此页面不能调用本机编译器、创建 Windows 快捷方式或执行其他系统操作。</p>')
+    .replace(editionNote, '<div class="edition-note"><b>静态在线演示</b><span>页面仅操作示例数据；不会调用本机程序或下载、运行工具。需编译或创建快捷方式时，请使用 Windows 本地版。</span></div>')
+    .replace(demoEntry, match => match + demoDownload);
   fs.writeFileSync(manual, manualHtml);
+  // Identify the static edition even when served from localhost on a custom port.
+  for (const entry of fs.readdirSync(out, { recursive: true }).filter(name => name.endsWith('.html') && name !== 'index.html')) {
+    const file = path.join(out, entry);
+    const source = fs.readFileSync(file, 'utf8');
+    fs.writeFileSync(file, source.replace(/<html\b/, '<html data-static-demo'));
+  }
   fs.writeFileSync(path.join(out, "app.js"), fs.readFileSync(path.join(out, "app.js"), "utf8")
     .replaceAll('src="/', `src="${base}`).replaceAll('href="/', `href="${base}`)
     .replace("document.title='算法档案';", "document.title='AlgoArchive · 在线演示';"));

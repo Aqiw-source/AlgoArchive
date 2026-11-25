@@ -76,6 +76,14 @@
   let sidebarArtRevision=0, sidebarArtReadGeneration=0, sidebarArtAppliedRead=0;
   let navigating = false;
   let renderNumber = 0;
+  let settingsOpen = false;
+  let settingsReady = false;
+  let settingsRoute = '';
+  let settingsBaseHash = '#home';
+  let settingsHistoryDepth = 0;
+  let settingsOpenGeneration = 0;
+  let settingsFocusTimer = 0;
+  let settingsFocus = '';
   let approvedProblemReturn=false;
   let problemPreviewFocus=null;
   let draggedAlgorithmProblemId = null;
@@ -1681,6 +1689,54 @@
   function settingsTabButton(id,label){
     return `<button type="button" class="settings-tab" data-settings-tab="${id}">${esc(label)}</button>`;
   }
+  const settingsTabs=new Set(['profile','art','browser','compiler','data','about']);
+  function parseSettingsHash(hash=location.hash){
+    const match=String(hash).replace(/^#/,'').match(/^settings(?:\/([^?]*))?(?:\?(.*))?$/);
+    if(!match)return null;
+    const tab=match[1]||'profile';
+    const params=new URLSearchParams(match[2]||'');
+    return {tab:settingsTabs.has(tab)?tab:'profile',focus:tab==='about'&&params.get('focus')==='shortcuts'?'shortcuts':'',route:`settings/${settingsTabs.has(tab)?tab:'profile'}${tab==='about'&&params.get('focus')==='shortcuts'?'?focus=shortcuts':''}`};
+  }
+  function settingsURL(tab,focus=''){
+    return `#settings/${tab}${tab==='about'&&focus==='shortcuts'?'?focus=shortcuts':''}`;
+  }
+  function setSettingsHash(tab,focus='',newEntry=false){
+    const hash=settingsURL(tab,focus);
+    if(location.hash===hash)return false;
+    if(newEntry){
+      settingsBaseHash=location.hash||'#home';settingsHistoryDepth=1;
+      history.pushState({...history.state,algoSettingsEntry:true,algoSettingsBaseHash:settingsBaseHash,algoSettingsDepth:settingsHistoryDepth},'',hash);
+    }else if(parseSettingsHash()){
+      const depth=Number(history.state?.algoSettingsDepth)||0;
+      settingsHistoryDepth=depth;
+      if(depth>0){settingsHistoryDepth=depth+1;history.pushState({...history.state,algoSettingsEntry:true,algoSettingsBaseHash:history.state?.algoSettingsBaseHash||settingsBaseHash,algoSettingsDepth:settingsHistoryDepth},'',hash);}
+      else history.replaceState({...history.state,algoSettingsEntry:true,algoSettingsBaseHash:history.state?.algoSettingsBaseHash||settingsBaseHash,algoSettingsDepth:0},'',hash);
+    }else history.pushState({...history.state,algoSettingsEntry:true,algoSettingsBaseHash:settingsBaseHash,algoSettingsDepth:settingsHistoryDepth},'',hash);
+    settingsRoute=hash;
+    return true;
+  }
+  function focusSettingsAnchor(name){
+    if(name!=='shortcuts'||!modal.open)return;
+    const target=modal.querySelector('[data-settings-anchor="shortcuts"]');
+    if(!target)return;
+    clearTimeout(settingsFocusTimer);
+    const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({behavior:reduceMotion?'auto':'smooth',block:'center'});
+    target.focus({preventScroll:true});
+    target.classList.remove('settings-focus-highlight');
+    void target.offsetWidth;
+    target.classList.add('settings-focus-highlight');
+    settingsFocusTimer=setTimeout(()=>target.classList.remove('settings-focus-highlight'),2200);
+  }
+  function closeSettings(){
+    if(!settingsOpen){closeModal();return;}
+    if(state.busy)return;
+    if(settingsHistoryDepth>0){history.go(-settingsHistoryDepth);return;}
+    settingsOpen=false;settingsReady=false;settingsRoute='';settingsOpenGeneration++;
+    const hash=settingsBaseHash||'#home';
+    history.replaceState(history.state,'',location.pathname+location.search+hash);
+    closeModal();
+  }
   function settingsProfileHTML(){
     const currentAvatar = avatarSource(state.profile?.avatar);
     const initialName = String(state.profile?.name || userName || '本地用户').trim() || '本地用户';
@@ -1720,7 +1776,10 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     return `<div class="settings-section"><div class="settings-section-head"><div><h3>关于与诊断</h3><p>这些信息可用于确认作者、源代码位置并排查启动问题。</p></div></div><dl class="settings-diagnostics"><dt>应用版本</dt><dd>${esc(settings.version||'')}</dd><dt>应用作者</dt><dd>Aqiw</dd><dt>源代码</dt><dd><a href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer">GitHub · Aqiw-source/AlgoArchive</a></dd><dt>实际服务地址</dt><dd><code>${esc(settings.address||'')}</code></dd><dt>数据目录</dt><dd><code>${esc(settings.data_dir||'')}</code></dd><dt>配置文件</dt><dd><code>${esc(settings.config_path||'')}</code></dd><dt>数据库版本</dt><dd>${esc(settings.database_schema||'')}</dd><dt>本地日志</dt><dd><code>${esc(settings.log_path||'')}</code></dd></dl><div class="settings-actions wrap"><button type="button" class="btn" data-copy-settings-path="log_path">复制日志路径</button><button type="button" class="btn" data-open-log-folder>打开日志文件夹</button><button type="button" class="btn danger" data-shutdown-app>退出算法档案</button></div></div><div class="settings-section"><div class="settings-section-head"><div><h3>开源许可与第三方声明</h3><p>自有源码采用 MIT 许可证；完整条款见程序目录 LICENSE，详细声明见 DISCLAIMER.md。第三方内容仍适用各自许可。</p><p>本项目是独立的本地整理工具；平台名称、图标与链接仅标识来源，不表示平台官方出品、合作或背书。相关商标和内容归各自权利人所有。</p><h3>CPH 兼容功能</h3><p>运行器由算法档案独立实现，不属于 CPH 官方产品，也不代表上游维护、支持或背书。本地测试通过不等同于在线评测 Accepted。</p></div></div><dl class="settings-diagnostics"><dt>原作者</dt><dd>${esc(cph.author||'Divyanshu Agrawal')}</dd><dt>上游仓库</dt><dd><a href="${esc(cph.repository||'https://github.com/agrawal-d/cph')}" target="_blank" rel="noopener noreferrer">${esc(cph.repository||'https://github.com/agrawal-d/cph')}</a></dd><dt>许可证</dt><dd>${esc(cph.license||'GPL-3.0-or-later')}</dd><dt>参考提交</dt><dd><code>${esc(cph.reference_commit||'')}</code></dd></dl><div class="settings-note">程序目录中的 THIRD_PARTY.txt 与 licenses/CPH-GPL-3.0.txt 保留完整来源和许可证说明。</div></div><div class="settings-section"><div class="settings-note">程序使用普通启动窗口时，也可以关闭该窗口退出。退出会等待进行中的保存完成并释放数据锁。</div></div>`;
   }
   function shortcutSettingsHTML(){
-    return `<div class="settings-section"><div class="settings-section-head"><div><h3>快捷方式</h3><p>普通启动不会创建或恢复快捷方式。需要时可在这里明确创建桌面和开始菜单入口。</p></div><button type="button" class="btn" id="create-desktop-shortcut">创建快捷方式</button></div><div id="shortcut-settings-status" class="settings-hint" aria-live="polite">创建后可从桌面或开始菜单直接启动当前程序；固定到开始屏幕需在系统中手动完成。</div></div>`;
+    if(!localStudy){
+      return `<div class="settings-section" data-settings-anchor="shortcuts" tabindex="-1"><div class="settings-section-head"><div><h3>Windows 快捷方式</h3><p>桌面和开始菜单快捷方式只能由 Windows 本地版创建。在线演示不会探测本机服务或调用系统接口。</p></div></div><div class="settings-note" role="note">你可以继续阅读创建方法；下载并运行本地版后，再到「设置 → 关于与诊断 → 快捷方式」操作。</div><div class="settings-actions"><a class="btn primary" href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载 Windows 本地版</a></div></div>`;
+    }
+    return `<div class="settings-section" data-settings-anchor="shortcuts" tabindex="-1"><div class="settings-section-head"><div><h3>快捷方式</h3><p>普通启动不会创建或恢复快捷方式。需要时可在这里明确创建桌面和开始菜单入口。</p></div><button type="button" class="btn" id="create-desktop-shortcut">创建快捷方式</button></div><div id="shortcut-settings-status" class="settings-hint" aria-live="polite">创建后可从桌面或开始菜单直接启动当前程序；固定到开始屏幕需在系统中手动完成。</div></div>`;
   }
   function showSettingsTab(tab='profile'){
     const safeTab=['profile','art','browser','compiler','data','about'].includes(tab)?tab:'profile';
@@ -1734,23 +1793,43 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(safeTab==='compiler')bindCompilerSettings();
     else if(safeTab==='data')bindDataSettings();
     else bindAboutSettings();
+    if(settingsOpen&&settingsFocus&&safeTab==='about')requestAnimationFrame(()=>focusSettingsAnchor(settingsFocus));
   }
-  async function openSettings(tab='profile'){
+  async function openSettings(tab='profile',{focus='',syncURL=true,initial=false}={}){
     if(state.busy)return;
+    if(!settingsTabs.has(tab))tab='profile';
+    focus=tab==='about'&&focus==='shortcuts'?'shortcuts':'';
+    if(settingsOpen){
+      if(syncURL)setSettingsHash(tab,focus);
+      settingsFocus=focus;settingsRoute=location.hash;
+      if(settingsReady)showSettingsTab(tab);
+      return;
+    }
+    settingsOpen=true;settingsReady=false;settingsFocus=focus;
+    settingsBaseHash=history.state?.algoSettingsBaseHash||(initial?'#home':location.hash||'#home');
+    if(initial){settingsHistoryDepth=Number(history.state?.algoSettingsDepth)||0;settingsRoute=location.hash;}
+    else if(syncURL)setSettingsHash(tab,focus,true);
+    else {settingsHistoryDepth=Number(history.state?.algoSettingsDepth)||0;settingsRoute=location.hash;}
+    const generation=++settingsOpenGeneration;
     const artRevision=sidebarArtRevision,artRead=++sidebarArtReadGeneration;
     try{
       const [settingsResult,backupResult]=await Promise.all([api('/api/settings'),api('/api/backups')]);
+      if(generation!==settingsOpenGeneration||!settingsOpen)return;
+      const currentSettings=parseSettingsHash();
+      if(!currentSettings)return;
+      tab=currentSettings.tab;settingsFocus=currentSettings.focus;settingsRoute=location.hash;
       state.settings=settingsResult.settings;state.backups=backupResult.backups||[];
       acceptSidebarArt(state.settings.sidebar_art,artRevision,artRead);
       state.settings.sidebar_art=state.sidebarArt;renderSidebarArt();
       modal.innerHTML=`${dialogHeader('设置')}<div class="settings-shell"><nav class="settings-tabs" aria-label="设置分类">${settingsTabButton('profile','个人资料')}${settingsTabButton('art','侧栏插画')}${settingsTabButton('browser','启动与浏览器')}${settingsTabButton('compiler','编译与运行')}${settingsTabButton('data','数据管理')}${settingsTabButton('about','关于与诊断')}</nav><div id="settings-content" class="settings-content"></div></div>`;
       modal.showModal();
+      settingsReady=true;
       $('.settings-tabs',modal).addEventListener('click',event=>{
         const button=event.target.closest('[data-settings-tab]');
-        if(button)showSettingsTab(button.dataset.settingsTab);
+        if(button)openSettings(button.dataset.settingsTab);
       });
       showSettingsTab(tab);
-    }catch(error){toast(error.message,true);}
+    }catch(error){if(generation===settingsOpenGeneration){settingsOpen=false;settingsReady=false;settingsRoute='';toast(error.message,true);}}
   }
   function bindProfileSettings(){
     const currentAvatar=avatarSource(state.profile?.avatar);
@@ -1849,7 +1928,20 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
         setModalBusy(false);
         const diagnostic=result.diagnostic||{};
         if(target)target.className=`compiler-diagnostic ${diagnostic.ok?'ok':'error'}`;
-        if(target)target.innerHTML=diagnostic.ok?`<strong>三项能力检查通过</strong><span>${esc(diagnostic.standard)} · __int128 ✓ · multiset ✓ · unordered_map ✓</span>`:`<strong>能力检查未通过</strong><span>${esc(diagnostic.result?.compile?.stderr||'请检查编译器路径和 C++ 标准。')}</span>`;
+        if(target){
+          const checks=diagnostic.checks||{};
+          const run=diagnostic.result||{};
+          const checkNames=['__int128','multiset','unordered_map'];
+          const allChecksPassed=checkNames.every(name=>checks[name]===true);
+          const checkSummary=allChecksPassed?checkNames.map(name=>`${name} ✓`).join(' · '):'联合检查未通过，服务未返回可归因到单项的结果';
+          const failedCase=run.cases?.find(test=>test.status!=='passed');
+          const compileDetail=run.compile?.stderr;
+          const caseDetail=failedCase?.stderr||failedCase?.stdout||(failedCase?.status==='wrong_answer'?`预期输出：\n${failedCase.expected||''}\n实际输出：\n${failedCase.stdout||''}`:'');
+          const detail=compileDetail||caseDetail;
+          const failureLabel=failedCase?`第 ${failedCase.ordinal||'?'} 组运行状态：${failedCase.status}`:`编译状态：${run.compile?.status||'未返回'}`;
+          const failure=diagnostic.ok?'':`<pre>${esc(detail||`${failureLabel}。请检查 g++ 路径、C++ 标准与工具链文件。`)}</pre>`;
+          target.innerHTML=`<strong>${diagnostic.ok?'三项能力检查通过':'能力检查未通过'}</strong><span>${esc(diagnostic.standard||'C++ 标准未知')} · ${checkSummary}</span>${failure}`;
+        }
         toast(diagnostic.ok?'编译器能力检查通过。':'编译器能力检查未通过。',!diagnostic.ok);
       }catch(error){
         setModalBusy(false);
@@ -2094,7 +2186,14 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   document.addEventListener('click',async e=>{
     if(e.target.closest?.('[data-drag-order]'))return;
     const t=e.target.closest('button,a,[data-open-contest],[data-open-algorithm]');if(!t)return;if(state.busy){e.preventDefault();return;}
-    if(t.hasAttribute('data-problem-origin-unavailable')){e.preventDefault();toast('题目保存的链接不是可打开的网址。',true);}
+    if(t.hasAttribute('data-settings-link')){
+      let destination;
+      try{destination=new URL(t.href,location.href);}catch(_){}
+      if(destination&&destination.origin===location.origin&&destination.pathname===location.pathname&&parseSettingsHash(destination.hash)){
+        e.preventDefault();const settings=parseSettingsHash(destination.hash);openSettings(settings.tab,{focus:settings.focus});
+      }
+    }
+    else if(t.hasAttribute('data-problem-origin-unavailable')){e.preventDefault();toast('题目保存的链接不是可打开的网址。',true);}
     else if(t.hasAttribute('data-return-problem-list')){e.preventDefault();await returnFromProblemEditor();}
     else if(t.hasAttribute('data-nav')){e.preventDefault();await go(t.dataset.nav);}
     else if(t.hasAttribute('data-open-problem')){e.preventDefault();await go(`problem/${t.dataset.openProblem}`,{trigger:t});}
@@ -2142,7 +2241,7 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     else if(t.hasAttribute('data-unlink-algorithm'))unlinkAlgorithm();
     else if(t.hasAttribute('data-open-compiler-settings'))await openSettings('compiler');
     else if(t.hasAttribute('data-open-profile-settings'))await openSettings('profile');
-    else if(t.hasAttribute('data-close-modal'))closeModal();
+    else if(t.hasAttribute('data-close-modal')){if(settingsOpen)closeSettings();else closeModal();}
     else if(t.hasAttribute('data-retry'))await renderRoute(state.route);
   });
   document.addEventListener('click',async e=>{
@@ -2215,7 +2314,33 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
   document.addEventListener('scroll',e=>{if(e.target.id==='code-input')syncScroll();},true);
   window.addEventListener('beforeunload',e=>{if(state.busy||isDirty()){e.preventDefault();e.returnValue='';}});
   window.addEventListener('hashchange',async()=>{
-    const route=location.hash.slice(1)||'home';if(navigating||route===state.route)return;
+    const settings=parseSettingsHash();
+    if(settings){
+      if(navigating)return;
+      settingsBaseHash=history.state?.algoSettingsBaseHash||settingsBaseHash||'#home';
+      settingsHistoryDepth=Number(history.state?.algoSettingsDepth)||0;
+      settingsRoute=location.hash;
+      if(settingsOpen){
+        settingsFocus=settings.focus;
+        if(settingsReady){
+          const active=modal.querySelector('[data-settings-tab].active')?.dataset.settingsTab;
+          if(active!==settings.tab)showSettingsTab(settings.tab);
+          else if(settings.focus)focusSettingsAnchor(settings.focus);
+        }
+      }else await openSettings(settings.tab,{focus:settings.focus,syncURL:false,initial:true});
+      return;
+    }
+    if(navigating)return;
+    const route=location.hash.slice(1)||'home';
+    if(settingsOpen){
+      const returningToBase=route===state.route||location.hash===(settingsBaseHash||'#home');
+      if(state.busy||(!returningToBase&&!allowLeave())){
+        history.replaceState(history.state,'',location.pathname+location.search+(settingsRoute||settingsURL('profile')));
+        return;
+      }
+      settingsOpen=false;settingsReady=false;settingsOpenGeneration++;settingsRoute='';settingsFocus='';closeModal();
+    }
+    if(route===state.route)return;
     const accepted=approvedProblemReturn;approvedProblemReturn=false;
     if(state.busy||(!accepted&&!allowLeave())){navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);return;}
     const editor=state.editor,context=editor?.returnContext;
@@ -2224,7 +2349,15 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     await renderRoute(route);
     if(returning)await restoreProblemReturnContext(context,editor);
   });
-  modal.addEventListener('cancel',e=>{e.preventDefault();if(imagePreview||modal.querySelector('[data-problem-preview-dialog]'))closeModal();});
+  modal.addEventListener('cancel',e=>{e.preventDefault();if(settingsOpen)closeSettings();else if(imagePreview||modal.querySelector('[data-problem-preview-dialog]'))closeModal();});
   renderSidebarArt();loadSidebarArt();
-  state.route=location.hash.slice(1)||'home';renderRoute(state.route);
+  const initialSettings=parseSettingsHash();
+  if(initialSettings&&!history.state?.algoSettingsEntry){
+    const initialHash=location.hash,baseHash='#home';
+    history.replaceState(history.state,'',location.pathname+location.search+baseHash);
+    history.pushState({...history.state,algoSettingsEntry:true,algoSettingsBaseHash:baseHash,algoSettingsDepth:1},'',initialHash);
+  }
+  state.route=initialSettings?'home':(location.hash.slice(1)||'home');
+  renderRoute(state.route);
+  if(initialSettings)openSettings(initialSettings.tab,{focus:initialSettings.focus,syncURL:false,initial:true});
 })();

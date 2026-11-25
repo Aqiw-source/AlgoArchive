@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>备份、恢复与启动问题 · AlgoArchive 使用手册</title><link rel="icon" href="../favicon-32.png"><link rel="stylesheet" href="../manual.css?v=handbook-2.4.0"></head>
+<title>备份、恢复与启动问题 · AlgoArchive 使用手册</title><link rel="icon" href="../favicon-32.png"><link rel="stylesheet" href="../manual.css?v=handbook-2.5.0"></head>
 <body><a class="skip" href="#main">跳到正文</a><header class="topbar"><div class="shell bar-inner">
   <a class="brand" href="../manual.html"><span class="brand-mark"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m5.5 6.5 5 5-5 5M12 17h6"/></svg></span>AlgoArchive</a>
   <nav class="topnav" aria-label="手册导航"><a href="../manual.html" aria-current="page">使用手册</a><a href="../shortcuts.html">快捷方式</a></nav>
@@ -15,7 +15,7 @@
 <a href="#topic-3">换电脑时，哪些东西要带走</a>
 <a href="#topic-4">练习：做一次可对照的恢复演练</a>
 <a href="#topic-5">目录迁移、版本升级和浏览器窗口</a>
-</nav></div><article class="article"><h2 id="topic-1">保留一个可以恢复的备份</h2><ol><li>打开「设置 → 数据管理」，创建完整 ZIP 备份，记下文件位置与生成时间。</li><li>换电脑时，把 ZIP 复制到新电脑，在本地版导入备份。恢复会替换当前题库；如果目标电脑已有数据，先给它也做一份备份。</li><li>恢复后核对题目数，打开一题检查源码、用例、补题状态和错因笔记。</li></ol><h2 id="topic-2">关闭页面后，程序还在运行吗？</h2><p>浏览器标签页只是界面。双击桌面程序时，已有服务会复用；没有可见服务窗口时可出现一个状态窗口。关闭状态窗口不会关闭后台服务。需要退出时，在「设置 → 关于与诊断」停止服务。</p><aside><b>升级后看不到原题库？</b>先在设置里核对当前数据目录。程序目录和题库目录可能不同，不要把刚解压的安装目录当成数据目录恢复。</aside>
+</nav></div><article class="article"><h2 id="topic-1">保留一个可以恢复的备份</h2><ol><li>打开「设置 → 数据管理」，创建完整 ZIP 备份，记下文件位置与生成时间。</li><li>换电脑时，把 ZIP 复制到新电脑，在本地版导入备份。恢复会替换当前题库；如果目标电脑已有数据，先给它也做一份备份。</li><li>恢复后核对题目数，打开一题检查源码、用例、补题状态和错因笔记。</li></ol><h2 id="topic-2">关闭页面后，程序还在运行吗？</h2><p>浏览器标签页只是界面。通过桌面或开始菜单入口启动时，现有服务可能会复用。关闭普通标签页不会停止服务；状态窗口里会说明后台服务仍在运行。需要退出时，在「设置 → 关于与诊断」点「退出算法档案」，或关闭正在运行服务的启动窗口、按 Ctrl+C。</p><aside><b>本地页面打不开或显示无法连接服务？</b>不要直接双击 <code>web\index.html</code>；那只是网页文件，无法启动本地服务。请在完整安装目录中双击 <code>AlgoArchive.exe</code>，或在该目录打开 PowerShell 运行 <code>.\start.bat</code>，并保留启动窗口。启动窗口会显示实际地址；如端口不是默认值，请用显示的地址。离线手册可以直接打开，但题库和编译功能需先启动本地程序。</aside><p>若需重建桌面和开始菜单入口，可前往 <a data-settings-link href="../index.html#settings/about?focus=shortcuts">前往创建快捷方式</a>。<span class="settings-link-fallback" hidden tabindex="-1">若此页面通过 file:// 单独打开，先从完整程序目录双击 AlgoArchive.exe；也可在程序目录的 PowerShell 运行 <code>.\AlgoArchive.exe --create-shortcut</code> 创建桌面和开始菜单入口。</span></p><aside><b>升级后看不到原题库？</b>先在设置里核对当前数据目录。程序目录和题库目录可能不同，不要把刚解压的安装目录当成数据目录恢复。</aside>
 <h2 id="topic-3">换电脑时，哪些东西要带走</h2>
 <p>题库的完整 ZIP 保存题目、比赛、算法模板、题目源码、用例、头像及业务设置。用浏览器保存的「代码试跑」草稿有单独的存储位置，需要保留时，先把重要代码归档为题目或自行复制保存。</p><p>编译器属于 Windows 程序环境。换电脑后重新确认 MinGW 的解压目录和实际 g++.exe 路径。指定浏览器的旧电脑绝对路径不会随题库备份恢复，也需要按新机器环境核对。</p>
 
@@ -24,4 +24,4 @@
 
 <h2 id="topic-5">目录迁移、版本升级和浏览器窗口</h2>
 <dl><dt>只想把题库从一个磁盘移到另一个磁盘</dt><dd>在「设置 → 数据管理」使用迁移，选择目标目录，按提示重新启动，再对照实际数据目录和题目数。</dd><dt>升级后界面正常但题库看着是空的</dt><dd>先查看设置里的实际数据目录，对照先前记录。找到原题库或已知备份后再决定迁移或恢复。</dd><dt>恢复后想退回刚才的内容</dt><dd>在备份列表里按时间确认恢复前的副本。恢复每一次都会替换当前题库，如果刚又增加了新题，先保存一份新的完整备份。</dd></dl>
-<nav class="pager" aria-label="章节导航"><a rel="prev" href="test.html">‹ 上一章：配置编译器与运行用例</a><a href="../manual.html">返回目录 ›</a></nav></article></div></main><footer class="shell footer"><span><b>AlgoArchive</b> / 使用手册</span><a href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer">在线演示</a><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a></footer></body></html>
+<nav class="pager" aria-label="章节导航"><a rel="prev" href="test.html">‹ 上一章：配置编译器与运行用例</a><a href="../manual.html">返回目录 ›</a></nav></article></div></main><footer class="shell footer"><span><b>AlgoArchive</b> / 使用手册</span><a href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer">在线演示</a><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a></footer><script src="../manual.js?v=handbook-2.5.0" defer></script></body></html>

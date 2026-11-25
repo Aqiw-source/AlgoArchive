@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>配置编译器与运行用例 · AlgoArchive 使用手册</title><link rel="icon" href="../favicon-32.png"><link rel="stylesheet" href="../manual.css?v=handbook-2.4.0"></head>
+<title>配置编译器与运行用例 · AlgoArchive 使用手册</title><link rel="icon" href="../favicon-32.png"><link rel="stylesheet" href="../manual.css?v=handbook-2.5.0"></head>
 <body><a class="skip" href="#main">跳到正文</a><header class="topbar"><div class="shell bar-inner">
   <a class="brand" href="../manual.html"><span class="brand-mark"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m5.5 6.5 5 5-5 5M12 17h6"/></svg></span>AlgoArchive</a>
   <nav class="topnav" aria-label="手册导航"><a href="../manual.html" aria-current="page">使用手册</a><a href="../shortcuts.html">快捷方式</a></nav>
@@ -17,12 +17,18 @@
 <a href="#topic-5">让 VS Code 与 AlgoArchive 使用同一个编译器</a>
 <a href="#topic-6">把一次错误保留下来做回归用例</a>
 </nav></div><article class="article"><h2 id="topic-1">找到真正用于编译的 g++.exe</h2>
-<p>已经用 VS Code 写 C++？可以和 AlgoArchive 共用一套 MinGW。打开 PowerShell，输入 <code>where.exe g++</code> 查看系统 PATH 里有哪些编译器。出现多个路径时，选与你的 VS Code 构建任务一致的那个；没有输出只表示它不在 PATH 中。</p>
-<p>还没有编译器时，可从项目 GitHub Release 下载单独的 MinGW-w64 压缩包。完整解压后找到 <code>mingw64\bin\g++.exe</code>。例如解压在 <code>D:\Tools</code> 下时，实际路径可能是 <code>D:\Tools\mingw64\bin\g++.exe</code>；以资源管理器里的位置为准。</p>
+<p>已经用 VS Code 写 C++？可让 AlgoArchive 复用同一套 MinGW。打开 PowerShell，运行 <code>where.exe g++</code> 查找 PATH 中的编译器；有多个结果时，用 VS Code 当前构建任务实际调用的那个路径。没有结果只表示 PATH 中没找到，并不代表电脑没有编译器；也可以从 VS Code 的构建任务中查看完整路径。</p>
+<p>尚未安装编译器时，下载项目 <a href="https://github.com/Aqiw-source/AlgoArchive/releases/tag/v2.4.0" target="_blank" rel="noopener noreferrer">v2.4.0 Release 页面</a>上的独立 MinGW-w64 工具链压缩包（确认文件名为 <code>MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip</code>）。这是工具链附件，不是 AlgoArchive 源码包，也不是应用 ZIP 中附带的运行环境。</p>
+<ol><li>下载 ZIP 后先核对 SHA-256。PowerShell 示例（如果文件名或下载目录不同，请相应修改路径）：<pre><code>Set-Location "$env:USERPROFILE\Downloads"
+(Get-FileHash -Algorithm SHA256 `
+  .\MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip).Hash</code></pre>本附件已核验的摘要是 <code>81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97</code>。忽略大小写比较应相同；摘要不一致时不要继续配置，请重新从 Release 下载。</li>
+<li>在资源管理器里右键 ZIP，选择「全部提取」，选一个固定位置，例如 <code>D:\Tools</code>。解压后在提取目录中找到 <code>mingw64\bin\g++.exe</code>；不要把 ZIP 路径或整个目录填进编译器框，也不要只复制 <code>g++.exe</code>。编译器要依赖同一工具链里的 bin、lib、libexec 等配套文件。</li>
+<li>在资源管理器地址栏点击 <code>g++.exe</code> 所在文件夹并复制路径，再在末尾加上 <code>\g++.exe</code>。例如最终路径形如 <code>D:\Tools\mingw64\bin\g++.exe</code>。实际提取目录可能不同，以你的机器为准。</li></ol>
 <h2 id="topic-2">在设置里保存并验证</h2>
-<ol><li>点左下角「设置」，进入编译器设置，找到「C++ 编译与运行」。已显示「可用」时，可点「复制实际路径」，确认是不是你想用的版本。</li>
-<li>在「g++ 可执行文件路径」中填入完整文件路径，不要填 ZIP、文件夹或一条编译命令。要使用 PATH 中的 g++，把路径框留空。</li>
-<li>初次配置可保留默认的 <code>gnu++14</code>。点「保存编译器设置」，检查实际路径和版本，然后点「编译能力检查」看结果。</li></ol>
+<ol><li>在 Windows 本地版点左下角「设置」，再点「编译与运行」。也可使用这里的 <a data-settings-link href="../index.html#settings/compiler">前往编译器设置</a>。<span class="settings-link-fallback" hidden tabindex="-1">若此页面通过 file:// 单独打开，请在完整程序目录运行 <code>.\start.bat</code> 启动本地版，再用服务地址打开手册并使用设置链接。</span></li>
+<li>把完整的 <code>…\mingw64\bin\g++.exe</code> 文件路径粘贴到「g++ 可执行文件路径」。如需使用 PATH 中已安装的 g++，将输入框留空。初次配置建议先保留默认的 <code>gnu++14</code>。</li>
+<li>点「保存编译器设置」。页面应显示实际路径和 g++ 版本；再点「编译能力检查」，等待 <code>__int128</code>、<code>multiset</code> 和 <code>unordered_map</code> 的真实编译运行检查完成。看到检查通过后，编译器配置和常用标准已就绪。</li></ol>
+<aside><b>查找顺序、标准与时限</b><p>编译器查找顺序是：设置中填写的 g++ 路径优先；路径留空时，才从系统 PATH 查找 g++。如果填写了不存在的路径，程序会报告不可用，不会静默改用 PATH 里的另一套编译器。可选标准是 <code>gnu++11</code>、<code>gnu++14</code>、<code>gnu++17</code>、<code>gnu++20</code>、<code>c++17</code> 和 <code>c++20</code>；实际能否编译取决于所选 g++ 版本，默认是 <code>gnu++14</code>。</p><p>编译器单次编译有独立的 20 秒上限。编译成功后，每个测试用例另按「单例时限」运行，默认 3000 ms，可设为 50–30000 ms；运行全部时，这个时限分别用于每个用例，不能延长编译上限。Windows 下运行编译器和程序时，算法档案只为对应子进程把所选工具链的 <code>bin</code> 目录临时放到 PATH 前面，以便找到 MinGW DLL；不会改动系统或用户 PATH。</p></aside>
 <h2 id="topic-3">用一组小数据验证整个流程</h2>
 <p>打开左侧「代码试跑」并输入下面的程序。试跑草稿独立于题库，不必为了检查配置创建一道新题。</p>
 <pre><code>#include &lt;iostream&gt;
@@ -36,9 +42,14 @@ int main() {
 <li>在正式题目的编辑页，点「保存用例」可供下次复测；已有的 CPH 用例可从 <code>.prob</code> 文件导入。</li></ol>
 <h2 id="topic-4">按现象排查</h2>
 <dl><dt>显示「未找到 C++ 编译器」</dt><dd>核对填的是 <code>g++.exe</code> 文件本身。优先填写绝对路径；如果刚修改过系统 PATH，请重启本地程序再检查。</dd>
-<dt>能找到 g++，但编译提示缺少程序或 DLL</dt><dd>不要单独复制 g++.exe。重新完整解压工具链，保留 bin、lib、libexec 等目录的相对位置，再运行能力检查。</dd>
+<dt>能找到 g++，但编译提示缺少 cc1plus、库或 DLL</dt><dd>不要单独复制 g++.exe。重新完整解压工具链，保留 bin、lib、libexec 等目录的相对位置，再运行能力检查。</dd>
+<dt>有多套 MinGW，版本对不上</dt><dd>以 AlgoArchive 设置页显示的实际路径和版本为准。VS Code 的任务、扩展或终端可能使用另一套编译器；核对两边各自调用的完整路径与 <code>-std</code> 标准，不要只比较系统 PATH。</dd>
+<dt>保存时说路径无效</dt><dd>在资源管理器中重新复制实际路径，确认文件名以 <code>g++.exe</code> 结尾，并检查路径没有指向 ZIP 压缩包、快捷方式或源码目录。完整路径可以含空格或中文；随后点保存，确认页面报告检测到的版本。移动工具链目录后，请回到设置更新路径。</dd>
+<dt>能力检查失败或报告编译错误</dt><dd>先展开检查结果并复制完整错误文字；回到编译设置，核对实际使用的路径、版本和标准。对自定义路径，打开 PowerShell 并运行 <code>&amp; "D:\Tools\mingw64\bin\g++.exe" --version</code>（换成自己的路径）。若命令不能输出版本，重新解压完整工具链并改正路径。仍无法判断时，向支持者提供错误文字、应用版本、编译器完整路径及版本；不要发送题库、源码或个人数据目录。</dd>
 <dt>能编译，但用例不通过</dt><dd>先读实际输出。如果题目只要一个数字，请去掉「请输入」之类的提示语，再检查换行、输入顺序和算法结果。</dd>
-<dt>在在线演示里找不到本机编译器</dt><dd>演示页可以读写示例代码，不能调用你电脑上的 g++。请在 Windows 本地版执行本章步骤。</dd></dl>
+<dt>编译超时、用例超时、停止和运行错误有什么区别？</dt><dd>编译阶段超过 20 秒显示编译超时；编译通过后，每个用例另按「单例时限」判断运行超时；点击「停止」会主动终止当前任务；进程异常退出则显示运行错误。它们不是同一种失败。</dd>
+<dt>本地用例通过是否等于 Accepted？</dt><dd>不是。本地结果只说明当前代码通过了你提供的测试用例；在线评测可能使用其他数据、编译环境和规则。请到对应 OJ 自行提交并查看结果。</dd>
+<dt>自检通过，但试跑仍显示未找到 g++</dt><dd><code>自检.bat</code> 会检查核心文件、运行环境和临时数据库；C++ 检查只报告是否找到编译器，不实际编译程序。没有 g++ 时自检仍可通过。配置后请另点设置中的「编译能力检查」，并用本章加法用例验证实际运行。</dd><dt>在在线演示里找不到本机编译器</dt><dd>GitHub Pages 演示是静态网页，只读写演示数据，不能调用你电脑上的 g++ 或设置系统功能。请下载 Windows 本地版执行本章步骤。</dd></dl>
 
 <h2 id="topic-5">让 VS Code 与 AlgoArchive 使用同一个编译器</h2>
 <p>如果同一段程序在两处的表现不同，先在 AlgoArchive 设置里点「复制实际路径」。再看 VS Code 当前使用的构建任务或运行配置里调用的是哪个程序。若配置只写了 <code>g++</code>，在 VS Code 自带的 PowerShell 终端运行下面两行，比较命令实际指向的位置与版本。</p><pre><code>(Get-Command g++).Source
@@ -46,4 +57,4 @@ g++ --version</code></pre><p>已有绝对路径时，也可以单独验证它是
 
 <h2 id="topic-6">把一次错误保留下来做回归用例</h2>
 <p>保留加法程序的前两组数据，再做一次能识别错误的实验。临时把 <code>a + b</code> 改为 <code>a - b</code>，用输入 <code>2 3</code> 运行。实际输出应成为 <code>-1</code>，与期望的 <code>5</code> 不同。恢复加法并重新运行，结果应再次一致。</p><p>正式做题时，把触发问题的最小输入加到题目测试区，再保存用例。这样以后重构代码时，可以一键把原样例与反例一起运行。</p>
-<nav class="pager" aria-label="章节导航"><a rel="prev" href="import.html">‹ 上一章：批量导入与重复提醒</a><a rel="next" href="backup.html">下一章：备份、恢复与启动问题 ›</a></nav></article></div></main><footer class="shell footer"><span><b>AlgoArchive</b> / 使用手册</span><a href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer">在线演示</a><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a></footer></body></html>
+<nav class="pager" aria-label="章节导航"><a rel="prev" href="import.html">‹ 上一章：批量导入与重复提醒</a><a rel="next" href="backup.html">下一章：备份、恢复与启动问题 ›</a></nav></article></div></main><footer class="shell footer"><span><b>AlgoArchive</b> / 使用手册</span><a href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer">在线演示</a><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a></footer><script src="../manual.js?v=handbook-2.5.0" defer></script></body></html>

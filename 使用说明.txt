@@ -1,4 +1,4 @@
-算法档案 · AlgoArchive 2.4.0
+算法档案 · AlgoArchive 2.5.0
 
 本地版右上角可打开离线使用手册。编辑题目可标记「未做／待补／已通过」、填写错因、关联多个算法；首页可按比赛查看待补清单。全部题目的批量导入先预览，已有题目默认跳过。五个平台标题旁可打开或复制官网链接。
 
@@ -10,7 +10,7 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 
 一、安装与启动
 
-安装版：运行 AlgoArchive-2.4.0-Windows-x64-Setup.exe。安装程序可选择是否创建
+安装版：运行 AlgoArchive-2.5.0-Windows-x64-Setup.exe。安装程序可选择是否创建
 桌面快捷方式，默认不勾选。仅当选择“仅为我安装”且当前账户没有配置时，向导才显示数据目录
 页，并会把选择的目录写入配置。
 
@@ -18,12 +18,12 @@ GitHub：https://github.com/Aqiw-source/AlgoArchive
 默认目录；已有 %USERPROFILE%\AlgoArchive\config.json 时安装器不会覆盖配置。
 需要更换目录时，请启动程序并在“设置 → 数据管理”迁移。
 
-请下载 AlgoArchive-2.4.0-Windows-x64.zip，不要下载 GitHub 自动生成的
+请下载 AlgoArchive-2.5.0-Windows-x64.zip，不要下载 GitHub 自动生成的
 Source code (zip)。源码包不含 Python 运行环境，不能直接双击启动。
 
 便携版：完整解压 ZIP 后双击 AlgoArchive.exe。普通启动不会创建或恢复快捷方式；
-需要时可在“设置 → 关于与诊断”中创建桌面和开始菜单入口，或运行
-AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runtime
+需要时打开“设置 → 关于与诊断 → 快捷方式”，点击“创建快捷方式”，或在程序目录运行
+.\AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runtime
 和 web 分开移动。Windows 不允许便携程序可靠地自动固定“开始屏幕”，固定磁贴
 需要在系统中手动完成。
 
@@ -36,6 +36,11 @@ AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runt
 
 使用期间请保留启动窗口。关闭窗口、按 Ctrl+C，或在“设置 → 关于与诊断”
 点击“退出算法档案”都可以停止服务。关闭普通浏览器标签页不会结束本地服务。
+
+如果页面显示无法连接，请确认启动窗口仍在运行。需要时，在完整安装目录双击
+AlgoArchive.exe，或在该目录打开 PowerShell 并运行 .\start.bat；保留启动窗口，
+使用窗口中显示的实际地址。不要双击 web\index.html 启动应用：手册文件可离线
+阅读，应用页面需要本地服务。
 
 二、数据和配置
 
@@ -105,10 +110,45 @@ AlgoArchive.exe --create-shortcut。不要把 AlgoArchive.exe、start.bat、runt
 页面后仍可恢复。它不会创建题目、不会写入 archive.sqlite3，也不会进入题库
 备份或迁移。
 
-如果电脑没有安装 MinGW，代码试跑页会显示“未找到 C++ 编译器”，并提供
-“选择 g++ 编译器”按钮。请安装或解压完整的 MinGW-w64 工具链，在设置中填写
-其 bin\g++.exe 路径；只复制单独的 g++.exe 通常无法工作，因为还需要同一工具
-链中的配套程序和库。
+编译器与运行环境说明
+
+安装版与便携版都附带运行应用所需的 Python；Git 源码、应用 ZIP 和安装程序
+均不含 g++ 本体。只整理题库不必下载 C++ 工具链。开发者构建原生启动器时，
+发布流水线使用经过摘要核对的 MinGW-w64 静态链接 GCC/C++ 运行库，普通用户
+启动应用无需安装这些编译器 DLL。要编译自己的 C++ 程序时才需选用本机 g++。
+
+首次配置编译器：从项目 GitHub v2.4.0 Release 页面下载附件
+MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip。PowerShell 中运行
+Get-FileHash "<下载文件完整路径>" -Algorithm SHA256，确认输出与下列值一致：
+81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97
+摘要不一致时重新下载。右键 ZIP 并选择“全部提取”，解压到固定目录，在目录中
+找到 mingw64\bin\g++.exe。打开“设置 → 编译与运行”，填写此 g++.exe 的
+完整路径并保存，然后点“编译能力检查”，等待能力检查通过。
+
+编译器查找优先级：先使用设置中填写的路径；路径留空时才查系统 PATH。已填写
+路径但文件无效时会报不可用，不会自动改用 PATH 的另一套 g++。可选标准为
+gnu++11、gnu++14、gnu++17、gnu++20、c++17 和 c++20；是否受支持取决于所选
+g++ 版本，默认使用 gnu++14。
+
+编译阶段最多运行 20 秒；编译通过后，每个用例另按“单例时限”运行，默认
+3000 毫秒，可设 50–30000 毫秒。运行全部时，此时限分别应用于每个用例，
+不会延长编译时限。Windows 下程序只为编译器及测试子进程临时把所选工具链的
+bin 目录加到其 PATH 前面以查找 DLL，不修改 Windows 系统或用户 PATH。
+
+自检.bat 会检查发布文件、运行环境和临时数据库；C++ 项只检查是否找到编译器，
+不实际编译。没装 g++ 时自检仍可通过，需另外运行编译能力检查及加法用例。
+
+g++.exe 的完整路径可包含空格或中文，但不要只复制单个 exe。若报缺少 DLL、
+cc1plus 或库文件，请重新完整解压并保留 bin、lib、libexec 相对目录。多套 MinGW
+并存时，以 AlgoArchive 显示的实际路径和版本为准；VS Code 可能使用不同编译器或
+标准。移动工具链后，在设置中更新路径。编译超时（20 秒）、主动停止、单个用例
+超时和运行时错误分别代表不同状态；编译成功但答案错误时请比较预期输出和实际
+输出（包括空格、换行）。本地用例通过仅代表所测数据通过，不等于在线评测 Accepted。
+
+在线演示是静态示例，不能调用本机编译器。
+之后打开“代码试跑”，运行两数相加：输入 2 3，期望输出 5；再加一组输入
+-2 2、期望输出 0，并运行全部用例。两组均通过，表示编译器、读入、运行和结果
+比较都已验证。详细步骤与常见错误排查见 web\guide\test.html。
 
 五、CPH 兼容测试
 
@@ -125,6 +165,9 @@ unordered_map 的真实编译运行能力，也可以改用其他 g++ 路径和�
 
 测试代码只写入系统临时目录，编译成功后逐个用例运行，结束后清理。不会自动
 保存代码或提交到在线评测。Windows 系统错误弹窗已对测试子进程禁用。
+
+键盘快捷键（如 Ctrl+S、Tab）只操作当前界面；Windows 启动快捷方式是桌面或
+开始菜单中的 .lnk 文件。它们不是同一种快捷方式。手册“快捷方式”章节解释两者。
 
 CPH 原作者：Divyanshu Agrawal
 上游仓库：https://github.com/agrawal-d/cph
@@ -169,7 +212,7 @@ python -X utf8 -m unittest discover -s tests -v
 node --check web/app.js
 
 构建便携 ZIP 和安装程序：
-.\scripts\build-release.ps1 -Version 2.4.0
+.\scripts\build-release.ps1 -Version 2.5.0
 
 构建产物位于 dist，并生成 SHA-256 校验文件。发布包检查不会包含真实数据库、
 用户代码、头像、runtime.lock、旧快捷方式、tests、缓存或备份。

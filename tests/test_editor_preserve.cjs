@@ -47,5 +47,16 @@ const root=path.resolve(process.env.ALGOARCHIVE_QA_ROOT||path.join(__dirname,"..
   await page.waitForFunction(()=>document.querySelector("#save-state")?.textContent==="✓ 已保存到本地");assert.equal(await fresh.evaluate(el=>el===window.__firstSaveNode),true,"first save must remain in the same editor");
   assert.equal(await fresh.evaluate(el=>el.selectionStart),5,"first save preserves the caret");assert.equal(await page.locator('[data-save-cph-tests]').evaluate(e=>e.disabled),false,"first save enables case saving");assert.equal(await page.locator('[data-run-cph-all]').isEnabled(),true,"first save enables CPH runs");
   assert.deepEqual(errors,[]);console.log(JSON.stringify({preservedCaret:true,preservedScroll:true,preservedCase:"3/3",preservedResult:true,postSaveTyping:true,changedInputsMarkedStale:true,passed:true},null,2));
- }finally{await browser?.close();child.kill();fs.writeFileSync(path.join(temp,"server.log"),logs);fs.rmSync(temp,{recursive:true,force:true});}
+ }finally{
+  await browser?.close();
+  if(child.exitCode===null){
+   const closed=new Promise(resolve=>child.once("close",resolve));
+   child.kill();
+   let exited=await Promise.race([closed.then(()=>true),wait(5000).then(()=>false)]);
+   if(!exited){child.kill("SIGKILL");exited=await Promise.race([closed.then(()=>true),wait(3000).then(()=>false)]);}
+   if(!exited)throw new Error("Local test server did not stop before temporary files were removed");
+  }
+  fs.writeFileSync(path.join(temp,"server.log"),logs);
+  fs.rmSync(temp,{recursive:true,force:true,maxRetries:8,retryDelay:250});
+ }
 })().catch(error=>{console.error(error);process.exitCode=1;});

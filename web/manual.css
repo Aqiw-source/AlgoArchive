@@ -133,6 +133,8 @@ code { font-family: ui-monospace,Consolas,monospace; }
 .key-list dt { margin: 0; }
 .key-detail { grid-column: 1/-1; }
 .key-list .binding { align-self: center; white-space: nowrap; }
+.settings-link-fallback { display: block; margin-top: 8px; padding: 10px 12px; border-left: 3px solid #df995f; border-radius: 0 6px 6px 0; color: var(--muted); background: #fff6e9; font-size: .88rem; }
+.settings-link-fallback:focus { outline: 2px solid #29848a; outline-offset: 2px; }
 @media (min-width: 1500px) { .home { padding-top: 38px; } .masthead { min-height: 322px; } .art img { height: 295px; } }
 @media (max-width: 980px) { .home-grid { grid-template-columns: minmax(0,1fr) 245px; gap: 18px; } .chapter-card { padding: 16px; } .reading { gap: 18px; } .quick-panel,.launch-panel { padding: 18px; } }
 @media (max-width: 780px) { .home-grid { grid-template-columns: 1fr; } .rail { grid-template-columns: 1fr 1fr; } .masthead { grid-template-columns: 1.2fr 1fr; } .art { padding-right: 4%; } .reading { grid-template-columns: 1fr; } .toc { position: static; } .chapter-index { grid-template-columns: 1fr 1fr; } .chapter-index strong { grid-column: 1/-1; } }

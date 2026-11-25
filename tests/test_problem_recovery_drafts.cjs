@@ -53,7 +53,8 @@ async function main() {
     page.on("pageerror", error => errors.push(error.message));
     await page.addInitScript(fs.readFileSync(path.join(root, "web", "recovery-drafts.js"), "utf8"));
     if (options.demo) {
-      await page.addInitScript(() => { window.__DEMO_VERSION__ = "2.4.0"; });
+      // A truthy demo flag disables recovery-draft wiring in this fixture; it is not the app release version.
+      await page.addInitScript(() => { window.__DEMO_VERSION__ = "test-fixture"; });
     }
     if (options.projectId) {
       await page.route("**/api/health", route => route.fulfill({

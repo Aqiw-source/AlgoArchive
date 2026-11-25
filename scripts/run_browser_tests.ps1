@@ -1,4 +1,8 @@
 $ErrorActionPreference = "Stop"
+$playwrightModules = Join-Path $PSScriptRoot "..\.qa-deps\node_modules"
+if (Test-Path (Join-Path $playwrightModules "playwright")) {
+    $env:NODE_PATH = if ($env:NODE_PATH) { "$playwrightModules;$env:NODE_PATH" } else { $playwrightModules }
+}
 $tests = @(
     "test_editor_lock",
     "test_editor_preserve",
@@ -10,6 +14,7 @@ $tests = @(
     "test_platform_art",
     "test_local_upgrade",
     "test_background_sync",
+    "test_settings_navigation",
     "test_modal_scroll",
     "test_view_layout",
     "test_table_width",

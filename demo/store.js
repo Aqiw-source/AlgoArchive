@@ -120,11 +120,11 @@
     function dispatch(method, route, payload) {
       if (method === "GET" && route === "/api/state") return state();
       if (method === "GET" && route === "/api/settings") return { settings: {
-        version: options.version || "2.4.0", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
+        version: options.version || globalThis.__DEMO_VERSION__ || "2.5.0", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
         data_dir: "当前页面内存（刷新重置）", config_path: "不适用（在线演示）", log_path: "不适用（在线演示）", backup_dir: "不适用（在线演示）",
         browser: { mode: "default", window_mode: "tab" },
         sidebar_art: data.sidebar_art,
-        compiler: { available: false, standard: "gnu++14", standards: ["gnu++11", "gnu++14", "gnu++17"], version: "在线演示不执行 C++，请使用本地版。", configured_path: "", path: "" },
+        compiler: { available: false, standard: "gnu++14", standards: ["gnu++11", "gnu++14", "gnu++17", "gnu++20", "c++17", "c++20"], version: "在线演示不执行 C++，请使用本地版。", configured_path: "", path: "" },
       } };
       if (method === "GET" && route === "/api/settings/sidebar-art") return {sidebar_art:data.sidebar_art};
       if (method === "GET" && route === "/api/backups") return { backups: [] };

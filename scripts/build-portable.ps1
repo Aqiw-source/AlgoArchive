@@ -1,10 +1,20 @@
 param(
-    [string]$Version = "2.4.0",
+    [string]$Version,
     [string]$OutputRoot
 )
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$appSource = [System.IO.File]::ReadAllText((Join-Path $projectRoot "app.py"))
+if ($appSource -notmatch '(?m)^APP_VERSION = "([0-9]+\.[0-9]+\.[0-9]+)"\s*$') {
+    throw "无法从 app.py 读取 APP_VERSION"
+}
+$sourceVersion = $Matches[1]
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = $sourceVersion
+} elseif ($Version -ne $sourceVersion) {
+    throw "便携包版本 '$Version' 与 app.py 版本 '$sourceVersion' 不一致"
+}
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $projectRoot "dist"
 }
@@ -25,6 +35,7 @@ $requiredFiles = @(
     "使用说明.txt",
     "CHANGELOG.md",
     "TEST_REPORT.md",
+    "docs\history\TEST_REPORT-through-2.4.0.md",
     "THIRD_PARTY.txt",
     "LICENSE",
     "DISCLAIMER.md",
@@ -52,7 +63,10 @@ $launcherProbe = @(
     & $python `
         -X utf8 `
         $launcherVerifier `
-        (Join-Path $projectRoot "AlgoArchive.exe") 2>&1
+        (Join-Path $projectRoot "AlgoArchive.exe") `
+        --version $Version `
+        --icon (Join-Path $projectRoot "ACM-ICPC-Windows.ico") `
+        --source (Join-Path $projectRoot "launcher\AlgoArchive.cpp") 2>&1
 )
 if ($LASTEXITCODE -ne 0) {
     throw (
@@ -90,7 +104,13 @@ if (Test-Path -LiteralPath $archivePath) {
 New-Item -ItemType Directory -Path $staging | Out-Null
 
 foreach ($name in $requiredFiles) {
-    Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $staging
+    $sourcePath = Join-Path $projectRoot $name
+    $destinationPath = Join-Path $staging $name
+    $destinationDirectory = Split-Path -Parent $destinationPath
+    if (-not (Test-Path -LiteralPath $destinationDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $sourcePath -Destination $destinationPath
 }
 foreach ($name in @("runtime", "web", "licenses")) {
     $source = Join-Path $projectRoot $name
@@ -107,10 +127,17 @@ $runtimeProbeText = ($runtimeProbe -join "`n").Trim()
 if ($LASTEXITCODE -ne 0 -or $runtimeProbeText -ne $Version) {
     throw "内置 Python 无法导入应用模块或版本不一致: $runtimeProbeText"
 }
+$packageSmoke = @(
+    & $python -X utf8 (Join-Path $PSScriptRoot "smoke-release-package.py") `
+        --root $staging 2>&1
+)
+if ($LASTEXITCODE -ne 0) {
+    throw "便携包内 Python API 烟测失败:`n$(($packageSmoke -join "`n").Trim())"
+}
 
 $screenshots = Join-Path $projectRoot "docs\screenshots"
 if (Test-Path -LiteralPath $screenshots -PathType Container) {
-    New-Item -ItemType Directory -Path (Join-Path $staging "docs") | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $staging "docs") -Force | Out-Null
     Copy-Item -LiteralPath $screenshots -Destination (Join-Path $staging "docs") -Recurse
 }
 $shortcutScript = Join-Path $projectRoot "scripts\create-desktop-shortcut.ps1"

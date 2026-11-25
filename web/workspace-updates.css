@@ -445,3 +445,37 @@ body:has(#modal[open]) .workspace-nav { overflow: hidden; }
 .external-judge{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-block:12px 20px;font-size:.86rem;color:#555f70}
 .external-judge a{font-weight:650;color:#31549b;text-underline-offset:3px}
 @media(max-width:520px){.workspace-topbar{height:auto;min-height:48px;flex-wrap:wrap;padding-block:6px}.topbar-meta{flex-wrap:wrap}}
+.settings-content [data-settings-anchor] {
+  scroll-margin-block: 24px;
+  border-radius: 12px;
+}
+
+.settings-content [data-settings-anchor]:focus-visible {
+  outline: 2px solid var(--accent, #6b9a89);
+  outline-offset: 3px;
+}
+
+.settings-content [data-settings-anchor].settings-focus-highlight {
+  animation: settings-focus-highlight 1.8s ease-out both;
+}
+
+.compiler-diagnostic pre {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(23, 34, 39, .06);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+@keyframes settings-focus-highlight {
+  0% { background: rgba(248, 203, 97, .48); box-shadow: 0 0 0 4px rgba(248, 203, 97, .22); }
+  100% { background: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-content [data-settings-anchor].settings-focus-highlight { animation: none; }
+}

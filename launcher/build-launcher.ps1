@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.4.0",
+    [string]$Version,
     [string]$Compiler,
     [string]$ResourceCompiler,
     [string]$OutputPath
@@ -7,6 +7,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$appSource = [System.IO.File]::ReadAllText((Join-Path $projectRoot "app.py"))
+if ($appSource -notmatch '(?m)^APP_VERSION = "([0-9]+\.[0-9]+\.[0-9]+)"\s*$') {
+    throw "无法从 app.py 读取 APP_VERSION"
+}
+$sourceVersion = $Matches[1]
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = $sourceVersion
+} elseif ($Version -ne $sourceVersion) {
+    throw "启动器版本 '$Version' 与 app.py 版本 '$sourceVersion' 不一致"
+}
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path $projectRoot "AlgoArchive.exe"
 }
@@ -74,36 +84,6 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Launcher compilation failed with exit code $LASTEXITCODE"
     }
-
-    $objdump = Join-Path (Split-Path -Parent $Compiler) "objdump.exe"
-    if (-not (Test-Path -LiteralPath $objdump -PathType Leaf)) {
-        $objdump = (Get-Command objdump.exe -ErrorAction Stop).Source
-    }
-    $importDump = & $objdump -p $OutputPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to inspect launcher imports with objdump"
-    }
-    $imports = @(
-        [regex]::Matches(
-            ($importDump -join "`n"),
-            "DLL Name:\s*([^\r\n]+)"
-        ) | ForEach-Object {
-            $_.Groups[1].Value.Trim().ToLowerInvariant()
-        }
-    )
-    $forbiddenImports = @(
-        $imports | Where-Object {
-            $_ -match "^libgcc_s_" -or
-            $_ -match "^libstdc\+\+-" -or
-            $_ -match "^libwinpthread-"
-        }
-    )
-    if ($forbiddenImports.Count -gt 0) {
-        throw (
-            "Launcher still depends on unbundled MinGW runtime DLLs: " +
-            ($forbiddenImports -join ", ")
-        )
-    }
 } finally {
     if (Test-Path -LiteralPath $buildRoot) {
         Remove-Item -LiteralPath $buildRoot -Recurse -Force
@@ -113,5 +93,23 @@ try {
 if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
     throw "Launcher output was not created: $OutputPath"
 }
+$launcherVerifier = Join-Path $projectRoot "scripts\verify-launcher.py"
+$iconPath = Join-Path $projectRoot "ACM-ICPC-Windows.ico"
+$sourcePath = Join-Path $projectRoot "launcher\AlgoArchive.cpp"
+$python = (Get-Command python.exe -ErrorAction Stop).Source
+$verification = @(
+    & $python -X utf8 $launcherVerifier $OutputPath `
+        --version $Version --icon $iconPath --source $sourcePath --smoke-arguments 2>&1
+)
+if ($LASTEXITCODE -ne 0) {
+    throw "启动器版本、图标、DLL 或参数转发检查失败:`n$(($verification -join "`n").Trim())"
+}
+$versionInfo = (Get-Item -LiteralPath $OutputPath).VersionInfo
+foreach ($property in @("FileVersion", "ProductVersion")) {
+    if (([string]$versionInfo.$property).Trim() -ne $Version) {
+        throw "启动器 $property 与应用版本不一致: $($versionInfo.$property)"
+    }
+}
 Get-Item -LiteralPath $OutputPath |
-    Select-Object FullName, Length, @{Name="ProductVersion";Expression={$_.VersionInfo.ProductVersion}}
+    Select-Object FullName, Length, @{Name="FileVersion";Expression={$_.VersionInfo.FileVersion}},
+        @{Name="ProductVersion";Expression={$_.VersionInfo.ProductVersion}}
