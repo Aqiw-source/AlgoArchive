@@ -119,6 +119,37 @@ class PlatformOrderTests(unittest.TestCase):
             url="https://example.com/" + str(i), language="cpp", code="") for i in range(20)]))
         self.assertEqual(self.order()["problem_ids"], imported["problem_ids"])
 
+    def test_multi_platform_import_needs_one_membership_scan(self):
+        seeds = [self.problem("seed-a", "AcWing"), self.problem("seed-b", "AtCoder")]
+        platforms = ["AcWing", "AtCoder"]
+        batch = [dict(platform=platforms[i % 2], name=str(i),
+                      url=f"https://example.com/batch/{i}", language="cpp", code="") for i in range(8)]
+        statements = []
+        self.repo.db.set_trace_callback(statements.append)
+        try:
+            inserted = self.repo.import_problems({"problems": batch})["problem_ids"]
+        finally:
+            self.repo.db.set_trace_callback(None)
+        order_scans = [sql for sql in statements if sql.startswith("SELECT id")
+                       and "FROM problems ORDER BY global_order,id" in sql]
+        self.assertEqual(len(order_scans), 1, order_scans)
+        for i, platform in enumerate(platforms):
+            self.assertEqual(self.order(platform.lower())["problem_ids"], [seeds[i]["id"], *inserted[i::2]])
+
+    def test_reopen_appends_missing_members_to_saved_order_in_global_order(self):
+        groups = {}
+        for platform in ("AcWing", "AtCoder"):
+            groups[platform.lower()] = [self.problem(f"{platform}-{i}", platform)["id"] for i in range(4)]
+        with self.repo.db:
+            for key, ids in groups.items():
+                self.repo._write_platform_order(key, {"version": 8, "problem_ids": [ids[1], ids[0]]})
+                self.repo.db.execute("UPDATE problems SET updated_at='2020-01-01' WHERE id=?", (ids[2],))
+                self.repo.db.execute("UPDATE problems SET updated_at='2021-01-01' WHERE id=?", (ids[3],))
+        self.repo.close()
+        self.repo = app.Repository(self.path)
+        for key, ids in groups.items():
+            self.assertEqual(self.order(key), {"version": 9, "problem_ids": [ids[1], ids[0], ids[2], ids[3]]})
+
     def test_custom_unicode_key_matches_browser_lowercase(self):
         custom = self.problem("unicode", "Straße OJ")
         self.assertEqual(self.order("straße oj")["problem_ids"], [custom["id"]])

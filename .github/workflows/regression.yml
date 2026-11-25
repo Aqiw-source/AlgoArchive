@@ -1,0 +1,42 @@
+name: Windows regression
+on:
+  workflow_call:
+    inputs:
+      full_layout:
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Backend tests with slow-test report
+        run: python -X utf8 scripts/run_backend_tests.py
+
+  browser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install browser test dependency
+        run: npm install --no-save --package-lock=false --prefix .qa-deps playwright@1.62.1
+      - name: Frontend syntax
+        run: node --check web/app.js
+      - name: Browser and demo regressions
+        shell: pwsh
+        env:
+          ALGOARCHIVE_FULL_LAYOUT: ${{ inputs.full_layout && '1' || '0' }}
+          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
+        run: .\scripts\run_browser_tests.ps1

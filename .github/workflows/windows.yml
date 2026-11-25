@@ -6,17 +6,52 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  changes:
+    runs-on: windows-latest
+    outputs:
+      full_layout: ${{ steps.classify.outputs.full_layout }}
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Classify changed files
+        id: classify
+        shell: pwsh
+        env:
+          DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: .\scripts\classify-workflow-changes.ps1 -BaseRevision $env:DIFF_BASE
+
+  regression:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
+    uses: ./.github/workflows/regression.yml
+    with:
+      full_layout: ${{ needs.changes.outputs.full_layout == 'true' }}
+
+  package:
+    needs: [changes, regression]
+    if: >-
+      !cancelled() && needs.changes.result == 'success' &&
+      (needs.regression.result == 'success' ||
+       (needs.changes.outputs.docs_only == 'true' && needs.regression.result == 'skipped'))
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Check documentation links, notices, and current downloads
+        shell: pwsh
+        run: .\scripts\check-docs.ps1
       - name: Prepare bundled Python runtime
         shell: pwsh
         run: |
@@ -29,38 +64,6 @@ jobs:
           }
           New-Item -ItemType Directory -Path ".\runtime" -Force | Out-Null
           Expand-Archive -LiteralPath $archive -DestinationPath ".\runtime" -Force
-      - name: Backend tests
-        run: python -X utf8 -m unittest discover -s tests -v
-      - name: Frontend syntax
-        run: node --check web/app.js
-      - name: Install browser test dependency
-        run: npm install --no-save --package-lock=false --prefix .qa-deps playwright@1.62.1
-      - name: Editor lock browser regression
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: node tests/test_editor_lock.cjs
-      - name: Card color browser regression
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: node tests/test_card_colors.cjs
-      - name: Platform picker and sidebar artwork browser regression
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: node tests/test_platform_art.cjs
-      - name: Online demo tests
-        run: node --test tests/test_demo.cjs
-      - name: Local upgrade and background sync regression
-        shell: pwsh
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: |
-          foreach ($test in @("test_local_upgrade", "test_background_sync", "test_modal_scroll", "test_view_layout", "test_image_preview", "test_study_ui")) {
-              node "tests/$test.cjs"
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          node --test tests/test_saved_problem_counts.cjs
-      - name: Verify native launcher dependencies
-        run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Build portable package
         shell: pwsh
         run: .\scripts\build-portable.ps1

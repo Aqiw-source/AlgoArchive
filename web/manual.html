@@ -1,13 +1,77 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>目录 · AlgoArchive 使用手册</title><link rel="stylesheet" href="manual.css?v=guide-5"><link rel="icon" href="favicon-32.png"></head>
-<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap"><p class="edition">AlgoArchive 2.3.1 · Windows 本地版</p><h1>使用手册</h1><p class="intro">第一次使用？先收藏一道题，再试着保存代码和运行用例。</p></div></header>
-<main id="main" class="wrap"><div class="index-head"><h2>操作指南</h2><span>共 7 章</span></div><nav class="directory" aria-label="手册目录">
-<a href="guide/browse.html"><span class="num">01</span><span><strong>浏览题目与预览代码</strong><small>从首页找到代码，分清预览、编辑和原题入口。</small></span><span class="mode">通用</span><span class="arrow" aria-hidden="true">›</span></a>
-<a href="guide/archive.html"><span class="num">02</span><span><strong>收藏一道题，保存第一份代码</strong><small>从只有原题链接开始，逐步补上代码和比赛归属。</small></span><span class="mode">通用</span><span class="arrow" aria-hidden="true">›</span></a>
-<a href="guide/review.html"><span class="num">03</span><span><strong>补题清单与错因笔记</strong><small>把暂时不会做的题放进清单，补完后保留复盘记录。</small></span><span class="mode">本地版</span><span class="arrow" aria-hidden="true">›</span></a>
-<a href="guide/tags.html"><span class="num">04</span><span><strong>算法模板与一题多个标签</strong><small>把一道题归入两类题单，代码仍只维护一份。</small></span><span class="mode">本地多标签</span><span class="arrow" aria-hidden="true">›</span></a>
-<a href="guide/import.html"><span class="num">05</span><span><strong>批量导入与重复提醒</strong><small>用一个新增题和一个重复题，练习安全地合并题库。</small></span><span class="mode">本地预览</span><span class="arrow" aria-hidden="true">›</span></a>
-<a href="guide/test.html"><span class="num">06</span><span><strong>配置编译器与运行用例</strong><small>用一个加法程序检查编译器、输入和期望输出。</small></span><span class="mode">本地版</span><span class="arrow" aria-hidden="true">›</span></a>
-<a href="guide/backup.html"><span class="num">07</span><span><strong>备份、恢复与启动问题</strong><small>升级或换电脑前备份；区分运行服务与浏览器标签页。</small></span><span class="mode">本地版</span><span class="arrow" aria-hidden="true">›</span></a>
-</nav></main><footer class="wrap">AlgoArchive · 使用手册</footer></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>目录 · AlgoArchive 使用手册</title>
+  <link rel="icon" href="favicon-32.png">
+  <link rel="stylesheet" href="manual.css?v=handbook-2.4.0">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<header class="topbar"><div class="shell bar-inner">
+  <a class="brand" href="manual.html"><span class="brand-mark"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m5.5 6.5 5 5-5 5M12 17h6"/></svg></span>AlgoArchive</a>
+  <nav class="topnav" aria-label="手册导航">
+    <a href="manual.html" aria-current="page">使用手册</a>
+    <a href="shortcuts.html">快捷方式</a>
+  </nav>
+  <a class="repo" href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 AlgoArchive 源码"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path fill="currentColor" stroke="none" d="M12 1C5.9 1 1 5.9 1 12c0 4.9 3.2 9.1 7.5 10.5.5.1.7-.2.7-.5v-2c-3.1.7-3.7-1.3-3.7-1.3-.5-1.2-1.2-1.5-1.2-1.5-1-.7.1-.7.1-.7 1.1.1 1.6 1.1 1.6 1.1 1 1.6 2.5 1.1 3.2.9.1-.7.4-1.2.7-1.5-2.5-.3-5.1-1.2-5.1-5.5 0-1.2.4-2.2 1.1-2.9-.1-.3-.5-1.4.1-2.9 0 0 .9-.3 3 1.1a10.6 10.6 0 0 1 5.5 0c2.1-1.4 3-1.1 3-1.1.6 1.5.2 2.6.1 2.9.7.7 1.1 1.7 1.1 2.9 0 4.3-2.6 5.2-5.1 5.5.4.3.7 1 .7 2v3c0 .3.2.6.8.5A11 11 0 0 0 23 12c0-6.1-4.9-11-11-11Z"/></svg><span>GitHub</span></a>
+</div></header>
+<main id="main" class="shell home">
+  <section class="masthead" aria-labelledby="manual-title">
+    <div class="hero-copy">
+      <p class="version"><span>AlgoArchive</span><span>v2.4.0</span></p>
+      <h1 id="manual-title">使用手册</h1>
+      <p class="hero-desc" data-demo-intro>从打开代码预览，到原位保存题解、恢复草稿并处理版本冲突。</p>
+      <div class="actions"><a class="button primary" href="guide/browse.html"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 6C9 4 6 4 2.5 4.8v14C6 18 9 18 12 20c3-2 6-2 9.5-1.2v-14C18 4 15 4 12 6Zm0 0v14"/></svg>开始阅读</a>
+        <a class="button secondary" href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m7 4 13 8-13 8z"/></svg>打开在线演示</a></div>
+    </div>
+    <div class="art"><img src="guide/media/manual-computer.webp" alt="" width="600" height="400" fetchpriority="high"></div>
+  </section>
+  <div class="home-grid"><section class="chapters" aria-labelledby="chapters-title">
+    <div class="section-head"><h2 id="chapters-title">章节目录 <span class="count">07</span></h2>
+      <label class="search" hidden><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input type="search" id="chapter-search" aria-label="搜索章节" placeholder="搜索章节"></label></div>
+    <nav class="cards" aria-label="手册目录">
+<a class="chapter-card" href="guide/browse.html">
+  <div class="card-meta"><span class="tile tint-1"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 6C9 4 6 4 2.5 4.8v14C6 18 9 18 12 20c3-2 6-2 9.5-1.2v-14C18 4 15 4 12 6Zm0 0v14"/></svg></span><span class="chapter-no">第 01 章</span><span class="mode">通用</span></div>
+  <h3>浏览题目与预览代码</h3><p>从首页或比赛列表找到一道题，打开原题、预览和复制代码。</p>
+</a>
+<a class="chapter-card" href="guide/archive.html">
+  <div class="card-meta"><span class="tile tint-2"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 7V5a1 1 0 0 1 1-1h6l2 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm0 3h18"/><path d="M9 14h6"/></svg></span><span class="chapter-no">第 02 章</span><span class="mode">通用</span></div>
+  <h3>原位保存题解与恢复草稿</h3><p>在当前题目中继续编辑，处理版本冲突时核对差异并恢复本地草稿。</p>
+</a>
+<a class="chapter-card" href="guide/review.html">
+  <div class="card-meta"><span class="tile tint-3"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11m-17-12 1 1 2-3m-3 8 1 1 2-3"/><circle cx="4.5" cy="18" r="1"/></svg></span><span class="chapter-no">第 03 章</span><span class="mode">本地版</span></div>
+  <h3>补题清单与错因笔记</h3><p>把待补题加入清单，记录反例和修正过程。</p>
+</a>
+<a class="chapter-card" href="guide/tags.html">
+  <div class="card-meta"><span class="tile tint-4"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M3 3h7l10 10-7 7L3 10z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></span><span class="chapter-no">第 04 章</span><span class="mode">本地多标签</span></div>
+  <h3>算法模板与一题多个标签</h3><p>保存可复用的模板，把同一题归入不同算法分类。</p>
+</a>
+<a class="chapter-card" href="guide/import.html">
+  <div class="card-meta"><span class="tile tint-5"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3v11m-4-4 4 4 4-4M4 14v6h16v-6"/></svg></span><span class="chapter-no">第 05 章</span><span class="mode">本地预览</span></div>
+  <h3>批量导入与重复提醒</h3><p>导入多道题，检查预览并处理重复记录。</p>
+</a>
+<a class="chapter-card" href="guide/test.html">
+  <div class="card-meta"><span class="tile tint-6"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></svg></span><span class="chapter-no">第 06 章</span><span class="mode">本地版</span></div>
+  <h3>配置编译器与运行用例</h3><p>从找到 g++.exe，到跑通第一组输入和输出。</p>
+</a>
+<a class="chapter-card" href="guide/backup.html">
+  <div class="card-meta"><span class="tile tint-7"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v13c0 4 16 4 16 0V5M4 11c0 4 16 4 16 0"/></svg></span><span class="chapter-no">第 07 章</span><span class="mode">本地版</span></div>
+  <h3>备份、恢复与启动问题</h3><p>备份题库、迁移数据，检查本地服务的运行状态。</p>
+</a>
+    </nav>
+    <p id="no-results" class="empty" hidden>没有找到相关章节。试试「代码」「导入」或「备份」。</p><span id="result-count" class="sr-only" role="status"></span>
+  </section>
+  <aside class="rail" aria-label="快捷操作">
+    <section class="quick-panel"><h2><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h1m3 0h1m3 0h1m3 0h1M5 12h1m3 0h1m3 0h1m3 0h1m-10 4h8"/></svg>快捷键速查</h2>
+      <dl class="quick-list"><div><dt>保存当前编辑</dt><dd><span class="chord"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>S</kbd></span></dd></div><div><dt>打开题目预览</dt><dd><span class="chord"><kbd>Enter</kbd></span> / <span class="chord"><kbd>Space</kbd></span></dd></div><div><dt>关闭预览并返回列表</dt><dd><span class="chord"><kbd>Esc</kbd></span></dd></div><div><dt>全选预览代码</dt><dd><span class="chord"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>A</kbd></span></dd></div><div><dt>增加缩进</dt><dd><span class="chord"><kbd>Tab</kbd></span></dd></div><div><dt>减少缩进</dt><dd><span class="chord"><kbd>Shift</kbd><span class="plus">+</span><kbd>Tab</kbd></span></dd></div></dl>
+      <a class="panel-link" href="shortcuts.html">查看全部快捷操作</a>
+    </section>
+    <section class="launch-panel"><span class="launch-icon"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="2.5" y="3.5" width="19" height="14" rx="2"/><path d="M8 21h8m-4-3v3M6 7h5"/></svg></span><h2>Windows 启动入口</h2><p>在桌面或开始菜单创建快捷方式，移动便携版后也可重新建立入口。</p><a class="text-link" href="shortcuts.html#windows">查看创建方法</a></section>
+  </aside></div>
+  <div class="edition-note"><b>Windows 本地版</b><span>本地版可离线查阅手册，题库保存在本机。</span></div>
+</main>
+<script src="manual.js?v=handbook-2.4.0" defer></script>
+<footer class="shell footer"><span><b>AlgoArchive</b> / 使用手册</span><a href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer">在线演示</a><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a></footer>
+</body></html>

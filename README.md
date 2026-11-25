@@ -1,6 +1,6 @@
 # AlgoArchive · 算法档案
 
-> 当前版本：**2.3.1**。本地版和在线演示都可从右上角打开七章使用手册，本地版支持离线阅读。首页的 Virtual Judge 是第三方网站入口，与本项目无合作关系；请前往该站自行查题或提交。
+> 当前版本：**2.4.0**。本地版和在线演示都可从右上角打开七章使用手册，本地版支持离线阅读。首页的 Virtual Judge 是第三方网站入口，与本项目无合作关系；请前往该站自行查题或提交。
 > 下载与升级说明见下文，具体变更和验证范围见 [CHANGELOG.md](CHANGELOG.md)、[TEST_REPORT.md](TEST_REPORT.md)。
 
 **本地优先的竞赛题解、比赛与算法模板管理工具**
@@ -24,8 +24,8 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 临时目录中编译并运行当前代码，退出测试后清理临时产物。
 
 > [!IMPORTANT]
-> 请下载 Release 中的 `AlgoArchive-2.3.1-Windows-x64-Setup.exe` 或
-> `AlgoArchive-2.3.1-Windows-x64.zip`。不要下载 GitHub 自动生成的
+> 请下载 Release 中的 `AlgoArchive-2.4.0-Windows-x64-Setup.exe` 或
+> `AlgoArchive-2.4.0-Windows-x64.zip`。不要下载 GitHub 自动生成的
 > `Source code (zip)` 或 `Source code (tar.gz)`，源码包不包含 Python
 > 运行环境，普通用户解压后无法直接启动。
 
@@ -39,7 +39,7 @@ Windows 用户的数据目录中，不上传、不自动提交。CPH 兼容测�
 [![在线演示首页](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)
 
 <details>
-<summary>展开 2.3.1 本地版：补题清单、导入预览与离线手册</summary>
+<summary>展开 2.4.0 本地版：补题清单、导入预览与离线手册</summary>
 
 以下截图来自单独创建的示例题库。首页可按比赛查待补题；遇到重复导入时，默认跳过已有题。
 
@@ -129,6 +129,8 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 | 算法模板 | 每个算法可关联多道题目，保存多份代码和多个参考链接 |
 | 排序与导入 | 全局题目和算法内题目独立排序，支持逆序和 JSON 批量导入 |
 | 代码工作台 | VS Code 风格配色、语法高亮、行号、自动缩进和 `Ctrl+S` 保存 |
+| 保存与恢复（本地） | 保存后保留光标、用例和运行结果；异常关闭可选择恢复草稿，版本冲突可对照两份内容 |
+| 题单往返 | 返回后恢复筛选、滚动和焦点；完成待补题后定位下一道待补项 |
 | 代码锁定 | 每道题目和每份模板独立设置，默认关闭；锁定后仍可选择、复制和试跑，解锁后编辑 |
 | 代码预览 | 弹窗内可全选和复制源码，`Ctrl+A` 只选择代码 |
 | 本地评测 | CPH 兼容测试用例、`.prob` 导入导出、单例/全部运行、停止和编译诊断 |
@@ -147,7 +149,7 @@ VS Code 风格编辑器，支持行号、语法高亮、`Ctrl+S` 保存和本地
 
 发布版提供 Windows x64 安装程序：
 
-1. 运行 `AlgoArchive-2.3.1-Windows-x64-Setup.exe`。
+1. 运行 `AlgoArchive-2.4.0-Windows-x64-Setup.exe`。
 2. 选择“仅为当前用户安装”或“为所有用户安装”。
 3. 在安装目录页自由选择程序位置。
 4. 仅当“仅为我安装”且当前账户尚无配置时，数据目录页才会出现；此处选择的目录会写入配置。
@@ -400,20 +402,21 @@ node --test tests/test_demo.cjs
 构建便携 ZIP：
 
 ```powershell
-.\scripts\build-portable.ps1 -Version 2.3.1
+.\scripts\build-portable.ps1 -Version 2.4.0
 ```
 
 构建便携 ZIP 和 Inno Setup 安装程序：
 
 ```powershell
-.\scripts\build-release.ps1 -Version 2.3.1
+.\scripts\build-release.ps1 -Version 2.4.0
 ```
 
 输出位于 `dist/`，并生成对应 `.sha256` 文件。发布包检查会拒绝真实数据库、
 用户代码、头像、`runtime.lock`、旧 `.lnk`、备份、缓存和测试目录。
 
-Windows CI 会执行后端测试、前端语法检查、启动器 PE 依赖检查，下载并校验
-官方 Python 运行时，然后构建便携包并检查发布包隐私。
+Windows CI 并行运行后端与浏览器回归；仅改 README、截图、变更日志或发布说明时，
+先检查下载文件名、许可说明和本地链接，再构建便携包并检查发布包隐私。发版会等待
+两组完整回归通过后，再构建安装程序和便携包。
 版本号、安装器元数据和 Release 标签应在发布时保持一致。
 
 ## 当前验证状态

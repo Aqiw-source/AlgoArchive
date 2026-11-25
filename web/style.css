@@ -97,6 +97,7 @@ dialog:has(.settings-shell){width:min(940px,calc(100vw - 36px))}
 .cph-case-tab{min-width:42px;padding:0 11px}
 .cph-case-tab i{position:absolute;right:5px;top:5px;width:6px;height:6px;border-radius:50%;background:#c2cdd1}
 .cph-case-tab.has-passed i{background:#54a287}
+.cph-case-tab.has-stale i{background:#d59b3a}
 .cph-case-tab.has-wrong_answer i,.cph-case-tab.has-runtime_error i,.cph-case-tab.has-time_limit i,.cph-case-tab.has-output_limit i{background:#d4646d}
 .cph-case-tab.active{border-color:#75ab9b;background:#edf7f3;color:#236f5d}
 .cph-add-case{font-size:18px;font-weight:400}
@@ -118,6 +119,7 @@ dialog:has(.settings-shell){width:min(940px,calc(100vw - 36px))}
 .cph-tests-state.dirty{color:#b1843e}
 .cph-run-actions{display:flex;align-items:center;gap:7px;margin-left:auto}
 .cph-results{padding:14px 17px}
+.cph-stale-note{margin:0 0 10px;padding:9px 12px;border:1px solid #f0dfb5;border-radius:7px;background:#fff9e9;color:#775a23;font-size:12px}
 .cph-results:empty{display:none}
 .cph-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:11px;color:#71868f;margin-bottom:10px}
 .cph-summary strong{color:#3e6c62;font-size:12px}

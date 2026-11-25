@@ -1,0 +1,8 @@
+.recovery-panel { margin: 0 0 1rem; padding: 1rem; border: 1px solid #a9bdcb; border-left: 3px solid #387596; border-radius: 6px; background: #f6fafc; }
+.recovery-panel[hidden], #problem-recovery-status[hidden] { display:none; }
+.recovery-panel p { margin:.4rem 0; }
+.recovery-row { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin:.65rem 0; }
+.recovery-compare { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.recovery-compare h4 { margin:.5rem 0; }
+.recovery-compare pre { margin:.25rem 0 .6rem; padding:.5rem; background:white; border:1px solid #d4dee4; max-height:15rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media(max-width:650px){.recovery-compare { grid-template-columns:minmax(0,1fr); }}

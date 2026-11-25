@@ -24,6 +24,7 @@
     }
     let serial = 0;
     const snippets = data.algorithms.flatMap(a => a.snippets || []);
+    const problemPlatformKeys = new WeakMap();
     const find = (items, id) => items.find(x => x.id === id) || fail("记录不存在或已被删除。", 404);
     const version = (record, payload) => {
       if (record.version !== payload.version) fail("记录已发生变化，请刷新页面后重新操作。", 409);
@@ -50,17 +51,35 @@
       const label=platform(value);
       return ({Codeforces:'codeforces',AtCoder:'atcoder',AcWing:'acwing','洛谷':'luogu','牛客':'niuke','蓝桥杯':'lanqiao',HDU:'hdu','码蹄集':'matiji','力扣':'leetcode',POJ:'poj'})[label]||label.toLowerCase();
     };
-    function syncPlatformOrders(){
-      const keys=new Set(['codeforces','atcoder','acwing','luogu','niuke','lanqiao','hdu','matiji','leetcode','poj',...Object.keys(data.platform_problem_orders),...data.problems.map(p=>platformKey(p.platform))]);
-      keys.forEach(key=>{
-        const old=data.platform_problem_orders[key];
-        const records=data.problems.filter(p=>platformKey(p.platform)===key);
-        if(!old)records.sort((a,b)=>(b.updated_at||'').localeCompare(a.updated_at||'')||a.id.localeCompare(b.id));
-        const members=records.map(p=>p.id);
-        const ids=old?old.problem_ids.filter(id=>members.includes(id)):[];
-        members.forEach(id=>{if(!ids.includes(id))ids.push(id);});
-        data.platform_problem_orders[key]={version:old?old.version+(JSON.stringify(ids)!==JSON.stringify(old.problem_ids)?1:0):1,problem_ids:ids};
-      });
+    const problemKey = problem => {
+      if (!problemPlatformKeys.has(problem)) problemPlatformKeys.set(problem, platformKey(problem.platform));
+      return problemPlatformKeys.get(problem);
+    };
+    function syncPlatformOrders() {
+      const byPlatform = new Map();
+      for (const problem of data.problems) {
+        const key = problemKey(problem);
+        if (!byPlatform.has(key)) byPlatform.set(key, []);
+        byPlatform.get(key).push(problem);
+      }
+      const orders = data.platform_problem_orders;
+      const keys = new Set(["codeforces", "atcoder", "acwing", "luogu", "niuke",
+        "lanqiao", "hdu", "matiji", "leetcode", "poj", ...Object.keys(orders), ...byPlatform.keys()]);
+      for (const key of keys) {
+        const records = byPlatform.get(key) || [];
+        const old = orders[key];
+        if (!old) {
+          records.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || "") || a.id.localeCompare(b.id));
+          orders[key] = { version: 1, problem_ids: records.map(problem => problem.id) };
+          continue;
+        }
+        const members = new Set(records.map(problem => problem.id));
+        const retained = old.problem_ids.filter(id => members.has(id));
+        for (const id of retained) members.delete(id);
+        if (members.size || retained.length !== old.problem_ids.length) {
+          orders[key] = { version: old.version + 1, problem_ids: [...retained, ...members] };
+        }
+      }
     }
     syncPlatformOrders();
     const state = () => ({ ...data, problems: data.problems.map(getProblem), contests: data.contests.map(getContest), algorithms: data.algorithms.map(getAlgorithm) });
@@ -101,7 +120,7 @@
     function dispatch(method, route, payload) {
       if (method === "GET" && route === "/api/state") return state();
       if (method === "GET" && route === "/api/settings") return { settings: {
-        version: options.version || "2.3.1", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
+        version: options.version || "2.4.0", address: options.address || "GitHub Pages · 在线演示", database_schema: "演示内存数据",
         data_dir: "当前页面内存（刷新重置）", config_path: "不适用（在线演示）", log_path: "不适用（在线演示）", backup_dir: "不适用（在线演示）",
         browser: { mode: "default", window_mode: "tab" },
         sidebar_art: data.sidebar_art,
@@ -142,6 +161,7 @@
         if (!Array.isArray(payload.problems) || payload.problems.length < 1 || payload.problems.length > 200) fail("单次导入 1-200 道题目。");
         const prepared = payload.problems.map(p => validate("problem", p));
         const imported = prepared.map(insertProblem);
+        syncPlatformOrders();
         return { count: imported.length, imported: imported.length, problems: imported, warnings: [] };
       }
       const algorithmOrder = route.match(/^\/api\/algorithms\/([^/]+)\/problems\/order$/);
@@ -189,7 +209,11 @@
         if (method === "GET" && resource[2]) return { [kind]: shape(find(items, resource[2])) };
         if (method === "POST" && !resource[2] && kind !== "snippet") {
           const p = validate(kind, payload);
-          if (kind === "problem") return { problem: insertProblem(p) };
+          if (kind === "problem") {
+            const problem = insertProblem(p);
+            syncPlatformOrders();
+            return { problem };
+          }
           const item = { ...base(), sort_order: items.length, ...(kind === "algorithm" ? { links: [], snippets: [], category: "", description: "" } : { url: "", platform: "" }), ...p };
           item.card_color = cardColors[nextColors[kind]];
           nextColors[kind] = (nextColors[kind] + 1) % cardColors.length;
@@ -199,14 +223,21 @@
           const item = find(items, resource[2]); version(item, payload);
           if (method === "PUT") {
             const p = validate(kind, payload, item);
+            const movedPlatform = kind === "problem" && p.platform !== undefined
+              && platformKey(p.platform) !== problemKey(item);
             if (kind === "problem") {
               const nextContest = p.contest_id === undefined ? item.contest_id : p.contest_id;
               if (nextContest !== item.contest_id) p.contest_order = nextContestOrder(nextContest);
               touchContests([item.contest_id, nextContest]);
             }
             Object.assign(item, p); touch(item);
+            if (movedPlatform) {
+              problemPlatformKeys.set(item, platformKey(item.platform));
+              syncPlatformOrders();
+            }
             return { [kind]: shape(item) };
           }
+          const previousProblemCount = data.problems.length;
           if (kind === "contest") {
             if (payload.keep_problems) data.problems.filter(p => p.contest_id === item.id).forEach(p => { p.contest_id = null; touch(p); });
             else data.problems = data.problems.filter(p => p.contest_id !== item.id);
@@ -217,13 +248,17 @@
           }
           items.splice(items.indexOf(item), 1);
           if (kind === "problem") touchContests([item.contest_id]);
+          if (data.problems.length !== previousProblemCount) syncPlatformOrders();
           return { ok: true };
         }
       }
       fail("在线演示不执行此操作，请下载本地版使用。", 501);
     }
     return { request(method, route, payload = {}) {
-      try { const result=dispatch(method.toUpperCase(), route.split("?")[0], copy(payload));syncPlatformOrders();return { status: 200, body: copy(result) }; }
+      try {
+        const result = dispatch(method.toUpperCase(), route.split("?")[0], copy(payload));
+        return { status: 200, body: copy(result) };
+      }
       catch (error) { return { status: error.status || 400, body: { error: error.message, code: "demo_error" } }; }
     } };
   }

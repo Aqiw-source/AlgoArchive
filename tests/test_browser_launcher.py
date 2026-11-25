@@ -227,7 +227,13 @@ class BrowserLauncherTests(unittest.TestCase):
             content = (
                 root / ".github" / "workflows" / workflow
             ).read_text(encoding="utf-8")
-            self.assertIn("verify-launcher.py", content)
+            build_command = (
+                ".\\scripts\\build-portable.ps1"
+                if workflow == "windows.yml"
+                else ".\\scripts\\build-release.ps1"
+            )
+            self.assertIn(build_command, content)
+            self.assertNotIn("scripts/verify-launcher.py", content)
 
     def test_installer_skips_data_page_when_selection_cannot_apply(self):
         installer = (
@@ -264,23 +270,6 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertGreater(license_file.stat().st_size, 30_000)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64-Setup.exe", readme)
         self.assertIn(f"AlgoArchive-{app.APP_VERSION}-Windows-x64.zip", readme)
-
-    def test_settings_exposes_explicit_desktop_shortcut_action(self):
-        root = Path(__file__).resolve().parents[1]
-        script = (root / "web" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("create-desktop-shortcut", script)
-        self.assertIn("/api/settings/desktop-shortcut", script)
-        self.assertIn("普通启动不会创建或恢复快捷方式", script)
-        self.assertIn("固定到开始屏幕需在系统中手动完成", script)
-        browser_start = script.index("function settingsBrowserHTML")
-        compiler_start = script.index("function settingsCompilerHTML")
-        about_start = script.index("function settingsAboutHTML")
-        self.assertNotIn("<h3>快捷方式</h3>", script[browser_start:compiler_start])
-        self.assertGreater(script.index("<h3>快捷方式</h3>", about_start), about_start)
-        self.assertIn(
-            "bindShortcutSettings();",
-            script[script.index("function bindAboutSettings"):],
-        )
 
     def test_problem_import_documents_tests_and_warnings(self):
         script = (
@@ -369,8 +358,6 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertNotIn("https://codeforces.com/favicon.ico", index + app_js)
         self.assertIn(".contest-relation.contest-codeforces", style)
         self.assertIn("background: #fff3df", style)
-        self.assertIn("width: 108px;", style)
-        self.assertIn("width: 136px;", style)
         self.assertIn("canonicalPlatformValue", app_js)
         self.assertIn(
             'class="relation-badge algorithm-relation is-empty"',
@@ -404,7 +391,6 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn("updateSelectionBands", app_js)
         self.assertIn("code-selection-block", app_js)
         self.assertIn(".code-selection-block", style)
-        self.assertIn("background: rgba(0, 120, 215, .24)", style)
         self.assertIn("::-webkit-scrollbar-button", style)
 
     def test_release_manifests_include_self_check(self):

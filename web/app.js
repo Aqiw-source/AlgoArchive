@@ -65,7 +65,7 @@
     {id:'celebration',label:'通过庆祝',full:'sidebar-art.png',blended:'sidebar-art-blended.webp'},
   ];
   const defaultSidebarArt = () => ({image:'celebration',hidden:false});
-  const state = {contests: [], problems: [], algorithms: [], profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, contestOrderVersion: 1, algorithmOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, running: false, runId: ''}};
+  const state = {contests: [], problems: [], algorithms: [], stats: null, profile: {name: '', avatar: ''}, route: '', editor: null, filter: {q: '', platform: '', contest: '', language: ''}, context: {}, busy: false, problemOrderVersion: 1, contestOrderVersion: 1, algorithmOrderVersion: 1, settings: null, backups: [], cph: {active: 0, results: {}, testedSignature: '', running: false, runId: ''}};
   state.sidebarArt=defaultSidebarArt();
   let stateGeneration=0;
   let sidebarArtKnown=false, sidebarArtPreferenceError='', sidebarArtImageError='', sidebarArtImageGeneration=0, sidebarArtRequested='';
@@ -76,6 +76,8 @@
   let sidebarArtRevision=0, sidebarArtReadGeneration=0, sidebarArtAppliedRead=0;
   let navigating = false;
   let renderNumber = 0;
+  let approvedProblemReturn=false;
+  let problemPreviewFocus=null;
   let draggedAlgorithmProblemId = null;
   let draggedOrderCard = null;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -375,7 +377,7 @@
   }
   function selectEditorCode(){
     const area=$('#code-input');if(!area)return;
-    area.focus();area.select();updateSelectionBands();updateCursor();
+    area.focus();area.select();scheduleSelectionUpdate();updateCursor();
   }
 
   async function api(path, method='GET', payload) {
@@ -395,7 +397,8 @@
     let data;
     try{data=await api('/api/state');}catch(error){if(generation!==stateGeneration)return false;throw error;}
     if(generation!==stateGeneration)return false;
-    state.contests=data.contests||[];state.problems=data.problems||[];state.algorithms=data.algorithms||[];
+    state.contests=data.contests||[];state.problems=data.problems||[];state.algorithms=data.algorithms||[];state.stats=data.stats||null;
+    if(localStudy)window.problemDraftRecovery?.reconcile(data.problems);
     state.algorithmsById=new Map(state.algorithms.map(a=>[a.id,a]));
     state.platformProblemOrders=data.platform_problem_orders||{};
     state.problemOrderVersion=Number(data.problem_order_version)||1;
@@ -410,7 +413,14 @@
   }
   function mergeSavedProblem(problem){
     const index=state.problems.findIndex(p=>p.id===problem.id);
+    const previous=index<0?null:state.problems[index];
     if(index<0)state.problems.push(problem);else state.problems[index]=problem;
+    if(state.stats){
+      const adjust=(item,delta)=>{const key=platformKey(item?.platform),field=key+'_count';if(Object.hasOwn(state.stats,field))state.stats[field]=Math.max(0,(Number(state.stats[field])||0)+delta);};
+      if(previous)adjust(previous,-1);
+      adjust(problem,1);
+      state.stats.problem_count=state.problems.length;
+    }
     const contestCounts=new Map(),algorithmCounts=new Map();
     for(const item of state.problems){
       if(item.contest_id)contestCounts.set(item.contest_id,(contestCounts.get(item.contest_id)||0)+1);
@@ -479,11 +489,68 @@
     return !!state.editor&&((!!current&&state.editor.initial!==JSON.stringify(current))||cphTestsDirty()||timeDirty);
   }
   function allowLeave() { return !isDirty() || window.confirm('当前有尚未保存的修改。确定放弃修改并离开吗？'); }
-  async function go(route, {force=false}={}) {
+  const isProblemRoute=route=>route==='problem'||route.startsWith('problem/')||route.startsWith('new-problem');
+  const isProblemListRoute=route=>route==='home'||route==='problems'||route.startsWith('platform/')||route.startsWith('contest/')||route.startsWith('algorithm/');
+  function captureProblemReturnContext(problemId='',trigger=document.activeElement){
+    if(!isProblemListRoute(state.route))return null;
+    const row=trigger?.closest?.('.problem-row-preview'), focusWasQueue=!!trigger?.closest?.('#study-queue-items');
+    const list=focusWasQueue?$('#study-queue-items'):row?.closest('tbody');
+    const listIds=list?[...list.querySelectorAll('[data-open-problem]')].map(button=>button.dataset.openProblem):[];
+    const studyContest=$('#study-contest')?.value||'';
+    return {route:state.route,filter:{...state.filter},scrollX:window.scrollX,scrollY:window.scrollY,
+      focusWasQueue,listIds,studyContest,problemId,wasPending:state.problems.some(problem=>problem.id===problemId&&studyStatus(problem)==='todo')};
+  }
+  function applyProblemFilterSnapshot(filter){
+    state.filter={...filter};
+    for(const key of ['q','platform','contest','language','status']){
+      const element=$(`#filter-${key==='q'?'query':key}`);if(!element)continue;
+      const value=state.filter[key]||'';
+      if(element.tagName==='SELECT'&&value&&!Array.from(element.options).some(option=>option.value===value))element.add(new Option(value,value));
+      element.value=value;
+    }
+    if($('#problem-table'))updateTable();
+  }
+  function restoreProblemReturnContext(context,editor){
+    if(!context||state.route!==context.route)return;
+    if($('#problem-table'))applyProblemFilterSnapshot(context.filter);
+    if(context.route==='home'&&$('#study-contest')){$('#study-contest').value=context.studyContest||'';updateStudyQueue();}
+    const controls=[...main.querySelectorAll(context.focusWasQueue?'#study-queue-items [data-open-problem]':'.problem-row-preview [data-open-problem]')];
+    const visible=new Map(controls.map(button=>[button.dataset.openProblem,button]));
+    let target=visible.get(context.problemId||editor?.entity?.id);
+    if(context.wasPending&&studyStatus(editor?.entity||{})==='done'){
+      const pending=new Set(state.problems.filter(p=>studyStatus(p)==='todo'&&visible.has(p.id)).map(p=>p.id));
+      const idx=context.listIds.indexOf(context.problemId);
+      const ordered=[...context.listIds.slice(idx+1),...context.listIds.slice(0,idx),...visible.keys()];
+      const next=ordered.find(id=>pending.has(id));if(next)target=visible.get(next);
+    }
+    target=target||(context.focusWasQueue?$('#study-contest'):$('#filter-query')||main.querySelector('[data-new-problem]'));
+    requestAnimationFrame(()=>{
+      if(state.route!==context.route||!target?.isConnected)return;
+      window.scrollTo(context.scrollX||0,context.scrollY||0);
+      target.focus({preventScroll:true});
+      if(target.dataset.openProblem){const box=target.getBoundingClientRect();if(box.bottom<=0||box.top>=innerHeight)target.scrollIntoView({block:'nearest'});}
+    });
+  }
+  function editorReturnFallback(editor){
+    const problem=editor?.entity||{};
+    return problem.contest_id?`contest/${problem.contest_id}`:problem.algorithm_id?`algorithm/${problem.algorithm_id}`:'problems';
+  }
+  async function returnFromProblemEditor(){
+    if(state.busy||state.editor?.kind!=='problem')return;
+    if(!allowLeave())return;
+    const editor=state.editor, context=editor.returnContext;
+    if(!context){await go(editorReturnFallback(editor),{force:true});return;}
+    approvedProblemReturn=true;
+    history.back();
+  }
+  async function go(route, {force=false,trigger=document.activeElement}={}) {
     if (state.busy) { toast('正在保存，请稍候。'); return; }
     if (!force && route === state.route) return;
     if (!force && !allowLeave()) return;
-    state.editor = null; state.route = route; navigating = true; location.hash = route;
+    const origin=isProblemRoute(route)?captureProblemReturnContext(route.startsWith('problem/')?route.slice('problem/'.length):'',trigger):null;
+    state.editor = null; state.route = route; navigating = true;
+    if(isProblemRoute(route))history.pushState({problemEditorEntry:true,problemListOrigin:origin},'', '#'+route);
+    else location.hash = route;
     setTimeout(() => { navigating = false; }, 0); await renderRoute(route);
   }
   function pageHeader(title, desc, actions='', eyebrow='我的算法档案',titleTools='') {
@@ -496,7 +563,7 @@
   function problemTableActions(p) {
     const link=copyableURL(p.url);
     const href=safeURL(p.url),unavailable=href==='#'?' data-problem-origin-unavailable="true"':'';
-    return `<button class="text-link action-edit" data-open-problem="${esc(p.id)}">${icon('edit')}<span>编辑</span></button><a class="text-link action-origin" href="${href}" target="_blank" rel="noopener noreferrer"${unavailable}>${icon('external')}<span>原题</span></a>${link?`<button class="text-link action-copy" data-copy-problem-link="${esc(p.id)}">${icon('copy')}<span>复制链接</span></button>`:''}`;
+    return `<button type="button" class="text-link action-preview" data-preview-problem="${esc(p.id)}">${icon('search')}<span>预览</span></button><button type="button" class="text-link action-edit" data-open-problem="${esc(p.id)}">${icon('edit')}<span>编辑</span></button><a class="text-link action-origin" href="${href}" target="_blank" rel="noopener noreferrer"${unavailable}>${icon('external')}<span>原题</span></a>${link?`<button type="button" class="text-link action-copy" data-copy-problem-link="${esc(p.id)}">${icon('copy')}<span>复制链接</span></button>`:''}`;
   }
   function contestRelation(p) {
     if(!p.contest_id)return `<span class="relation-badge is-empty">${icon('trophy')}<span>未关联比赛</span></span>`;
@@ -525,7 +592,7 @@
   }
   function contestCards(items) {
     if (!items.length) return empty('还没有比赛','新建一场比赛，把每一道题目的思路都收好。',addContestButton(state.context.platform || ''));
-    return `<div class="contest-grid">${items.map(c => `<article class="contest-card card-tone-${cardTone(c)}" data-order-card="contest" data-order-id="${esc(c.id)}" data-open-contest="${esc(c.id)}" role="link" tabindex="0" aria-label="打开比赛：${esc(c.title)}"><div class="contest-card-top">${cardDragHandle('contest',c.id,c.title)}${badge(c.platform)}<span class="card-top-icon">${icon('grid')}</span></div><h3><button class="title-link" data-open-contest="${esc(c.id)}">${esc(c.title)}</button></h3><p class="contest-meta">${icon('clock')}<span>最近修改 ${time(c.updated_at)}</span></p><div class="contest-card-bottom"><span>${icon('document')}${state.problems.filter(p=>p.contest_id===c.id).length} 道题目</span><button class="card-open" data-open-contest="${esc(c.id)}">进入比赛 ${icon('arrow')}</button></div></article>`).join('')}</div>`;
+    return `<div class="contest-grid">${items.map(c => `<article class="contest-card card-tone-${cardTone(c)}" data-order-card="contest" data-order-id="${esc(c.id)}" data-open-contest="${esc(c.id)}" role="link" tabindex="0" aria-label="打开比赛：${esc(c.title)}"><div class="contest-card-top">${cardDragHandle('contest',c.id,c.title)}${badge(c.platform)}<span class="card-top-icon">${icon('grid')}</span></div><h3><button class="title-link" data-open-contest="${esc(c.id)}">${esc(c.title)}</button></h3><p class="contest-meta">${icon('clock')}<span>最近修改 ${time(c.updated_at)}</span></p><div class="contest-card-bottom"><span>${icon('document')}${c.problem_count ?? state.problems.filter(p=>p.contest_id===c.id).length} 道题目</span><button class="card-open" data-open-contest="${esc(c.id)}">进入比赛 ${icon('arrow')}</button></div></article>`).join('')}</div>`;
   }
   function algorithmCards(items) {
     if (!items.length) return empty('还没有算法模板','新建一个算法，在内部整理题目、代码和参考链接。',addAlgorithmButton());
@@ -548,16 +615,15 @@
     list.innerHTML=`<p class="study-queue-count">共 ${rows.length} 道 · 最近修改优先</p><ul aria-label="待补题目">${rows.map(p=>`<li><button type="button" class="text-link" data-open-problem="${esc(p.id)}">${esc(problemName(p))}</button><span>${esc(p.contest_title||'未关联比赛')}</span></li>`).join('')}</ul>`;
   }
   function home() {
-    const platformProblemCount=key=>state.problems.filter(p=>platformKey(p.platform)===key).length;
+    const platformKeys=['codeforces','atcoder','acwing','luogu','niuke'];
+    const platformCounts=state.stats
+      ? Object.fromEntries(platformKeys.map(key=>[key,Number(state.stats[key+'_count'])||0]))
+      : state.problems.reduce((counts,problem)=>{const key=platformKey(problem.platform);if(Object.hasOwn(counts,key))counts[key]++;return counts;},Object.fromEntries(platformKeys.map(key=>[key,0])));
     const platformContestCount=key=>state.contests.filter(c=>platformKey(c.platform)===key).length;
-    const cf = platformProblemCount('codeforces');
-    const ac = platformProblemCount('atcoder');
-    const aw = platformProblemCount('acwing');
-    const lg = platformProblemCount('luogu');
-    const nc = platformProblemCount('niuke');
+    const cf=platformCounts.codeforces,ac=platformCounts.atcoder,aw=platformCounts.acwing,lg=platformCounts.luogu,nc=platformCounts.niuke;
     main.innerHTML = pageHeader('算法档案','在本地整理比赛、题目与算法模板，让积累清晰可见。',addContestButton()+addProblemButton()+addAlgorithmButton(),'WORKSPACE / 本地工作空间') +
       `<section class="stats-grid" aria-label="题库统计"><article class="stat-card"><div class="stat-label">完整比赛</div><span class="stat-mark">▦</span><div class="stat-value">${state.contests.length}</div><div class="stat-note">已保存的完整比赛</div></article><article class="stat-card"><div class="stat-label">全部题目</div><span class="stat-mark blue">≡</span><div class="stat-value">${state.problems.length}</div><div class="stat-note">统一题库，实时同步</div></article><article class="stat-card"><div class="stat-label">Codeforces</div><span class="stat-mark platform-stat-mark">${platformLogo('codeforces')}</span><div class="stat-value">${cf}</div><div class="stat-note">${platformContestCount('codeforces')} 场比赛 · ${cf} 道题目</div></article><article class="stat-card"><div class="stat-label">AtCoder</div><span class="stat-mark platform-stat-mark">${platformLogo('atcoder')}</span><div class="stat-value">${ac}</div><div class="stat-note">${platformContestCount('atcoder')} 场比赛 · ${ac} 道题目</div></article><article class="stat-card"><div class="stat-label">AcWing</div><span class="stat-mark platform-stat-mark">${platformLogo('acwing')}</span><div class="stat-value">${aw}</div><div class="stat-note">${platformContestCount('acwing')} 场比赛 · ${aw} 道题目</div></article><article class="stat-card"><div class="stat-label">洛谷</div><span class="stat-mark platform-stat-mark">${platformLogo('luogu')}</span><div class="stat-value">${lg}</div><div class="stat-note">${platformContestCount('luogu')} 场比赛 · ${lg} 道题目</div></article><article class="stat-card"><div class="stat-label">牛客</div><span class="stat-mark platform-stat-mark">${platformLogo('niuke')}</span><div class="stat-value">${nc}</div><div class="stat-note">${platformContestCount('niuke')} 场比赛 · ${nc} 道题目</div></article></section>` +
-      `<section class="home-intro"><span class="home-intro-icon" aria-hidden="true">{ }</span><div class="intro-copy"><h2>一份代码，多种整理方式。</h2><p>比赛中的题目会自动收录到全部题目；从任意入口修改，始终保存同一份解答。</p></div><button class="btn" data-nav="problems">打开全部题目 <span aria-hidden="true">→</span></button></section>` +
+      (state.problems.length?'':`<section class="home-intro"><span class="home-intro-icon" aria-hidden="true">{ }</span><div class="intro-copy"><h2>一份代码，多种整理方式。</h2><p>比赛中的题目会自动收录到全部题目；从任意入口修改，始终保存同一份解答。</p></div><button class="btn" data-nav="problems">打开全部题目 <span aria-hidden="true">→</span></button></section>`) +
       `<aside class="external-judge" aria-label="第三方在线评测服务"><a href="https://vjudge.net/" target="_blank" rel="noopener noreferrer">Virtual Judge ↗</a><span>第三方网站，与 AlgoArchive 无隶属、合作或授权关系。登录、查题与提交均由你在该站完成。</span></aside>`+
       (localStudy?studyQueue():'')+
       `<section class="home-section recent-section"><div class="section-head">${sectionTitle('document','最近编辑')}<a href="#problems" data-nav="problems">查看全部 →</a></div><div class="panel">${problemTable(sortedProblems(state.problems).slice(0,6))}</div></section>`+
@@ -864,6 +930,25 @@
     if(input)test.input=input.value;
     if(output)test.output=output.value;
   }
+  function cphInputSignature(code=$('#code-input')?.value||'',tests=state.editor?.tests||[],timeLimit=$('#cph-time-limit')?.value||'3000'){
+    return JSON.stringify({code,tests:tests.map(test=>({input:test.input,output:test.output})),timeLimit:Number(timeLimit)||3000});
+  }
+  function cphResultsStale(){
+    return !!state.cph.compile&&!!state.cph.testedSignature&&state.cph.testedSignature!==cphInputSignature();
+  }
+  function updateCphResultFreshness(){
+    if(state.editor?.kind!=='problem'||!state.cph.compile)return;
+    const stale=cphResultsStale();
+    if(stale===!!state.cph.showingStale)return;
+    state.cph.showingStale=stale;
+    for(const tab of main.querySelectorAll('[data-cph-case]')){
+      const item=state.cph.results[tab.dataset.cphCase];
+      if(!item)continue;
+      tab.classList.toggle('has-stale',stale);
+      const marker=tab.querySelector('i');if(marker)marker.title=stale?'需重新运行':cphStatusLabel(item.status);
+    }
+    renderCphResults();
+  }
   function cphStatusLabel(status) {
     return ({passed:'通过',wrong_answer:'答案错误',runtime_error:'运行错误',time_limit:'超时',output_limit:'输出超限',cancelled:'已停止'}[status]||status||'');
   }
@@ -882,7 +967,8 @@
     const current=tests[state.cph.active];
     const tabs=$('#cph-case-tabs');
     if(tabs){
-      tabs.innerHTML=tests.map((test,index)=>`<button type="button" class="cph-case-tab${index===state.cph.active?' active':''}${state.cph.results[index]?.status?' has-'+esc(state.cph.results[index].status):''}" role="tab" aria-selected="${index===state.cph.active}" data-cph-case="${index}"><span>${index+1}</span>${state.cph.results[index]?.status?`<i title="${esc(cphStatusLabel(state.cph.results[index].status))}"></i>`:''}</button>`).join('')+'<button type="button" class="cph-add-case" data-add-cph-test aria-label="添加测试用例">+</button><button type="button" class="cph-remove-case" data-remove-cph-test aria-label="删除当前测试用例" '+(tests.length<=1?'disabled':'')+'>−</button>';
+      const stale=cphResultsStale();
+      tabs.innerHTML=tests.map((test,index)=>`<button type="button" class="cph-case-tab${index===state.cph.active?' active':''}${state.cph.results[index]?.status?' has-'+esc(state.cph.results[index].status):''}${stale&&state.cph.results[index]?.status?' has-stale':''}" role="tab" aria-selected="${index===state.cph.active}" data-cph-case="${index}"><span>${index+1}</span>${state.cph.results[index]?.status?`<i title="${stale?'结果需重新运行：代码或用例已更改。':esc(cphStatusLabel(state.cph.results[index].status))}"></i>`:''}</button>`).join('')+'<button type="button" class="cph-add-case" data-add-cph-test aria-label="添加测试用例">+</button><button type="button" class="cph-remove-case" data-remove-cph-test aria-label="删除当前测试用例" '+(tests.length<=1?'disabled':'')+'>−</button>';
     }
     if($('#cph-input'))$('#cph-input').value=current.input;
     if($('#cph-expected-output'))$('#cph-expected-output').value=current.output;
@@ -904,6 +990,7 @@
     state.cph.active=state.editor.tests.length-1;
     renderCphCaseTabs();
     updateSaveState();
+    updateCphResultFreshness();
     $('#cph-input')?.focus();
   }
   function removeCphTest() {
@@ -914,6 +1001,7 @@
     renderCphCaseTabs();
     renderCphResults();
     updateSaveState();
+    updateCphResultFreshness();
   }
   function activateCphTest(index) {
     if(state.editor?.kind!=='problem'||!Number.isInteger(index))return;
@@ -927,7 +1015,7 @@
     const compile=state.cph.compile;
     const results=Object.entries(state.cph.results||{}).sort((a,b)=>Number(a[0])-Number(b[0]));
     if(!compile&&!results.length){target.innerHTML='';return;}
-    let html='';
+    let html=cphResultsStale()?`<div class="cph-stale-note" role="status">代码或输入已更改，旧结果仅供参考；重新运行以验证当前内容。</div>`:'';
     if(compile&&compile.status!=='success'){
       const setupAction=compile.status==='compiler_missing'||compile.status==='compiler_error'?`<button type="button" class="btn small primary" data-open-compiler-settings>选择 g++ 编译器</button>`:'';
       html+=`<div class="cph-compile ${esc(compile.status)}"><div><strong>${compile.status==='compiler_missing'?'未找到 C++ 编译器':compile.status==='output_limit'?'编译输出超限（已截断）':'编译失败'}</strong><span>${Number(compile.elapsed_ms)||0} ms</span></div><pre>${esc(compile.stderr||compile.stdout||'编译器没有返回详细信息。')}</pre>${setupAction?`<div class="cph-compile-action">${setupAction}<span>请在设置中选择完整 MinGW 工具链里的 bin\\g++.exe。</span></div>`:''}</div>`;
@@ -967,6 +1055,7 @@
     if(!tests.length||tests.some(test=>!test)){toast('请先填写测试用例。',true);return;}
     if(!validateCphTestSizes(tests))return;
     const activeAtStart=state.cph.active;
+    const testedSignature=cphInputSignature();
     const timeLimit=Math.max(50,Math.min(30000,Number($('#cph-time-limit')?.value)||3000));
     state.cph.timeLimit=timeLimit;
     const runId=newCphRunId();
@@ -980,6 +1069,7 @@
       const endpoint=problem.standalone?'/api/compiler/run':`/api/problems/${encodeURIComponent(problem.id)}/run`;
       const result=await api(endpoint,'POST',{run_id:runId,code:$('#code-input').value,tests,time_limit_ms:timeLimit});
       if(state.editor!==runEditor||state.cph!==runCph||state.cph.runId!==runId)return;
+      state.cph.testedSignature=testedSignature;
       state.cph.compile=result.compile;
       state.cph.totalMs=result.elapsed_ms;
       result.cases.forEach(item=>{
@@ -1155,11 +1245,12 @@
   function problemEditor(p) {
     state.context={};
     p.tests=normalizeCphTests(p.tests);
-    state.cph={active:0,results:{},compile:null,running:false,runId:'',totalMs:0};
+    state.cph={active:0,results:{},testedSignature:'',compile:null,running:false,runId:'',totalMs:0};
     state.editor={kind:'problem',entity:{...p},tagIds:problemAlgorithmIds(p),tests:normalizeCphTests(p.tests),initial:'',initialTests:JSON.stringify(normalizeCphTests(p.tests))};
-    const back=p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems';
-    const backLabel=p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
-    main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}">← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn" data-nav="${esc(back)}">返回</button><button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
+    state.editor.returnContext=history.state?.problemEditorEntry===true?history.state.problemListOrigin||null:null;
+    const back=state.editor.returnContext?.route||(p.contest_id?`contest/${p.contest_id}`:p.algorithm_id?`algorithm/${p.algorithm_id}`:'problems');
+    const backLabel=state.editor.returnContext?.route==='home'?'返回首页':state.editor.returnContext?.route==='problems'?'返回全部题目':state.editor.returnContext?.route?.startsWith('platform/')?'返回平台题库':state.editor.returnContext?.route?.startsWith('contest/')?'返回比赛题目':state.editor.returnContext?.route?.startsWith('algorithm/')?'返回算法题目':p.contest_id?'返回所属比赛':p.algorithm_id?'返回所属算法':'返回全部题目';
+    main.innerHTML=`<a class="back-link" href="#${esc(back)}" data-nav="${esc(back)}" data-return-problem-list>← ${backLabel}</a>`+pageHeader(p.id?'题目与代码':'添加一道题目',p.id?'修改会同步到所属比赛、所属算法与全部题目。':'可以直接保存，也可以关联到已有比赛或算法。',`<button class="btn primary" type="submit" form="problem-form" id="save-problem">保存${p.id?'修改':'题目'} <span aria-hidden="true">↵</span></button>`,p.id?'EDITOR / 代码工作台':'NEW PROBLEM / 新的积累')+
       `<div id="editor-error" class="error-banner" role="alert"></div><form id="problem-form" class="editor-panel" autocomplete="off" novalidate><div class="form-grid">${platformInputHTML('editor-platform',p.platform)}<label class="field wide"><span>题目名称</span><input name="name" autocomplete="off" required maxlength="300" placeholder="给这道题一个熟悉的名字" value="${esc(p.name)}"></label><label class="field full"><span>题目链接</span><input name="url" type="text" autocomplete="off" required maxlength="2048" placeholder="粘贴任意题目页面链接，或先填写备注" value="${esc(p.url)}"></label><label class="field"><span>所属比赛 <small>可选</small></span><select name="contest_id" id="editor-contest">${contestSelect(p.platform,p.contest_id)}</select></label>${studyFields(p)}</div><div class="editor-toolbar"><div class="editor-title"><span aria-hidden="true">{ }</span><strong>源代码</strong><select name="language" id="editor-language" aria-label="代码语言">${Object.entries(languages).map(([k,v])=>option(k,v,p.language)).join('')}</select></div><div class="actions">${editorShortcutHints()}<button type="button" class="btn small" data-copy-code>复制代码</button></div></div><div class="code-editor"><div class="gutter" aria-hidden="true"><div id="line-numbers"></div></div><div class="code-stage"><div class="code-selection-band" id="code-selection-band" aria-hidden="true"></div><pre aria-hidden="true" id="highlight-pre"><code id="highlight-code"></code></pre><textarea name="code" id="code-input" aria-label="代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea></div></div><div class="editor-status"><span id="save-state" class="save-state saved">${p.id?editorSavedLabel:'尚未保存'}</span><span id="cursor-status">第 1 行，第 1 列</span><span id="code-file-type">UTF-8 · ${esc(extensions[p.language]||'.txt')}</span></div></form><div class="below-editor"><span>${!localStudy?demoSaveNotice:p.id?`文件：${esc(p.code_path || '')} · 最近修改 ${time(p.updated_at)}`:'代码保存在设置中的数据目录下的 codes 文件夹中。'}</span><div class="actions">${p.id&&p.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':''}${!localStudy&&p.id&&p.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':''}${p.id?'<button class="btn small danger" data-delete-problem>删除题目</button>':''}</div></div>`+cphTestPanel(p);
     bindPlatformPicker(main);
     $('#code-input').value=p.code||'';
@@ -1168,6 +1259,19 @@
     highlightCode(); updateCursor();
     const importInput=$('#cph-import-file');
     if(importInput)importInput.addEventListener('change',()=>importCphFile(importInput.files?.[0]));
+    attachProblemRecovery(p);
+  }
+  function attachProblemRecovery(p) {
+    if(!localStudy || !p.id || p.standalone)return;
+    window.problemDraftRecovery?.open(p,{
+      capture:()=>{commitCphFields();return {code:$('#code-input').value,note:$('#editor-mistake-note').value,tests:state.editor.tests};},
+      restore:(draft,latest)=>{
+        if(latest)problemEditor(latest);
+        $('#code-input').value=draft.code; $('#editor-mistake-note').value=draft.note;
+        state.editor.tests=normalizeCphTests(draft.tests); state.cph.active=0;
+        renderCphCaseTabs(); highlightCode(); updateCursor(); updateSaveState(); updateCphResultFreshness();
+      }
+    });
   }
   function readProblemForm() {
     const form=$('#problem-form'); if(!form)return null;
@@ -1230,16 +1334,24 @@
       return result+esc(code.slice(last))+'\n';
     }
   }
-  let editorResizeObserver=null,observedCodeInput=null;
+  let editorResizeObserver=null,observedCodeInput=null,renderedLineCount=0,selectionUpdatePending=false;
+  function scheduleSelectionUpdate(){
+    if(selectionUpdatePending)return;
+    selectionUpdatePending=true;
+    requestAnimationFrame(()=>{selectionUpdatePending=false;updateSelectionBands();});
+  }
   function highlightCode() {
     const area=$('#code-input');if(!area)return;const code=area.value,lang=$('#editor-language')?.value||state.editor?.entity?.language||'cpp';
     applyEditorLock();
     if(observedCodeInput!==area){
       editorResizeObserver?.disconnect();observedCodeInput=area;
+      renderedLineCount=0;
       editorResizeObserver=new ResizeObserver(syncScroll);editorResizeObserver.observe(area);
     }
     $('#highlight-code').innerHTML=highlightSource(code,lang);
-    $('#line-numbers').textContent=Array.from({length:code.split('\n').length},(_,i)=>i+1).join('\n'); syncScroll(); updateSaveState(); requestAnimationFrame(updateSelectionBands);
+    const lineCount=code.split('\n').length;
+    if(lineCount!==renderedLineCount){$('#line-numbers').textContent=Array.from({length:lineCount},(_,i)=>i+1).join('\n');renderedLineCount=lineCount;}
+    syncScroll();updateSaveState();scheduleSelectionUpdate();
   }
   function selectionRect(node,offset){
     if(!node)return null;
@@ -1299,19 +1411,88 @@
     pre.style.width=`${area.clientWidth}px`;pre.style.height=`${area.clientHeight}px`;
     // Use the input's scroll offsets even when the highlight layer has a different scroll range.
     $('#highlight-code').style.transform=`translate(${-area.scrollLeft}px, ${-area.scrollTop}px)`;
-    $('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;updateSelectionBands();
+    $('#line-numbers').style.transform=`translateY(${-area.scrollTop}px)`;scheduleSelectionUpdate();
   }
   function updateCursor(){const a=$('#code-input');if(!a)return;const before=a.value.slice(0,a.selectionStart).split('\n');$('#cursor-status').textContent=`第 ${before.length} 行，第 ${before[before.length-1].length+1} 列 · ${a.value.length.toLocaleString()} 字符`;}
   function updateSaveState(){const status=$('#save-state');if(!status||!state.editor)return;const dirty=isDirty();const standalone=state.editor.entity?.standalone;status.className=`save-state ${dirty?'dirty':'saved'}`;status.textContent=dirty?'● 有未保存的修改':(standalone?'✓ '+draftSavedLabel:(state.editor.entity.id?'✓ '+editorSavedLabel:'尚未保存'));}
-  function showEditorError(e){const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
-  async function saveProblem(event){event?.preventDefault();if(state.busy||!state.editor)return false;const form=$('#problem-form');if(!validateRequiredFields(form))return false;const data=readProblemForm();
-    commitCphFields();const testsToSave=state.editor.tests.map(item=>({input:item.input,output:item.output}));
-    if(!validateCphTestSizes(testsToSave))return false;
-    const caseControls=Array.from(main.querySelectorAll('.cph-runner input,.cph-runner textarea,.cph-runner button:not([data-stop-cph])'));
-    const caseDisabled=caseControls.map(el=>el.disabled);caseControls.forEach(el=>{el.disabled=true;});
-    state.busy=true;form.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=true;});const button=$('#save-problem');button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
-    try{const old=state.editor.entity;const saved=await api(old.id?`/api/problems/${encodeURIComponent(old.id)}`:'/api/problems',old.id?'PUT':'POST',{...data,tests:testsToSave,...(old.id?{version:old.version}:{})});state.editor.entity=saved.problem;mergeSavedProblem(saved.problem);let refreshError=null;try{await loadState();$('#sync-notice').hidden=true;}catch(error){refreshError=error;showSyncError('题目已保存；列表刷新失败：'+error.message);}state.editor=null;++renderNumber;state.route=`problem/${saved.problem.id}`;navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);problemEditor(saved.problem);toast(refreshError?'题目已保存，可重试刷新列表，无需重复添加。':(localStudy?'题目、代码与测试用例已保存。':'题目已暂存。'+demoSaveNotice));return true;}
-    catch(e){showEditorError(e);return false;}finally{state.busy=false;caseControls.forEach((el,i)=>{el.disabled=caseDisabled[i];});$('#problem-form')?.querySelectorAll('input,select,textarea,button').forEach(el=>{el.disabled=false;});applyEditorLock();if($('#save-problem')){$('#save-problem').disabled=false;$('#save-problem').innerHTML='保存修改 <span aria-hidden="true">↵</span>';}}
+  function showEditorError(e){if(localStudy)window.problemDraftRecovery?.flush();const el=$('#editor-error');el.innerHTML=esc(e.message)+(e.existing_id?`<br><button class="text-link" data-open-problem="${esc(e.existing_id)}">打开已有题目 →</button>（当前内容尚未保存）`:'')+(e.status===409&&!e.existing_id?' 请先复制当前代码，再重新打开当前记录查看最新内容。':'');el.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  async function saveProblem(event){
+    event?.preventDefault();
+    if(state.busy||!state.editor)return false;
+    const editor=state.editor,form=$('#problem-form');
+    if(!validateRequiredFields(form))return false;
+    const data=readProblemForm();
+    commitCphFields();
+    const tests=editor.tests.map(item=>({input:item.input,output:item.output}));
+    const submittedTestState=JSON.stringify(editor.tests.map((item,index)=>({...item,...tests[index]})));
+    if(!validateCphTestSizes(tests))return false;
+    state.busy=true;
+    const button=$('#save-problem');
+    button.disabled=true;button.textContent='正在保存…';$('#editor-error').textContent='';
+    try{
+      const old=editor.entity;
+      const endpoint=old.id?'/api/problems/'+encodeURIComponent(old.id):'/api/problems';
+      const saved=await api(endpoint,old.id?'PUT':'POST',{...data,tests,...(old.id?{version:old.version}:{})});
+      editor.entity={...saved.problem};
+      mergeSavedProblem(saved.problem);
+      let refreshError=null;
+      try{await loadState();$('#sync-notice').hidden=true;}catch(error){refreshError=error;showSyncError('题目已保存；列表刷新失败：'+error.message);}
+      if(state.editor!==editor)return true;
+      if(window.problemDraftRecovery?.saved){
+        try{await window.problemDraftRecovery.saved(saved.problem);}catch(error){toast('题目已保存，但本地恢复草稿尚未清理：'+error.message,true);}
+      }
+      // These are the submitted values. Keystrokes during the request are still unsaved.
+      editor.initialTests=submittedTestState;
+      editor.initial=JSON.stringify({...data,number:saved.problem.number||''});
+      const savedRoute='problem/'+saved.problem.id;
+      if(state.route!==savedRoute){
+        state.route=savedRoute;
+        history.replaceState(history.state,'',location.pathname+location.search+'#'+savedRoute);
+      }
+      const heading=$('#main h1');
+      if(heading)heading.textContent='题目与代码';
+      const eyebrow=$('.page-header .eyebrow');
+      if(eyebrow)eyebrow.textContent='EDITOR / 代码工作台';
+      const back=$('[data-return-problem-list]');
+      if(back&&!editor.returnContext){
+        const target=saved.problem.contest_id?'contest/'+saved.problem.contest_id:saved.problem.algorithm_id?'algorithm/'+saved.problem.algorithm_id:'problems';
+        back.dataset.nav=target;
+        back.setAttribute('href','#'+target);
+        if(back.matches('.back-link'))back.textContent='← '+(saved.problem.contest_id?'返回所属比赛':saved.problem.algorithm_id?'返回所属算法':'返回全部题目');
+      }
+      button.disabled=false;button.innerHTML='保存修改 <span aria-hidden="true">↵</span>';
+      const saveCases=$('[data-save-cph-tests]');if(saveCases)saveCases.disabled=false;
+      const runCurrent=$('[data-run-cph-current]'),runAll=$('[data-run-cph-all]');
+      if(runCurrent)runCurrent.disabled=false;if(runAll)runAll.disabled=false;
+      const below=main.querySelector('.below-editor');
+      if(below){
+        const detail=below.querySelector(':scope > span');
+        if(detail&&localStudy)detail.textContent='文件：'+(saved.problem.code_path||'')+' · 最近修改 '+time(saved.problem.updated_at);
+        const actions=below.querySelector('.actions');
+        if(actions){
+          actions.innerHTML=(saved.problem.contest_id?'<button class="btn small" data-unlink-contest>取消比赛关联</button>':'')+(!localStudy&&saved.problem.algorithm_id?'<button class="btn small" data-unlink-algorithm>取消算法关联</button>':'')+'<button class="btn small danger" data-delete-problem>删除题目</button>';
+        }
+      }
+      applyEditorLock();updateSaveState();updateCphTestsState();updateCphResultFreshness();
+      toast(refreshError?'题目已保存，可重试刷新列表，无需重复添加。':(localStudy?'题目、代码与测试用例已保存。':'题目已暂存。'+demoSaveNotice));
+      return true;
+    }catch(error){
+      if(localStudy&&editor.entity.id&&error.code==='version_conflict'&&window.problemDraftRecovery?.conflict){
+        try{
+          window.problemDraftRecovery.flush();
+          const latest=await api('/api/problems/'+encodeURIComponent(editor.entity.id));
+          const problem=latest.problem;
+          showEditorError(error);
+          window.problemDraftRecovery.conflict({problemId:problem.id,latestProblem:problem,latestVersion:problem.version,latestCode:problem.code||'',latestTests:problem.tests||[],latestNote:problem.mistake_note||''});
+        }catch(conflictError){showEditorError(conflictError);}
+      }else showEditorError(error);
+      return false;
+    }finally{
+      state.busy=false;
+      button.disabled=false;button.innerHTML=(editor.entity.id?'保存修改':'保存题目')+' <span aria-hidden="true">↵</span>';
+      applyEditorLock();
+      updateSaveState();
+    }
   }
   async function saveSnippet(event){
     event?.preventDefault();if(state.busy||!state.editor||state.editor.kind!=='snippet')return false;
@@ -1347,7 +1528,7 @@
       toast(ok?label+'链接已复制。':'无法写入剪贴板，请右键点击链接并选择复制。',!ok);
     }
   }
-  function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';state.preview=null;imagePreview=null;}
+  function closeModal(){if(state.busy)return;modal.close();modal.innerHTML='';state.preview=null;imagePreview=null;const focus=problemPreviewFocus;problemPreviewFocus=null;if(focus?.isConnected)focus.focus({preventScroll:true});}
   function setModalBusy(busy){state.busy=busy;modal.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=busy;});}
   function dialogHeader(title){return `<div class="modal-header"><h2 id="dialog-title">${esc(title)}</h2><button type="button" class="modal-close" data-close-modal aria-label="关闭">×</button></div>`;}
   function downloadProblemImportSample(){
@@ -1458,6 +1639,7 @@
   }
   async function openProblemPreview(identifier){
     if(state.busy)return;
+    problemPreviewFocus=document.activeElement;
     try{
       const data=await api(`/api/problems/${encodeURIComponent(identifier)}`);
       const problem=data.problem;
@@ -1470,10 +1652,11 @@
       state.preview=hasCode?{code}:null;
       const actions=hasCode?`<div class="preview-actions"><button type="button" class="btn small" data-select-preview-code>${icon('document')}全选</button><button type="button" class="btn small" data-copy-preview-code>${icon('copy')}复制代码</button></div>`:'';
       const content=hasCode?`<pre class="preview-code" tabindex="0" aria-label="代码预览"><code>${highlightSource(code,problem.language).replace(/\n$/,'')}</code></pre>`:'<div>暂无代码</div>';
-      modal.innerHTML=`${dialogHeader(problemName(problem))}<div class="modal-body problem-code-preview"><div class="preview-toolbar"><div class="preview-meta">${badge(problem.platform)}${localStudy?studyBadge(problem):''}${hasCode?`<span>${esc(languages[problem.language]||problem.language)}</span>`:''}<span>最近修改 ${time(problem.updated_at)}</span>${problem.code_locked?'<span class="code-lock-status">代码已锁定</span>':''}</div>${actions}</div>${localStudy&&problem.mistake_note?`<div class="study-preview-note"><strong>错题笔记</strong><p>${esc(problem.mistake_note)}</p></div>`:''}${content}</div><div class="modal-actions"><button type="button" class="btn" data-close-modal>关闭</button>${originAction}</div>`;
+      modal.innerHTML=`${dialogHeader(problemName(problem))}<div class="modal-body problem-code-preview" data-problem-preview-dialog><div class="preview-toolbar"><div class="preview-meta">${badge(problem.platform)}${localStudy?studyBadge(problem):''}${hasCode?`<span>${esc(languages[problem.language]||problem.language)}</span>`:''}<span>最近修改 ${time(problem.updated_at)}</span>${problem.code_locked?'<span class="code-lock-status">代码已锁定</span>':''}</div>${actions}</div>${localStudy&&problem.mistake_note?`<div class="study-preview-note"><strong>错题笔记</strong><p>${esc(problem.mistake_note)}</p></div>`:''}${content}</div><div class="modal-actions"><button type="button" class="btn" data-close-modal>关闭</button>${originAction}</div>`;
       modal.showModal();
       $('.preview-code',modal)?.focus({preventScroll:true});
     }catch(error){
+      problemPreviewFocus=null;
       toast(error.message,true);
     }
   }
@@ -1912,8 +2095,10 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     if(e.target.closest?.('[data-drag-order]'))return;
     const t=e.target.closest('button,a,[data-open-contest],[data-open-algorithm]');if(!t)return;if(state.busy){e.preventDefault();return;}
     if(t.hasAttribute('data-problem-origin-unavailable')){e.preventDefault();toast('题目保存的链接不是可打开的网址。',true);}
+    else if(t.hasAttribute('data-return-problem-list')){e.preventDefault();await returnFromProblemEditor();}
     else if(t.hasAttribute('data-nav')){e.preventDefault();await go(t.dataset.nav);}
-    else if(t.hasAttribute('data-open-problem')){e.preventDefault();await go(`problem/${t.dataset.openProblem}`);}
+    else if(t.hasAttribute('data-preview-problem')){e.preventDefault();await openProblemPreview(t.dataset.previewProblem);}
+    else if(t.hasAttribute('data-open-problem')){e.preventDefault();await go(`problem/${t.dataset.openProblem}`,{trigger:t});}
     else if(t.hasAttribute('data-select-code'))selectEditorCode();
     else if(t.hasAttribute('data-select-preview-code'))selectPreviewCode();
     else if(t.hasAttribute('data-copy-preview-code'))await copyPreviewCode();
@@ -1975,8 +2160,8 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     if(e.target.id==='filter-query'){state.filter.q=e.target.value;updateTable();}
     else if(e.target.id==='contest-search')updateContests();
     else if(e.target.id==='algorithm-search')updateAlgorithms();
-    else if(e.target.id==='cph-input'||e.target.id==='cph-expected-output'){commitCphFields();updateCphTestsState();updateSaveState();}
-    else if(e.target.id==='code-input'){highlightCode();updateCursor();updateSelectionBands();}
+    else if(e.target.id==='cph-input'||e.target.id==='cph-expected-output'){commitCphFields();updateCphTestsState();updateSaveState();updateCphResultFreshness();}
+    else if(e.target.id==='code-input'){highlightCode();updateCursor();updateCphResultFreshness();}
     else if(e.target.id==='editor-platform'){$('#editor-contest').innerHTML=contestSelect(e.target.value,$('#editor-contest').value);updateSaveState();}
     else if(e.target.id==='cph-time-limit'){state.cph.timeLimit=Math.max(50,Math.min(30000,Number(e.target.value)||3000));updateSaveState();}
     else if(e.target.closest('#problem-form'))updateSaveState();
@@ -2025,13 +2210,22 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     if((e.key==='Enter'||e.key===' ')&&e.target.matches('.contest-card[data-open-contest],.algorithm-card[data-open-algorithm]')){e.preventDefault();if(!state.busy)go(e.target.hasAttribute('data-open-contest')?`contest/${e.target.dataset.openContest}`:`algorithm/${e.target.dataset.openAlgorithm}`);return;}
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&state.editor){e.preventDefault();if(!modal.open)saveCurrentEditor();}else codeKeydown(e);
   });
-  document.addEventListener('selectionchange',()=>{if(document.activeElement?.id==='code-input')requestAnimationFrame(updateSelectionBands);});
-  document.addEventListener('keyup',e=>{if(e.target.id==='code-input'){updateCursor();updateSelectionBands();}});
-  document.addEventListener('click',e=>{if(e.target.id==='code-input'){updateCursor();updateSelectionBands();}});
+  document.addEventListener('selectionchange',()=>{if(document.activeElement?.id==='code-input')scheduleSelectionUpdate();});
+  document.addEventListener('keyup',e=>{if(e.target.id==='code-input'){updateCursor();scheduleSelectionUpdate();}});
+  document.addEventListener('click',e=>{if(e.target.id==='code-input'){updateCursor();scheduleSelectionUpdate();}});
   document.addEventListener('scroll',e=>{if(e.target.id==='code-input')syncScroll();},true);
   window.addEventListener('beforeunload',e=>{if(state.busy||isDirty()){e.preventDefault();e.returnValue='';}});
-  window.addEventListener('hashchange',()=>{const route=location.hash.slice(1)||'home';if(navigating||route===state.route)return;if(state.busy||!allowLeave()){navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);return;}state.editor=null;state.route=route;renderRoute(route);});
-  modal.addEventListener('cancel',e=>{e.preventDefault();if(imagePreview)closeModal();});
+  window.addEventListener('hashchange',async()=>{
+    const route=location.hash.slice(1)||'home';if(navigating||route===state.route)return;
+    const accepted=approvedProblemReturn;approvedProblemReturn=false;
+    if(state.busy||(!accepted&&!allowLeave())){navigating=true;location.hash=state.route;setTimeout(()=>{navigating=false;},0);return;}
+    const editor=state.editor,context=editor?.returnContext;
+    const returning=!!context&&route===context.route&&isProblemRoute(state.route);
+    state.editor=null;state.route=route;
+    await renderRoute(route);
+    if(returning)await restoreProblemReturnContext(context,editor);
+  });
+  modal.addEventListener('cancel',e=>{e.preventDefault();if(imagePreview||modal.querySelector('[data-problem-preview-dialog]'))closeModal();});
   renderSidebarArt();loadSidebarArt();
   state.route=location.hash.slice(1)||'home';renderRoute(state.route);
 })();

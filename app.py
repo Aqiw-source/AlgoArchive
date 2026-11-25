@@ -45,7 +45,7 @@ from cph_runner import (
 )
 
 
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.4.0"
 CARD_COLORS = ("blue", "cyan", "green", "amber", "rose", "violet")
 SIDEBAR_ART_IMAGES = ("debug", "thinking", "celebration")
 ROOT = Path(__file__).resolve().parent
@@ -1260,6 +1260,7 @@ class Repository:
         ordering = "updated_at DESC,id" if initialize else "global_order,id"
         for row in self.db.execute("SELECT id,platform FROM problems ORDER BY " + ordering):
             members.setdefault(platform_workspace_key(row["platform"]), []).append(row["id"])
+        global_positions = None
         for key in saved.keys() | members.keys():
             current = members.get(key, [])
             old = saved.get(key)
@@ -1269,11 +1270,15 @@ class Repository:
             current_set = set(current)
             ids = [identifier for identifier in old["problem_ids"] if identifier in current_set]
             kept = set(ids)
-            # Batch imports append in their insertion/global order.
-            added = current_set - kept
-            if added:
-                ids.extend(row[0] for row in self.db.execute(
-                    "SELECT id FROM problems ORDER BY global_order,id") if row[0] in added)
+            # The membership query already gives insertion order except during
+            # startup, where new groups retain the historical recency order.
+            added = [identifier for identifier in current if identifier not in kept]
+            if initialize and len(added) > 1:
+                if global_positions is None:
+                    rows = self.db.execute("SELECT id FROM problems ORDER BY global_order,id")
+                    global_positions = {row[0]: position for position, row in enumerate(rows)}
+                added.sort(key=global_positions.__getitem__)
+            ids.extend(added)
             if ids != old["problem_ids"]:
                 self._write_platform_order(key, {"version": old["version"] + 1, "problem_ids": ids})
 
@@ -2666,7 +2671,8 @@ class Repository:
                 self._touch_contests([old["contest_id"], values["contest_id"]], timestamp)
                 for tag in set(old["algorithm_ids"]) | set(values["algorithm_ids"]):
                     self._touch_algorithm(tag, timestamp)
-                self._sync_platform_orders()
+                if platform_workspace_key(old["platform"]) != platform_workspace_key(values["platform"]):
+                    self._sync_platform_orders()
             self._flush_pending()
             return self._problem(identifier)
 

@@ -17,7 +17,10 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
   const {algorithm:longAlgorithm}=await send('/api/algorithms',{name:'LongAlgorithmName'.repeat(11),category:'LongCategory'.repeat(7),description:'LongDescription'.repeat(35)});
   browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH}:{channel:'msedge'})});
   const results=[],failures=[];
-  for(const [width,height] of [[1440,1000],[1100,600],[880,480],[733,400],[390,844]]){
+  const viewports=process.env.ALGOARCHIVE_FULL_LAYOUT==='1'
+   ? [[1440,1000],[1100,600],[880,480],[733,400],[390,844]]
+   : [[1440,1000],[390,844]];
+  for(const [width,height] of viewports){
    const page=await browser.newPage({viewport:{width,height}}),errors=[];page.setDefaultTimeout(8000);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('dialog',d=>d.accept());
    let navigation=0;
    const go=async route=>{await page.goto(base+'/?qa='+(++navigation)+'#'+route);await page.locator('#main h1').waitFor();};
@@ -59,6 +62,17 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     for(const route of ['home','platform/codeforces','platform/atcoder','platform/acwing','platform/luogu','platform/niuke','problems','contests','contest/'+contest.id,'algorithms','algorithm/'+algorithm.id,'problem/'+problem.id,'new-problem','compiler','new-snippet?algorithm='+algorithm.id,'contest/'+longContest.id,'algorithm/'+longAlgorithm.id]){await go(route);await checkPage(route);await page.screenshot({path:path.join(temp,`view-${route.replace(/[^a-z0-9-]/gi,'_')}-${width}.png`)});}
     await go('home');await page.locator('#open-profile-settings').click();
     await page.locator('#profile-name-input').waitFor();assert.equal(await page.locator('#profile-name-input').evaluate(e=>document.activeElement!==e&&e.selectionStart===e.selectionEnd),true,'settings must not select the username on open');
+    if(width===1440){
+     let shortcutPosts=0;
+     await page.route('**/api/settings/desktop-shortcut',async route=>{
+      assert.equal(route.request().method(),'POST');shortcutPosts++;
+      await route.fulfill({json:{message:'测试快捷方式已创建'}});
+     });
+     await page.locator('[data-settings-tab="about"]').click();
+     await page.getByRole('button',{name:'创建快捷方式'}).click();
+     await page.locator('#shortcut-settings-status').filter({hasText:'测试快捷方式已创建'}).waitFor();
+     assert.equal(shortcutPosts,1);
+    }
     for(const tab of ['profile','art','browser','compiler','data','about']){await page.locator(`[data-settings-tab="${tab}"]`).click();await page.locator(`[data-settings-tab="${tab}"].active`).waitFor();await page.locator('#settings-content > :first-child').waitFor();await checkPage('settings/'+tab);const fit=await page.locator('#settings-content').evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert.ok(fit.scroll<=fit.client+1,`settings/${tab}: content overflow ${JSON.stringify(fit)}`);await page.screenshot({path:path.join(temp,`settings-${tab}-${width}.png`)});}
     await page.locator('[data-close-modal]').first().click();
     await go('problems');await page.locator('[data-import-problems]').click();await page.locator('#modal[open]').waitFor();await checkPage('problem import');await page.locator('[data-close-modal]').first().click();
@@ -74,6 +88,33 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
      await page.screenshot({path:path.join(temp,`editor-${route.split('?')[0]}-${width}.png`)});
     }
     assert.deepEqual(errors,[]);results.push({viewport:[width,height],pages:17,settingsTabs:6,passed:true});
+   }catch(error){failures.push({viewport:[width,height],message:error.message});await page.screenshot({path:path.join(temp,`failure-${width}.png`)});}
+   await page.close();
+  }
+  {
+   const width=733,height=400,page=await browser.newPage({viewport:{width,height}}),errors=[];page.setDefaultTimeout(8000);page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+   const go=async route=>{await page.goto(base+'/?short=1#'+route);await page.locator('#main h1').waitFor();};
+   const checkShortEditor=async route=>{
+    await go(route);const code=page.locator('#code-input');await code.waitFor();
+    await code.fill(Array.from({length:80},(_,i)=>'// line '+i).join('\n')+'\n// END_MARKER');await code.press('Control+End');await code.pressSequentially(' typing');
+    await page.locator('.editor-toolbar').evaluate(e=>e.scrollIntoView({block:'start'}));await delay(100);
+    const view=await page.evaluate(()=>{const a=document.querySelector('#code-input'),last=document.querySelector('#highlight-code').lastElementChild,r=a.getBoundingClientRect(),l=last.getBoundingClientRect(),status=document.querySelector('.editor-status').getBoundingClientRect();return {last:l.toJSON(),area:r.toJSON(),client:a.clientHeight,status:status.toJSON(),viewport:innerHeight};});
+    assert.ok(view.last.top>=view.area.top&&view.last.bottom<=view.area.top+view.client+1,`${route}: final code line remains visible in short viewport`);
+    assert.ok(view.status.top>=view.area.bottom-1&&view.status.bottom<=view.viewport+1,`${route}: editor status remains visible in short viewport`);
+   };
+   try{
+    await go('new-problem');
+    const input=page.locator('#editor-platform');await input.click();
+    const menu=page.locator('.platform-options:not([hidden])');await menu.waitFor();
+    const geometry=await menu.evaluate(list=>({rect:list.getBoundingClientRect().toJSON(),height:innerHeight,modal:document.querySelector('#modal').scrollTop,next:document.querySelector('input[name="name"]').getBoundingClientRect().toJSON()}));
+    assert.ok(geometry.rect.top>=-1&&geometry.rect.bottom<=geometry.height+1,`short viewport platform options stay visible: ${JSON.stringify(geometry)}`);
+    assert.ok(geometry.rect.bottom<=geometry.next.top+1,'short viewport platform options do not cover the next field');
+    assert.equal(await page.locator('.platform-help').textContent(),'可选择当前内置的平台，也可自行输入其他平台。');
+    const box=await menu.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.wheel(0,900);await delay(100);
+    assert.equal(await page.locator('#modal').evaluate(element=>element.scrollTop),geometry.modal,'short viewport menu wheel does not move the modal');
+    await input.press('Escape');
+    await checkShortEditor('new-problem');await checkShortEditor('new-snippet?algorithm='+algorithm.id);
+    assert.deepEqual(errors,[]);results.push({viewport:[width,height],checks:['problem platform menu','problem editor bottom','snippet editor bottom'],passed:true});
    }catch(error){failures.push({viewport:[width,height],message:error.message});await page.screenshot({path:path.join(temp,`failure-${width}.png`)});}
    await page.close();
   }

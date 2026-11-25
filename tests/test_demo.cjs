@@ -183,13 +183,41 @@ test("static build supports project subpaths without shipping local data", () =>
     assert.ok(!html.includes("demo-notice"));
     assert.ok(html.includes('data-demo-download'));
     assert.ok(html.includes('data-demo-reset'));
+    assert.ok(html.indexOf('data-demo-reset') < html.indexOf('data-demo-download'), 'reset demo control appears before download local build');
     assert.match(html, /class="topbar-github manual-link" href="\/AlgoArchive\/manual\.html" target="_blank"/);
     const guide = fs.readFileSync(path.join(out, "manual.html"), "utf8");
     assert.match(guide, /在线演示/);
+    assert.match(guide, /改动仅保存在当前页面；刷新后重置/);
+    assert.match(guide, /v2\.4\.0/);
+    assert.match(guide, /原位保存题解与恢复草稿/);
+    assert.match(guide, /版本冲突/);
+    assert.ok(!guide.includes("本地版可离线查阅手册，题库保存在本机。"));
     const chapters = [...guide.matchAll(/href="(guide\/[a-z]+\.html)"/g)].map(m => m[1]);
     assert.equal(new Set(chapters).size, 7);
     for (const chapter of chapters) {
-      assert.match(fs.readFileSync(path.join(out, chapter), "utf8"), /aria-label="章节导航"/);
+      const chapterHtml = fs.readFileSync(path.join(out, chapter), "utf8");
+      assert.match(chapterHtml, /aria-label="章节导航"/);
+      assert.match(chapterHtml, /manual\.css\?v=handbook-2\.4\.0/);
+    }
+    const browse = fs.readFileSync(path.join(out, "guide/browse.html"), "utf8");
+    assert.match(browse, /题目行的「预览」按钮/);
+    assert.match(browse, /<kbd>Esc<\/kbd>/);
+    assert.match(browse, /回到原列表并保留搜索、筛选和滚动位置，焦点回到该行的「预览」按钮/);
+    const shortcuts = fs.readFileSync(path.join(out, "shortcuts.html"), "utf8");
+    assert.match(shortcuts, /v2\.4\.0/);
+    assert.match(shortcuts, /关闭题目代码预览/);
+    assert.match(shortcuts, /<kbd>Esc<\/kbd>/);
+    for (const asset of ["manual.css", "manual.js", "favicon-32.png", "guide/media/manual-computer.webp"]) {
+      assert.ok(fs.existsSync(path.join(out, asset)), asset);
+    }
+    for (const page of ["manual.html", "shortcuts.html", ...chapters]) {
+      const source = fs.readFileSync(path.join(out, page), "utf8");
+      for (const [, reference] of source.matchAll(/(?:href|src)="([^"]+)"/g)) {
+        if (/^(?:[a-z]+:|#|\/\/)/i.test(reference)) continue;
+        const target = path.resolve(out, path.dirname(page), reference.split(/[?#]/)[0]);
+        assert.ok(target === out || target.startsWith(out + path.sep), `${page} stays within the demo: ${reference}`);
+        assert.ok(fs.existsSync(target), `${page} resolves ${reference}`);
+      }
     }
     assert.ok(html.indexOf('class="topbar-status"') < html.indexOf('data-demo-download'));
     const sourceImage = fs.readFileSync(path.join(out, "sidebar-art.png"));
@@ -266,4 +294,79 @@ test("platform orders mirror versioning, membership and independent art reads",(
   const state=request('GET','/api/state').body;
   assert.deepEqual(state.platform_problem_orders.codeforces.problem_ids,[ids[2],ids[1]]);
   assert.deepEqual(state.platform_problem_orders.atcoder.problem_ids,[ids[0]]);
+});
+
+test("demo platform reads avoid reconciling all platform memberships", () => {
+  const platforms = ["Codeforces", "AtCoder", "AcWing", "洛谷", "牛客", "蓝桥杯", "HDU", "码蹄集", "力扣", "POJ"];
+  const problems = Array.from({ length: 10000 }, (_, i) => ({
+    id: `p${i}`, platform: platforms[i % platforms.length], name: `P${i}`,
+    url: `https://example.com/${i}`, code: "", contest_id: null, algorithm_id: null,
+  }));
+  const store = createStore({ problems, contests: [], algorithms: [] });
+  const original = String.prototype.toLowerCase;
+  let calls = 0;
+  String.prototype.toLowerCase = function () { calls++; return original.call(this); };
+  try {
+    for (let i = 0; i < 20; i++) {
+      const detail = store.request("GET", "/api/problems/p0");
+      assert.equal(detail.status, 200);
+    }
+    const response = store.request("GET", "/api/state");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.problems.length, problems.length);
+  } finally {
+    String.prototype.toLowerCase = original;
+  }
+  assert.equal(calls, 0, "read-only state requests must not normalize platform membership");
+});
+
+test("demo batch import reconciles platform membership in one pass", () => {
+  const platforms = ["Codeforces", "AtCoder", "AcWing", "洛谷", "牛客", "蓝桥杯", "HDU", "码蹄集", "力扣", "POJ"];
+  const problems = Array.from({ length: 10000 }, (_, i) => ({
+    id: `p${i}`, platform: platforms[i % platforms.length], name: `P${i}`,
+    url: `https://example.com/${i}`, code: "", contest_id: null, algorithm_id: null,
+  }));
+  const batch = Array.from({ length: 100 }, (_, i) => ({
+    platform: platforms[i % platforms.length], name: `Imported ${i}`,
+    url: `https://example.com/import/${i}`, code: "",
+  }));
+  const store = createStore({ problems, contests: [], algorithms: [] });
+  const original = String.prototype.toLowerCase;
+  let calls = 0;
+  String.prototype.toLowerCase = function () { calls++; return original.call(this); };
+  let response;
+  try {
+    response = store.request("POST", "/api/problems/import", { problems: batch });
+  } finally {
+    String.prototype.toLowerCase = original;
+  }
+  assert.equal(response.status, 200);
+  assert.equal(response.body.imported, batch.length);
+  assert.ok(calls <= 250,
+    `platform normalization calls: ${calls}`);
+});
+
+test("platform order versions track batch imports and contest deletion policies", () => {
+  for (const keepProblems of [true, false]) {
+    const store = createStore({ problems: [], contests: [], algorithms: [] });
+    function request(method, url, payload) {
+      const result = store.request(method, url, payload);
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      return result.body;
+    }
+    const order = () => request("GET", "/api/state").platform_problem_orders.codeforces;
+    const contest = request("POST", "/api/contests", { title: "Round", platform: "Codeforces" }).contest;
+    const { problems: inserted } = request("POST", "/api/problems/import", {
+      problems: ["A", "B"].map(name => ({ name, contest_id: contest.id })),
+    });
+    const ids = inserted.map(problem => problem.id);
+    assert.deepEqual(order(), { version: 2, problem_ids: ids });
+    request("PUT", "/api/platforms/codeforces/problems/order", { version: 2, problem_ids: [ids[1], ids[0]] });
+    request("PUT", "/api/problems/" + ids[0], { version: inserted[0].version, code: "int main() {}" });
+    const saved = { version: 3, problem_ids: [ids[1], ids[0]] };
+    assert.deepEqual(order(), saved);
+    const current = request("GET", "/api/contests/" + contest.id).contest;
+    request("DELETE", "/api/contests/" + contest.id, { version: current.version, keep_problems: keepProblems });
+    assert.deepEqual(order(), keepProblems ? saved : { version: 4, problem_ids: [] });
+  }
 });

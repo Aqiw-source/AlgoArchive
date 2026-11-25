@@ -112,8 +112,10 @@ async function main() {
       const retryCode = code + "// lock request retry\n";
       await page.locator("#code-input").fill(retryCode);
       await page.route(`**/api/${resource}/${entity.id}/code-lock`, route => route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({error:"Injected lock failure"})}));
+      const failedLock = page.waitForResponse(response => response.url().endsWith(`/api/${resource}/${entity.id}/code-lock`) && response.status() === 503);
       await page.locator("#code-lock-toggle").click();
-      await page.waitForFunction(() => !document.querySelector("#code-lock-toggle").disabled);
+      await failedLock;
+      await page.waitForFunction(() => !document.querySelector("#code-lock-toggle").disabled && !document.querySelector("#code-input").readOnly);
       saved = (await api(`/api/${resource}/${entity.id}`))[kind];
       assert.equal(saved.code, retryCode);
       assert.equal(saved.code_locked, false);

@@ -1,20 +1,22 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>配置编译器与运行用例 · AlgoArchive 使用手册</title><link rel="stylesheet" href="../manual.css?v=guide-5"><link rel="icon" href="../favicon-32.png"></head>
-<body><a class="skip" href="#main">跳到正文</a>
-<header><div class="wrap"><a class="bread" href="../manual.html">‹ 使用手册</a><p class="edition">第 06 章 / 07 · Windows 本地版</p>
-<h1>配置编译器与运行用例</h1><p>从找到 g++.exe，到亲手跑通第一组输入输出。</p></div></header>
-<main id="main" class="wrap article">
-<nav class="chapter-index" aria-label="本章导航"><strong>本章导航</strong>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配置编译器与运行用例 · AlgoArchive 使用手册</title><link rel="icon" href="../favicon-32.png"><link rel="stylesheet" href="../manual.css?v=handbook-2.4.0"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="topbar"><div class="shell bar-inner">
+  <a class="brand" href="../manual.html"><span class="brand-mark"><svg class="icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m5.5 6.5 5 5-5 5M12 17h6"/></svg></span>AlgoArchive</a>
+  <nav class="topnav" aria-label="手册导航"><a href="../manual.html" aria-current="page">使用手册</a><a href="../shortcuts.html">快捷方式</a></nav>
+  <a class="repo" href="https://github.com/Aqiw-source/AlgoArchive" target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 AlgoArchive 源码">GitHub</a>
+</div></header>
+<main id="main" class="shell doc"><div class="breadcrumbs"><a href="../manual.html">手册首页</a><span aria-hidden="true">/</span><span>配置编译器与运行用例</span></div>
+<section class="doc-hero"><div class="section-sign"><span>第 06 章 / 07 · Windows 本地版</span></div><h1>配置编译器与运行用例</h1><p>从找到 g++.exe，到亲手跑通第一组输入输出。</p></section>
+<div class="reading"><div class="toc"><nav class="chapter-index" aria-label="本章导航"><strong>本章导航</strong>
 <a href="#topic-1">找到真正用于编译的 g++.exe</a>
 <a href="#topic-2">在设置里保存并验证</a>
 <a href="#topic-3">用一组小数据验证整个流程</a>
 <a href="#topic-4">按现象排查</a>
 <a href="#topic-5">让 VS Code 与 AlgoArchive 使用同一个编译器</a>
 <a href="#topic-6">把一次错误保留下来做回归用例</a>
-</nav>
-
-<h2 id="topic-1">找到真正用于编译的 g++.exe</h2>
+</nav></div><article class="article"><h2 id="topic-1">找到真正用于编译的 g++.exe</h2>
 <p>已经用 VS Code 写 C++？可以和 AlgoArchive 共用一套 MinGW。打开 PowerShell，输入 <code>where.exe g++</code> 查看系统 PATH 里有哪些编译器。出现多个路径时，选与你的 VS Code 构建任务一致的那个；没有输出只表示它不在 PATH 中。</p>
 <p>还没有编译器时，可从项目 GitHub Release 下载单独的 MinGW-w64 压缩包。完整解压后找到 <code>mingw64\bin\g++.exe</code>。例如解压在 <code>D:\Tools</code> 下时，实际路径可能是 <code>D:\Tools\mingw64\bin\g++.exe</code>；以资源管理器里的位置为准。</p>
 <h2 id="topic-2">在设置里保存并验证</h2>
@@ -44,4 +46,4 @@ g++ --version</code></pre><p>已有绝对路径时，也可以单独验证它是
 
 <h2 id="topic-6">把一次错误保留下来做回归用例</h2>
 <p>保留加法程序的前两组数据，再做一次能识别错误的实验。临时把 <code>a + b</code> 改为 <code>a - b</code>，用输入 <code>2 3</code> 运行。实际输出应成为 <code>-1</code>，与期望的 <code>5</code> 不同。恢复加法并重新运行，结果应再次一致。</p><p>正式做题时，把触发问题的最小输入加到题目测试区，再保存用例。这样以后重构代码时，可以一键把原样例与反例一起运行。</p>
-</main><nav class="wrap pager" aria-label="章节导航"><a rel="prev" href="import.html">‹ 上一章：批量导入与重复提醒</a><a rel="next" href="backup.html">下一章：备份、恢复与启动问题 ›</a></nav></body></html>
+<nav class="pager" aria-label="章节导航"><a rel="prev" href="import.html">‹ 上一章：批量导入与重复提醒</a><a rel="next" href="backup.html">下一章：备份、恢复与启动问题 ›</a></nav></article></div></main><footer class="shell footer"><span><b>AlgoArchive</b> / 使用手册</span><a href="https://aqiw-source.github.io/AlgoArchive/" target="_blank" rel="noopener noreferrer">在线演示</a><a href="https://github.com/Aqiw-source/AlgoArchive/releases/latest" target="_blank" rel="noopener noreferrer">下载本地版</a></footer></body></html>

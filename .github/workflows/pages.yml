@@ -3,6 +3,15 @@ name: Deploy online demo
 on:
   push:
     branches: [main]
+    paths:
+      - "web/**"
+      - "demo/**"
+      - "licenses/**"
+      - "LICENSE"
+      - "DISCLAIMER.md"
+      - "THIRD_PARTY.txt"
+      - "scripts/build-demo.cjs"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:

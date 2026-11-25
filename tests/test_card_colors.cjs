@@ -59,17 +59,28 @@ async function main(){
         const existing=(await state())[collection];
         const records=[];
         for(let i=0;i<8;i++){
-          await page.locator(`.header-actions [data-new-${kind}]`).click();
-          const form=page.locator(`#${kind}-form`);
-          await form.locator(`[name="${field}"]`).fill(`Color QA ${i}`);
-          if(kind==="contest"){
-            await form.locator('[name="platform"]').fill("HDU");
-            await form.locator('[name="url"]').fill(`https://example.com/${mode}/${i}`);
-          }
-          await form.locator('[type="submit"]').click();
-          await page.waitForURL(new RegExp(`#${kind}/`));
-          records.push((await state())[collection].find(item=>item[field]===`Color QA ${i}`));
-          await page.goto(base+"#"+collection);await page.locator(`.${kind}-card`).first().waitFor();
+          const payload=kind==="contest"
+            ?{title:`Color QA ${i}`,platform:"HDU",url:`https://example.com/${mode}/${i}`}
+            :{name:`Color QA ${i}`,category:"Color QA",description:"",links:[]};
+          const result=await page.evaluate(async ({collection,payload})=>{
+            const csrf=document.querySelector('meta[name="csrf-token"]')?.content||"";
+            const response=await fetch(`/api/${collection}`,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify(payload)});
+            return {status:response.status,body:await response.json()};
+          },{collection,payload});
+          assert.ok([200,201].includes(result.status),`${mode}/${kind}: seed card through the API (${result.status})`);
+          records.push(result.body[kind]);
+        }
+        await page.evaluate(()=>{location.hash="#home";});await page.locator(".stats-grid").waitFor();
+        await page.evaluate(()=>{location.hash="#algorithms";});await page.locator(".algorithm-card").first().waitFor();
+        await page.evaluate(({collection})=>{location.hash="#"+collection;},{collection});
+        await page.locator(`.${kind}-card`).first().waitFor();
+        if(mode==="local"&&collection==="algorithms"){
+          await page.locator(".header-actions [data-new-algorithm]").click();
+          const form=page.locator("#algorithm-form");await form.locator('[name="name"]').fill("Color QA real form");
+          await form.locator('[type="submit"]').click();await page.waitForURL(/#algorithm\//);
+          const created=(await state()).algorithms.find(item=>item.name==="Color QA real form");
+          assert.equal(created.card_color,["blue","cyan","green","amber","rose","violet"][(existing.length+8)%6]);
+          await page.goto(base+"#algorithms");await page.locator(".algorithm-card").first().waitFor();
         }
         let before=await styles(kind);
         const colors=records.map(item=>before[item.id].background);
@@ -111,7 +122,7 @@ async function main(){
           await page.screenshot({path:path.join(output,`${mode}-${collection}-${width}.png`),fullPage:true});
         }
         await page.setViewportSize({width:1440,height:1000});
-        checks.push(`${mode}/${kind}: 8 real modal creations, six backgrounds/accents/decorations, wraparound, filter, mouse drag, rename, desktop/mobile`);
+        checks.push(`${mode}/${kind}: eight seeded cards render six tones, wraparound, filter, mouse drag, rename, desktop/mobile${mode==="local"&&collection==="algorithms"?"; one real create form":""}`);
       }
     }
     assert.deepEqual(errors,[]);

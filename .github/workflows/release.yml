@@ -9,16 +9,21 @@ permissions:
   contents: write
 
 jobs:
+  regression:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/regression.yml
+    with:
+      full_layout: true
+
   release:
+    needs: regression
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
       - name: Verify tag and application version
         shell: pwsh
         run: |
@@ -42,38 +47,6 @@ jobs:
           }
           New-Item -ItemType Directory -Path ".\runtime" -Force | Out-Null
           Expand-Archive -LiteralPath $archive -DestinationPath ".\runtime" -Force
-      - name: Backend tests
-        run: python -X utf8 -m unittest discover -s tests -v
-      - name: Frontend syntax
-        run: node --check web/app.js
-      - name: Install browser test dependency
-        run: npm install --no-save --package-lock=false --prefix .qa-deps playwright@1.62.1
-      - name: Editor lock browser regression
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: node tests/test_editor_lock.cjs
-      - name: Card color browser regression
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: node tests/test_card_colors.cjs
-      - name: Platform picker and sidebar artwork browser regression
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: node tests/test_platform_art.cjs
-      - name: Online demo tests
-        run: node --test tests/test_demo.cjs
-      - name: Local upgrade and background sync regression
-        shell: pwsh
-        env:
-          NODE_PATH: ${{ github.workspace }}/.qa-deps/node_modules
-        run: |
-          foreach ($test in @("test_local_upgrade", "test_background_sync", "test_modal_scroll", "test_view_layout", "test_image_preview", "test_study_ui")) {
-              node "tests/$test.cjs"
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          node --test tests/test_saved_problem_counts.cjs
-      - name: Verify native launcher dependencies
-        run: python -X utf8 scripts/verify-launcher.py AlgoArchive.exe
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
@@ -82,6 +55,19 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
           .\scripts\build-release.ps1 -Version $version
+      - name: Download and verify unchanged C++ compiler archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path ".\dist" -Force | Out-Null
+          $archive = Join-Path $env:RUNNER_TEMP "MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip"
+          $destination = Join-Path $env:GITHUB_WORKSPACE "dist\MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip"
+          Invoke-WebRequest -Uri "https://github.com/Aqiw-source/AlgoArchive/releases/download/v2.3.1/MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip" -OutFile $archive
+          $expected = "81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97"
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "C++ compiler archive SHA-256 mismatch: $actual" }
+          Copy-Item -LiteralPath $archive -Destination $destination
+          "$actual  MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip" |
+            Set-Content -LiteralPath "$destination.sha256" -Encoding ascii
       - name: Publish release assets
         shell: pwsh
         env:
@@ -93,7 +79,9 @@ jobs:
               "dist\AlgoArchive-$version-Windows-x64.zip",
               "dist\AlgoArchive-$version-Windows-x64.zip.sha256",
               "dist\AlgoArchive-$version-Windows-x64-Setup.exe",
-              "dist\AlgoArchive-$version-Windows-x64-Setup.exe.sha256"
+              "dist\AlgoArchive-$version-Windows-x64-Setup.exe.sha256",
+              "dist\MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip",
+              "dist\MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip.sha256"
           )
           $notes = ".github\release-notes\$version.md"
           gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
