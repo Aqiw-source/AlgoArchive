@@ -65,9 +65,12 @@ jobs:
           if ($actual -ne $expected) { throw "MinGW compiler archive SHA-256 mismatch: $actual" }
           $toolchainRoot = Join-Path $env:RUNNER_TEMP "algoarchive-mingw"
           Expand-Archive -LiteralPath $archive -DestinationPath $toolchainRoot -Force
-          $compiler = Get-ChildItem -LiteralPath $toolchainRoot -Filter "g++.exe" -Recurse -File | Select-Object -First 1
-          if (-not $compiler) { throw "Verified compiler archive has no g++.exe" }
+          $binaryArchive = Join-Path $toolchainRoot "x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z"
+          tar.exe -xf $binaryArchive -C $toolchainRoot
+          if ($LASTEXITCODE -ne 0) { throw "Cannot extract MinGW binary archive" }
+          $compiler = Get-Item -LiteralPath (Join-Path $toolchainRoot "mingw64\bin\g++.exe") -ErrorAction Stop
           $bin = $compiler.Directory.FullName
+          $bin | Add-Content -LiteralPath $env:GITHUB_PATH
           foreach ($name in @("windres.exe", "objdump.exe")) {
               if (-not (Test-Path -LiteralPath (Join-Path $bin $name) -PathType Leaf)) {
                   throw "Static toolchain is missing $name"

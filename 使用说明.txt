@@ -121,7 +121,9 @@ AlgoArchive.exe，或在该目录打开 PowerShell 并运行 .\start.bat；保�
 MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip。PowerShell 中运行
 Get-FileHash "<下载文件完整路径>" -Algorithm SHA256，确认输出与下列值一致：
 81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97
-摘要不一致时重新下载。右键 ZIP 并选择“全部提取”，解压到固定目录，在目录中
+摘要不一致时重新下载。先提取 ZIP，再用支持 7z 的解压工具将其中的
+x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z 完整解压到固定目录。
+另一个 src-*.tar.7z 是源码，运行时不用解压。在二次解压后的目录中
 找到 mingw64\bin\g++.exe。打开“设置 → 编译与运行”，填写此 g++.exe 的
 完整路径并保存，然后点“编译能力检查”，等待能力检查通过。
 

@@ -22,7 +22,7 @@
 <ol><li>下载 ZIP 后先核对 SHA-256。PowerShell 示例（如果文件名或下载目录不同，请相应修改路径）：<pre><code>Set-Location "$env:USERPROFILE\Downloads"
 (Get-FileHash -Algorithm SHA256 `
   .\MinGW-w64-GCC-8.1.0-Windows-x64-posix-seh-rt_v6-rev0.zip).Hash</code></pre>本附件已核验的摘要是 <code>81a7de2010a66fa1a17b328bc9b8d7534596fe294d078d2cf4b6b706b083af97</code>。忽略大小写比较应相同；摘要不一致时不要继续配置，请重新从 Release 下载。</li>
-<li>在资源管理器里右键 ZIP，选择「全部提取」，选一个固定位置，例如 <code>D:\Tools</code>。解压后在提取目录中找到 <code>mingw64\bin\g++.exe</code>；不要把 ZIP 路径或整个目录填进编译器框，也不要只复制 <code>g++.exe</code>。编译器要依赖同一工具链里的 bin、lib、libexec 等配套文件。</li>
+<li>先提取外层 ZIP，再用支持 7z 的解压工具，将 <code>x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z</code> 完整解压到固定位置，例如 <code>D:\Tools</code>。另一个 <code>src-*.tar.7z</code> 是源码，运行时不用解压。在二次解压后的目录找到 <code>mingw64\bin\g++.exe</code>；不要填写压缩包或目录，也不要只复制一个 exe。请保留 bin、lib、libexec 等配套目录。</li>
 <li>在资源管理器地址栏点击 <code>g++.exe</code> 所在文件夹并复制路径，再在末尾加上 <code>\g++.exe</code>。例如最终路径形如 <code>D:\Tools\mingw64\bin\g++.exe</code>。实际提取目录可能不同，以你的机器为准。</li></ol>
 <h2 id="topic-2">在设置里保存并验证</h2>
 <ol><li>在 Windows 本地版点左下角「设置」，再点「编译与运行」。也可使用这里的 <a data-settings-link href="../index.html#settings/compiler">前往编译器设置</a>。<span class="settings-link-fallback" hidden tabindex="-1">若此页面通过 file:// 单独打开，请在完整程序目录运行 <code>.\start.bat</code> 启动本地版，再用服务地址打开手册并使用设置链接。</span></li>
