@@ -563,7 +563,7 @@
   function problemTableActions(p) {
     const link=copyableURL(p.url);
     const href=safeURL(p.url),unavailable=href==='#'?' data-problem-origin-unavailable="true"':'';
-    return `<button type="button" class="text-link action-preview" data-preview-problem="${esc(p.id)}">${icon('search')}<span>预览</span></button><button type="button" class="text-link action-edit" data-open-problem="${esc(p.id)}">${icon('edit')}<span>编辑</span></button><a class="text-link action-origin" href="${href}" target="_blank" rel="noopener noreferrer"${unavailable}>${icon('external')}<span>原题</span></a>${link?`<button type="button" class="text-link action-copy" data-copy-problem-link="${esc(p.id)}">${icon('copy')}<span>复制链接</span></button>`:''}`;
+    return `<button type="button" class="text-link action-edit" data-open-problem="${esc(p.id)}">${icon('edit')}<span>编辑</span></button><a class="text-link action-origin" href="${href}" target="_blank" rel="noopener noreferrer"${unavailable}>${icon('external')}<span>原题</span></a>${link?`<button type="button" class="text-link action-copy" data-copy-problem-link="${esc(p.id)}">${icon('copy')}<span>复制链接</span></button>`:''}`;
   }
   function contestRelation(p) {
     if(!p.contest_id)return `<span class="relation-badge is-empty">${icon('trophy')}<span>未关联比赛</span></span>`;
@@ -2097,7 +2097,6 @@ return `<form id="compiler-settings-form" novalidate><div class="settings-sectio
     if(t.hasAttribute('data-problem-origin-unavailable')){e.preventDefault();toast('题目保存的链接不是可打开的网址。',true);}
     else if(t.hasAttribute('data-return-problem-list')){e.preventDefault();await returnFromProblemEditor();}
     else if(t.hasAttribute('data-nav')){e.preventDefault();await go(t.dataset.nav);}
-    else if(t.hasAttribute('data-preview-problem')){e.preventDefault();await openProblemPreview(t.dataset.previewProblem);}
     else if(t.hasAttribute('data-open-problem')){e.preventDefault();await go(`problem/${t.dataset.openProblem}`,{trigger:t});}
     else if(t.hasAttribute('data-select-code'))selectEditorCode();
     else if(t.hasAttribute('data-select-preview-code'))selectPreviewCode();

@@ -200,9 +200,9 @@ test("static build supports project subpaths without shipping local data", () =>
       assert.match(chapterHtml, /manual\.css\?v=handbook-2\.4\.0/);
     }
     const browse = fs.readFileSync(path.join(out, "guide/browse.html"), "utf8");
-    assert.match(browse, /题目行的「预览」按钮/);
+    assert.match(browse, /点击题目行的空白处查看代码/);
     assert.match(browse, /<kbd>Esc<\/kbd>/);
-    assert.match(browse, /回到原列表并保留搜索、筛选和滚动位置，焦点回到该行的「预览」按钮/);
+    assert.match(browse, /回到原列表并保留搜索、筛选和滚动位置，焦点回到题目行/);
     const shortcuts = fs.readFileSync(path.join(out, "shortcuts.html"), "utf8");
     assert.match(shortcuts, /v2\.4\.0/);
     assert.match(shortcuts, /关闭题目代码预览/);

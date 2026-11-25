@@ -12,6 +12,7 @@ $tests = @(
     "test_background_sync",
     "test_modal_scroll",
     "test_view_layout",
+    "test_table_width",
     "test_image_preview",
     "test_study_ui"
 )

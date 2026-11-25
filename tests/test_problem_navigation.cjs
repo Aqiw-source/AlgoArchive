@@ -80,10 +80,11 @@ async function main(){
     assert.equal(await title.getAttribute('target'),'_blank','the title remains an external link');
     assert.match(await title.getAttribute('href'),/^https:\/\/example\.org\/problem\//);
     assert.match(await title.getAttribute('rel'),/noopener/);
-    const preview=page.locator(`tr[data-problem-preview="${first}"] [data-preview-problem]`);
-    await preview.click();await page.locator('#modal[open] [data-problem-preview-dialog]').waitFor();
+    const previewRow=page.locator(`tr[data-problem-preview="${first}"]`);
+    assert.equal(await previewRow.locator('[data-preview-problem]').count(),0,'the explicit preview action is removed');
+    await previewRow.focus();await page.keyboard.press('Enter');await page.locator('#modal[open] [data-problem-preview-dialog]').waitFor();
     await page.keyboard.press('Escape');await page.locator('#modal[open]').waitFor({state:'detached'});
-    assert.equal(await page.evaluate(()=>document.activeElement?.dataset?.previewProblem||''),first,'Escape restores focus to the explicit preview action');
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset?.problemPreview||''),first,'Escape restores focus to the row preview trigger');
 
     await checkListRoundTrip('problems',true);
     await checkListRoundTrip('platform/codeforces');
@@ -128,7 +129,7 @@ async function main(){
     await page.waitForFunction(id=>document.activeElement?.dataset?.openProblem===id,nextId);
     assert.equal(await page.locator('#study-queue-items [data-open-problem]').first().getAttribute('data-open-problem'),nextId,'completion advances focus to the next matching pending problem');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,checks:['explicit preview and Escape focus restoration','external title link retained','filter, scroll and row focus restored on all-problems/platform/contest/algorithm routes','browser back restores list state and advances to the next pending row on completion','save-and-return focus advances through filtered problems, platform, contest and algorithm tables','completed home-queue item advances focus to the next matching pending problem','direct problem routes do not inherit an unrelated origin'],browser:await browser.version()},null,2));
+    console.log(JSON.stringify({passed:true,checks:['preview action removed while row keyboard preview and Escape focus restoration remain','external title link retained','filter, scroll and row focus restored on all-problems/platform/contest/algorithm routes','browser back restores list state and advances to the next pending row on completion','save-and-return focus advances through filtered problems, platform, contest and algorithm tables','completed home-queue item advances focus to the next matching pending problem','direct problem routes do not inherit an unrelated origin'],browser:await browser.version()},null,2));
   }finally{
     await browser?.close();child.kill();fs.writeFileSync(path.join(temp,'server.log'),logs);try{fs.rmSync(temp,{recursive:true,force:true});}catch(_){}
   }
